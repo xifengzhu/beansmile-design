@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://beansmile-design/schemas/findings.schema.json",
+  "title": "评审 findings",
+  "description": "两个只读评审 Agent 的统一返回结构。对应设计规范第 7.8 章。评审只返回本结构，由 Director 校验后落盘。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["reviewer", "artifact_version", "verdict", "findings"],
+  "properties": {
+    "reviewer": { "enum": ["standards", "visual"] },
+    "artifact_version": { "type": "string", "minLength": 1 },
+    "verdict": { "enum": ["pass", "fail"] },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "severity", "location", "evidence", "user_impact", "recommendation"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "severity": { "enum": ["blocker", "warning", "note"] },
+          "location": { "type": "string", "minLength": 1 },
+          "rule_id": { "type": ["string", "null"] },
+          "evidence": { "type": "string", "minLength": 1 },
+          "user_impact": { "type": "string", "minLength": 1 },
+          "recommendation": { "type": "string", "minLength": 1 }
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "$comment": "verdict=fail 时至少要有一条 blocker；verdict=pass 时不得有 blocker。",
+      "if": { "properties": { "verdict": { "const": "pass" } } },
+      "then": {
+        "properties": {
+          "findings": {
+            "not": { "contains": { "properties": { "severity": { "const": "blocker" } }, "required": ["severity"] } }
+          }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "verdict": { "const": "fail" } } },
+      "then": {
+        "properties": {
+          "findings": {
+            "contains": { "properties": { "severity": { "const": "blocker" } }, "required": ["severity"] }
+          }
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,33 @@
+{
+  "name": "beansmile-design",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "设计 Agent 系统运行时：依据库、校验、门禁与验收脚本",
+  "scripts": {
+    "check": "node scripts/validate-system.mjs",
+    "validate:rules": "node scripts/validate-rules.mjs",
+    "validate:context": "node scripts/validate-context.mjs",
+    "gate:diff": "node scripts/check-diff-gate.mjs",
+    "env:check": "node scripts/env-check.mjs",
+    "recall": "node scripts/recall-harness.mjs",
+    "init": "node scripts/init-project.mjs",
+    "apply": "node scripts/apply-patch.mjs",
+    "snapshot": "node scripts/snapshot.mjs",
+    "browser:check": "node scripts/browser-check.mjs",
+    "shot": "node scripts/screenshot.mjs",
+    "review:record": "node scripts/record-findings.mjs",
+    "review:aggregate": "node scripts/aggregate-reviews.mjs",
+    "accept": "node scripts/acceptance.mjs"
+  },
+  "dependencies": {
+    "ajv": "^8.17.1",
+    "ajv-formats": "^3.0.1",
+    "js-yaml": "^4.1.0",
+    "node-html-parser": "^6.1.13"
+  },
+  "devDependencies": {
+    "axe-core": "^4.12.1",
+    "playwright": "^1.61.1"
+  }
+}

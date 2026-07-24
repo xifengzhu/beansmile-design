@@ -1,0 +1,36 @@
+# 五个流程 Skill 的读写白名单清单
+# 校验 schema: skill-manifest.schema.json
+# 用途: Design Director 在合并每个 Skill 的 context 补丁前，做字段级 diff 门禁；
+#       只有落在 writes 白名单内的改动才被接受 (设计规范第 5.2 章)。
+# 读写路径的合法取值见 context.schema.json 的顶层字段。
+
+manifests:
+  - skill: requirements_research
+    reads: [project, brand, constraints]
+    writes: [users, goals, constraints, assumptions, stage]
+    produces:
+      - brief.md
+
+  - skill: ux_architecture
+    reads: [project, users, goals, constraints, decisions]
+    writes: [artifacts.flows, stage]
+    produces:
+      - flows.md
+
+  - skill: visual_system
+    reads: [project, brand, goals, users, constraints]
+    writes: [artifacts.tokens, decisions, stage]
+    produces:
+      - design-tokens.json
+
+  - skill: html_prototype
+    reads: [project, users, goals, brand, constraints, artifacts.flows, artifacts.tokens]
+    writes: [artifacts.prototype, assumptions, stage]
+    produces:
+      - prototype/index.html
+
+  - skill: decision_record
+    reads: [project, goals, users, brand, constraints, decisions, exceptions, assumptions]
+    writes: [decisions, exceptions, stage]
+    produces:
+      - decisions.md

@@ -1,0 +1,29 @@
+# blocker 样本清单：每个文件声明"故意植入"的 blocker 类别。
+# recall-harness.mjs 运行检测器，比对召回；clean.html 应零命中（无误报）。
+# browser_only: 该类别只能由浏览器运行时捕获（静态检测必然漏检），非降级环境才计入。
+fixtures:
+  - file: clean.html
+    injected: []
+  - file: contrast.html
+    injected: [low-contrast]
+  - file: contrast-css-class.html
+    injected: [low-contrast]
+  - file: keyboard.html
+    injected: [keyboard-unreachable]
+  - file: link-anchor-onclick.html
+    injected: [keyboard-unreachable]
+  - file: missing-state.html
+    injected: [missing-state]
+  - file: misattributed-error.html
+    injected: [missing-state]
+  - file: console-error.html
+    injected: [console-error]
+  - file: missing-stylesheet.html
+    injected: [console-error]
+  - file: runtime-error.html
+    injected: [console-error]
+    browser_only: [console-error]
+  - file: fake-reference.html
+    injected: [fake-reference]
+  - file: mixed.html
+    injected: [low-contrast, keyboard-unreachable, fake-reference]

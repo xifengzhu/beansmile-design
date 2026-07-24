@@ -1,0 +1,41 @@
+---
+name: visual-system
+id: visual_system
+description: 基于品牌、内容与情境提出 2-3 个真正不同的视觉方向，定义颜色/字体/间距/圆角/图标/层级/密度/动效/响应式令牌，用真实内容展示方向差异。对应设计规范第 7.4 章。产出 design-tokens.json。
+---
+
+# 视觉系统 Skill
+
+## 知识库（生成前必读，按此构建而非临场发挥）
+
+- `references/type-and-spacing.md`：字阶比率与档位、中文排版规则、字体栈、8pt 间距、网格/密度、圆角/阴影/动效令牌。
+- `references/color-system.md`：从品牌色展开 10 档色阶、语义令牌清单、60-30-10 用色纪律、对比度预检表、深色模式、廉价感自查。
+- `references/direction-library.md`：8 个风格方向（人格/适用场景/令牌起点/关键手法）与方向提案的交付格式。
+
+产出的 `design-tokens.json` 必须含**原始层 + 语义层**两层；方向提案必须满足 direction-library.md 的交付格式（真正不同的方向 ≥ 2 项本质差异，同一关键页面真实内容对比渲染）。
+
+## 白名单（由 Director 做字段级 diff 门禁强制）
+
+- reads: `project`, `brand`, `goals`, `users`, `constraints`
+- writes: `artifacts.tokens`, `decisions`, `stage`
+- produces: `design-tokens.json`
+
+## 职责
+
+- 提出 2–3 个**真正不同**的视觉方向（专业模式），快速模式采用一个合理方向。
+- 定义令牌：颜色、字体、间距、圆角、图标、层级、密度、动效、响应式断点。
+- 用接近真实的内容与关键页面展示方向差异，而非占位文。
+- 保持品牌语言一致，同时允许不同平台采用原生控件与行为（规范 11）。
+
+## 硬性约束（依据库）
+
+- 颜色配比须能满足 `wcag-1.4.3-contrast-minimum`（文本≥4.5:1/大字≥3:1）与 `wcag-1.4.11-non-text-contrast`（≥3:1）。生成令牌时预先自检对比度。
+- 不单独依赖颜色传达信息（`wcag-1.4.1-use-of-color`）。
+- 字号是设计建议非 WCAG 强制值：Web 正文可用 16px 起点，但须结合字体/语言/密度验证（规范 10.3）。
+- 色彩联想只作低强度启发，不用"某色必然导致某心理结果"的绝对结论（规范 10.4）。
+
+## 输出契约
+
+- 文件 `design-tokens.json`：结构化令牌（含 color/type/space/radius/elevation/motion/breakpoints）。
+- 视觉方向预览 + 选定方向说明（供确认门 C）。
+- 补丁：登记 `artifacts.tokens`，把选定方向及其依据写入 `decisions`（引用相关 `rule_id`），`stage` 推进到 `visual`。

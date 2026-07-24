@@ -1,0 +1,14 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><title>运行时异常</title></head>
+<body style="color:#111827;background-color:#ffffff">
+  <main>
+    <h1>仪表盘</h1>
+    <!-- 植入：语法合法但运行时抛 ReferenceError（doesNotExist 未定义）。
+         静态检测无法发现，必须由浏览器控制台捕获（browser_only）。 -->
+    <script>
+      doesNotExist();
+    </script>
+  </main>
+</body>
+</html>

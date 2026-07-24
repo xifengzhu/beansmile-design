@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <!-- 植入 3：伪造引用 -->
+  <meta name="rule-refs" content="wcag-0.0.0-fabricated">
+  <title>多重问题</title>
+</head>
+<body style="color:#111827;background-color:#ffffff">
+  <main>
+    <h1>促销页</h1>
+    <!-- 植入 1：低对比度文字 -->
+    <p style="color:#cccccc;background-color:#ffffff">限时优惠，仅剩少量名额。</p>
+    <!-- 植入 2：div 冒充按钮，键盘不可达 -->
+    <div onclick="buy()">立即购买</div>
+  </main>
+</body>
+</html>

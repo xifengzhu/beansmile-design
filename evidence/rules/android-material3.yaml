@@ -1,0 +1,216 @@
+# Material Design 3 核心规则卡（Android）
+# 校验 schema: docs/superpowers/specs/schemas/rule-card.schema.json
+# 对应设计规范第 10.1 第 2 层、第 11 章（Android 适配）、第 6.3 章（HTML 保真度边界）。
+
+rules:
+  - id: material-target-size-48dp
+    title: 触控目标至少 48×48dp
+    rule: 可点击控件命中区域不小于 48×48dp，相邻目标间距充足。
+    publisher: Google
+    source_url: https://m3.material.io/foundations/accessible-design/accessibility-basics
+    source_version: Material Design 3
+    last_verified: "2026-07-24"
+    platforms: [android]
+    scope: [target-size, touch, components]
+    strength: required
+    evidence_grade: A
+    rationale: Material 无障碍基线，过小目标导致误触与可达性问题。
+    check_method: mixed
+
+  - id: material-navigation-components
+    title: 使用 Material 导航组件
+    rule: 按信息层级选用 navigation bar/rail/drawer，导航项与当前位置状态清晰。
+    publisher: Google
+    source_url: https://m3.material.io/components/navigation-bar/overview
+    source_version: Material Design 3
+    last_verified: "2026-07-24"
+    platforms: [android]
+    scope: [navigation, structure]
+    strength: recommended
+    evidence_grade: A
+    rationale: 标准导航组件带来一致的可预期体验与无障碍支持。
+    check_method: manual
+
+  - id: material-predictive-back
+    title: 支持系统返回与预测式返回
+    rule: 正确响应系统返回手势/按钮，适配预测式返回动画，不劫持或吞掉返回事件。
+    publisher: Google
+    source_url: https://developer.android.com/guide/navigation/predictive-back-gesture
+    source_version: Android Developers
+    last_verified: "2026-07-24"
+    platforms: [android]
+    scope: [gesture, navigation, back]
+    strength: recommended
+    evidence_grade: A
+    rationale: 系统返回是 Android 核心交互，破坏它会造成导航混乱。
+    check_method: manual
+    exceptions:
+      - 原生返回行为无法在 HTML 忠实表达，仅作设计意图判定并转入人工清单（规范 6.3）。
+
+  - id: material-dynamic-color
+    title: 适配动态颜色（Material You）
+    rule: 支持基于系统主题的动态取色，同时保证语义色与对比在各配色下成立。
+    publisher: Google
+    source_url: https://m3.material.io/styles/color/system/overview
+    source_version: Material Design 3
+    last_verified: "2026-07-24"
+    platforms: [android]
+    scope: [color, theming]
+    strength: recommended
+    evidence_grade: B
+    rationale: Material You 让应用融入系统主题，但需守住对比底线。
+    check_method: manual
+
+  - id: material-edge-to-edge
+    title: 边到边布局与系统栏避让
+    rule: 采用边到边布局并正确处理状态栏/导航栏 insets，内容不被系统栏遮挡。
+    publisher: Google
+    source_url: https://m3.material.io/foundations/layout/understanding-layout/overview
+    source_version: Material Design 3
+    last_verified: "2026-07-24"
+    platforms: [android]
+    scope: [layout, system-bars, safe-area]
+    strength: recommended
+    evidence_grade: A
+    rationale: insets 处理不当会导致内容被系统栏压住或误触。
+    check_method: manual
+
+  - id: material-state-layers
+    title: 交互提供状态层反馈
+    rule: 可交互组件提供 hover/focus/pressed 等状态层（如涟漪）反馈，状态可辨识。
+    publisher: Google
+    source_url: https://m3.material.io/foundations/interaction/states/overview
+    source_version: Material Design 3
+    last_verified: "2026-07-24"
+    platforms: [android]
+    scope: [interaction, feedback, states]
+    strength: recommended
+    evidence_grade: A
+    rationale: 状态反馈让用户确认操作被识别，缺失会显得无响应。
+    check_method: manual
+
+  - id: material-typography-roles
+    title: 使用 M3 字体角色体系
+    rule: 文本采用 M3 字体角色（display/headline/title/body/label 各三档），同角色同场景，不随意造字号。
+    publisher: Google
+    source_url: https://m3.material.io/styles/typography/applying-type
+    source_version: Material Design 3
+    last_verified: "2026-07-24"
+    platforms: [android]
+    scope: [typography, hierarchy]
+    strength: recommended
+    evidence_grade: A
+    rationale: 角色化字体体系保证层级一致并与系统字体缩放兼容。
+    check_method: manual
+
+  - id: material-top-app-bar
+    title: 顶部应用栏遵循规范
+    rule: 顶栏含页面标题、可选导航图标与至多 2–3 个动作图标；滚动行为（固定/收起）全应用一致。
+    publisher: Google
+    source_url: https://m3.material.io/components/top-app-bar/overview
+    source_version: Material Design 3
+    last_verified: "2026-07-24"
+    platforms: [android]
+    scope: [navigation, app-bar, structure]
+    strength: recommended
+    evidence_grade: A
+    rationale: 顶栏是页面定位与全局动作的稳定锚点。
+    check_method: manual
+
+  - id: material-buttons-hierarchy
+    title: 按钮层级 filled/tonal/outlined/text
+    rule: 按重要性递减使用 filled、tonal、outlined、text 按钮，一屏一个 filled 主按钮，同组按钮显著度不并列最高。
+    publisher: Google
+    source_url: https://m3.material.io/components/buttons/overview
+    source_version: Material Design 3
+    last_verified: "2026-07-24"
+    platforms: [android]
+    scope: [components, buttons, hierarchy]
+    strength: recommended
+    evidence_grade: B
+    rationale: 按钮显著度体系直接决定用户对主路径的辨识。
+    check_method: manual
+
+  - id: material-fab-single
+    title: FAB 承载唯一主动作
+    rule: 悬浮操作按钮只承载当前页面最主要的建设性动作，一屏至多一个，不用于次要或破坏性操作。
+    publisher: Google
+    source_url: https://m3.material.io/components/floating-action-button/overview
+    source_version: Material Design 3
+    last_verified: "2026-07-24"
+    platforms: [android]
+    scope: [components, fab, hierarchy]
+    strength: recommended
+    evidence_grade: A
+    rationale: FAB 的强视觉权重被滥用时页面焦点失效。
+    check_method: manual
+
+  - id: material-text-fields
+    title: 文本框遵循 filled/outlined 规范
+    rule: 输入框用 M3 filled 或 outlined 样式之一并全应用统一；标签、支持文本、错误信息位置与状态结构符合规范。
+    publisher: Google
+    source_url: https://m3.material.io/components/text-fields/overview
+    source_version: Material Design 3
+    last_verified: "2026-07-24"
+    platforms: [android]
+    scope: [forms, components, states]
+    strength: recommended
+    evidence_grade: A
+    rationale: 规范的输入框结构承载错误提示与无障碍关联。
+    check_method: manual
+
+  - id: material-elevation-levels
+    title: 用规范高度层级表达层次
+    rule: 表面高度使用 M3 elevation 档位（0–5 级），配合色调表面变化表达层次，不用任意阴影值。
+    publisher: Google
+    source_url: https://m3.material.io/styles/elevation/overview
+    source_version: Material Design 3
+    last_verified: "2026-07-24"
+    platforms: [android]
+    scope: [elevation, color, hierarchy]
+    strength: recommended
+    evidence_grade: B
+    rationale: 一致的高度体系让层叠关系可预期。
+    check_method: manual
+
+  - id: material-shape-scale
+    title: 圆角遵循 shape scale
+    rule: 组件圆角使用 M3 shape scale 档位（none–full），同类组件同档，不逐组件自定义圆角。
+    publisher: Google
+    source_url: https://m3.material.io/styles/shape/overview-principles
+    source_version: Material Design 3
+    last_verified: "2026-07-24"
+    platforms: [android]
+    scope: [shape, components, consistency]
+    strength: recommended
+    evidence_grade: B
+    rationale: 圆角档位混乱是组件不一致最直观的暴露点。
+    check_method: manual
+
+  - id: material-dialogs-critical
+    title: 对话框仅用于需要决策的信息
+    rule: Dialog 只用于必须用户决策或确认的关键信息；轻量反馈用 snackbar，复杂任务用页面而非对话框堆叠。
+    publisher: Google
+    source_url: https://m3.material.io/components/dialogs/overview
+    source_version: Material Design 3
+    last_verified: "2026-07-24"
+    platforms: [android]
+    scope: [modal, dialogs, flows]
+    strength: recommended
+    evidence_grade: A
+    rationale: 对话框滥用打断心流并稀释真正关键的确认。
+    check_method: manual
+
+  - id: material-snackbar-feedback
+    title: 轻量结果反馈用 snackbar
+    rule: 操作结果的轻量反馈用 snackbar（可含一个动作，如撤销），不打断流程，不用对话框代替。
+    publisher: Google
+    source_url: https://m3.material.io/components/snackbar/overview
+    source_version: Material Design 3
+    last_verified: "2026-07-24"
+    platforms: [android]
+    scope: [feedback, components, states]
+    strength: recommended
+    evidence_grade: B
+    rationale: snackbar 在不打断的前提下确认操作结果，是 Android 用户的默认预期。
+    check_method: manual

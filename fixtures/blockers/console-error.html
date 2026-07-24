@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><title>脚本错误</title></head>
+<body style="color:#111827;background-color:#ffffff">
+  <main>
+    <h1>首页</h1>
+    <!-- 植入：内联脚本存在语法错误，运行时会抛控制台错误 -->
+    <script>
+      function init( {
+        console.log('missing paren');
+      }
+    </script>
+  </main>
+</body>
+</html>

@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="rule-refs" content="wcag-1.4.3-contrast-minimum, web-form-label-association">
+  <title>登录 · 干净基线</title>
+</head>
+<body style="color:#111827;background-color:#ffffff">
+  <main>
+    <h1>登录</h1>
+    <form>
+      <label for="email">邮箱</label>
+      <input id="email" name="email" type="email" autocomplete="email" required>
+      <div role="alert" id="email-error"></div>
+      <button type="submit">登录</button>
+    </form>
+  </main>
+  <script>
+    document.querySelector('form').addEventListener('submit', function (e) {
+      e.preventDefault();
+    });
+  </script>
+</body>
+</html>

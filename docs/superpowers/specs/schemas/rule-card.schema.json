@@ -1,0 +1,80 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://beansmile-design/schemas/rule-card.schema.json",
+  "title": "依据库规则卡 (rule card)",
+  "description": "依据库中每条规则的结构。对应设计规范第 10.2 章。系统不得伪造 source_url、source_version 或 last_verified。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "title",
+    "rule",
+    "publisher",
+    "source_url",
+    "source_version",
+    "last_verified",
+    "platforms",
+    "scope",
+    "strength",
+    "evidence_grade",
+    "rationale",
+    "check_method"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "description": "全库唯一标识，decisions.md 通过它引用规则。",
+      "pattern": "^[a-z0-9]+(?:[-.][a-z0-9]+)*$"
+    },
+    "title": { "type": "string", "minLength": 1 },
+    "rule": {
+      "type": "string",
+      "minLength": 1,
+      "description": "规则的可执行陈述：满足什么条件算通过。"
+    },
+    "publisher": { "type": "string", "minLength": 1 },
+    "source_url": {
+      "type": "string",
+      "format": "uri",
+      "description": "官方来源可解析地址；离线时仍须为真实地址并配合 last_verified。"
+    },
+    "source_version": { "type": "string", "minLength": 1 },
+    "last_verified": {
+      "type": "string",
+      "format": "date",
+      "description": "最后核实日期 YYYY-MM-DD，不得伪造。"
+    },
+    "platforms": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "enum": ["web", "mini_program", "ios", "android", "mobile_web"] }
+    },
+    "scope": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "description": "适用范围标签，如 color、keyboard、focus、forms、reflow、target-size。",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "strength": {
+      "enum": ["required", "recommended", "heuristic"],
+      "description": "规则强制力，与 evidence_grade 按 10.2 表合成裁决。"
+    },
+    "evidence_grade": {
+      "enum": ["A", "B", "C", "D"],
+      "description": "证据质量，与 strength 独立。"
+    },
+    "rationale": { "type": "string", "minLength": 1 },
+    "check_method": { "enum": ["automated", "manual", "mixed"] },
+    "exceptions": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "conflicts_with": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "type": "string", "minLength": 1 }
+    }
+  }
+}

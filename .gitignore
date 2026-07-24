@@ -1,3 +1,5 @@
 .superpowers/
 /work/
 /outputs/
+node_modules/
+fixtures/blockers/audit/

@@ -1,0 +1,336 @@
+# WCAG 2.2 AA 核心规则卡
+# 校验 schema: docs/superpowers/specs/schemas/rule-card.schema.json
+# 对应设计规范第 10.1（来源分层第 1 层：硬性无障碍）、10.2（规则卡结构）。
+# 全部 strength=required：WCAG AA 是硬性要求，仅法律/安全（10.1 更高层）可豁免。
+# source_url 均为 w3.org 稳定锚点；last_verified 为实际核实日期，不得伪造。
+
+rules:
+  - id: wcag-1.1.1-non-text-content
+    title: 非文本内容有等效替代
+    rule: 所有承载信息的图片、图标、图表提供等效文本替代；纯装饰元素用空 alt 或 aria-hidden 移出无障碍树。
+    publisher: W3C
+    source_url: https://www.w3.org/TR/WCAG22/#non-text-content
+    source_version: WCAG 2.2
+    last_verified: "2026-07-24"
+    platforms: [web, mobile_web]
+    scope: [images, alt-text, semantics]
+    strength: required
+    evidence_grade: A
+    rationale: 无替代文本时屏幕阅读器用户无法获取图像信息。
+    check_method: mixed
+    exceptions:
+      - 纯装饰、格式化或不可见的非文本内容可用空替代，但必须显式标记为装饰。
+
+  - id: wcag-1.3.1-info-and-relationships
+    title: 信息与关系用语义表达
+    rule: 视觉上呈现的结构（标题、列表、表格、表单标签关联）通过语义 HTML 或 ARIA 编程可确定，不能仅靠视觉样式。
+    publisher: W3C
+    source_url: https://www.w3.org/TR/WCAG22/#info-and-relationships
+    source_version: WCAG 2.2
+    last_verified: "2026-07-24"
+    platforms: [web, mobile_web]
+    scope: [semantics, structure, forms]
+    strength: required
+    evidence_grade: A
+    rationale: 结构仅靠视觉呈现时，辅助技术用户无法感知内容关系。
+    check_method: mixed
+
+  - id: wcag-1.4.1-use-of-color
+    title: 不单独依赖颜色传达信息
+    rule: 颜色不作为传达信息、指示动作、提示响应或区分视觉元素的唯一手段；须叠加文本、图标或形状等第二线索。
+    publisher: W3C
+    source_url: https://www.w3.org/TR/WCAG22/#use-of-color
+    source_version: WCAG 2.2
+    last_verified: "2026-07-24"
+    platforms: [web, mobile_web]
+    scope: [color, forms, status]
+    strength: required
+    evidence_grade: A
+    rationale: 色觉障碍用户无法仅凭颜色区分状态或必填项。
+    check_method: manual
+
+  - id: wcag-1.4.3-contrast-minimum
+    title: 文本对比度至少 4.5:1
+    rule: 常规文本对比度≥4.5:1；大号文本（≥18.66px 粗体或≥24px）≥3:1；纯装饰与禁用态文本除外。
+    publisher: W3C
+    source_url: https://www.w3.org/TR/WCAG22/#contrast-minimum
+    source_version: WCAG 2.2
+    last_verified: "2026-07-24"
+    platforms: [web, mobile_web]
+    scope: [color, contrast, text]
+    strength: required
+    evidence_grade: A
+    rationale: 对比不足时低视力与强光环境用户无法阅读文本。
+    check_method: automated
+    exceptions:
+      - 非活动 UI 组件、纯装饰文本、logo 中的文字不受此限。
+
+  - id: wcag-1.4.4-resize-text
+    title: 文本可放大至 200% 不丢失内容
+    rule: 文本放大到 200% 时内容与功能不丢失、不裁切、不重叠，无需横向滚动阅读正文。
+    publisher: W3C
+    source_url: https://www.w3.org/TR/WCAG22/#resize-text
+    source_version: WCAG 2.2
+    last_verified: "2026-07-24"
+    platforms: [web, mobile_web]
+    scope: [text, zoom, reflow]
+    strength: required
+    evidence_grade: A
+    rationale: 低视力用户需放大文本，固定尺寸布局会导致内容不可读。
+    check_method: mixed
+
+  - id: wcag-1.4.10-reflow
+    title: 内容在 320px 宽下重排无横向滚动
+    rule: 内容在等效 320 CSS px 宽度下可重排呈现，除数据表/图等必需二维内容外不产生横向滚动。
+    publisher: W3C
+    source_url: https://www.w3.org/TR/WCAG22/#reflow
+    source_version: WCAG 2.2
+    last_verified: "2026-07-24"
+    platforms: [web, mobile_web]
+    scope: [reflow, responsive, overflow]
+    strength: required
+    evidence_grade: A
+    rationale: 放大或小屏时横向滚动阅读会严重损害可用性。
+    check_method: mixed
+    exceptions:
+      - 需要二维布局才能理解的内容（数据表、复杂图、地图）可保留横向滚动。
+
+  - id: wcag-1.4.11-non-text-contrast
+    title: 非文本元素对比度至少 3:1
+    rule: UI 组件（输入框边界、图标、焦点指示）及传达信息的图形部件与相邻颜色对比度≥3:1。
+    publisher: W3C
+    source_url: https://www.w3.org/TR/WCAG22/#non-text-contrast
+    source_version: WCAG 2.2
+    last_verified: "2026-07-24"
+    platforms: [web, mobile_web]
+    scope: [color, contrast, components, focus]
+    strength: required
+    evidence_grade: A
+    rationale: 边界与图标对比不足时用户难以识别可交互控件。
+    check_method: mixed
+
+  - id: wcag-1.4.12-text-spacing
+    title: 文本间距覆盖后不丢失内容
+    rule: 用户覆盖行高至 1.5 倍、段间距 2 倍、字间距 0.12 倍、词间距 0.16 倍字号时，内容与功能不丢失。
+    publisher: W3C
+    source_url: https://www.w3.org/TR/WCAG22/#text-spacing
+    source_version: WCAG 2.2
+    last_verified: "2026-07-24"
+    platforms: [web, mobile_web]
+    scope: [text, spacing]
+    strength: required
+    evidence_grade: A
+    rationale: 阅读障碍用户常需增大文本间距，固定高度容器会裁切文本。
+    check_method: mixed
+
+  - id: wcag-1.4.13-content-on-hover-or-focus
+    title: 悬停/聚焦浮层可关闭可悬停可持续
+    rule: 悬停或聚焦触发的额外内容（提示、弹出）须可用 Esc 关闭、指针可移入其上、且在悬停/聚焦保持时不消失。
+    publisher: W3C
+    source_url: https://www.w3.org/TR/WCAG22/#content-on-hover-or-focus
+    source_version: WCAG 2.2
+    last_verified: "2026-07-24"
+    platforms: [web, mobile_web]
+    scope: [hover, focus, tooltip]
+    strength: required
+    evidence_grade: A
+    rationale: 浮层不可控会遮挡内容或对放大镜用户不可达。
+    check_method: manual
+
+  - id: wcag-2.1.1-keyboard
+    title: 所有功能键盘可操作
+    rule: 所有交互功能可仅用键盘完成，无需特定时序按键；不引入鼠标专属操作。
+    publisher: W3C
+    source_url: https://www.w3.org/TR/WCAG22/#keyboard
+    source_version: WCAG 2.2
+    last_verified: "2026-07-24"
+    platforms: [web, mobile_web]
+    scope: [keyboard, interaction]
+    strength: required
+    evidence_grade: A
+    rationale: 键盘用户与多数辅助技术依赖键盘操作全部功能。
+    check_method: mixed
+
+  - id: wcag-2.1.2-no-keyboard-trap
+    title: 无键盘陷阱
+    rule: 键盘焦点可移入的组件也能仅用键盘移出；如需非 Tab 方式退出须提前告知。
+    publisher: W3C
+    source_url: https://www.w3.org/TR/WCAG22/#no-keyboard-trap
+    source_version: WCAG 2.2
+    last_verified: "2026-07-24"
+    platforms: [web, mobile_web]
+    scope: [keyboard, focus, modal]
+    strength: required
+    evidence_grade: A
+    rationale: 焦点被困住会使键盘用户无法继续操作页面。
+    check_method: mixed
+
+  - id: wcag-2.4.3-focus-order
+    title: 焦点顺序符合含义与操作
+    rule: 可聚焦元素的 Tab 顺序与视觉/逻辑阅读顺序一致，保持内容含义与可操作性。
+    publisher: W3C
+    source_url: https://www.w3.org/TR/WCAG22/#focus-order
+    source_version: WCAG 2.2
+    last_verified: "2026-07-24"
+    platforms: [web, mobile_web]
+    scope: [keyboard, focus, order]
+    strength: required
+    evidence_grade: A
+    rationale: 焦点乱序会打乱理解流程，尤其在表单与对话框中。
+    check_method: manual
+
+  - id: wcag-2.4.4-link-purpose-in-context
+    title: 链接目的可从上下文判断
+    rule: 每个链接的目的可由链接文本本身或其编程可确定的上下文判断，避免孤立的"点此""更多"。
+    publisher: W3C
+    source_url: https://www.w3.org/TR/WCAG22/#link-purpose-in-context
+    source_version: WCAG 2.2
+    last_verified: "2026-07-24"
+    platforms: [web, mobile_web]
+    scope: [links, semantics]
+    strength: required
+    evidence_grade: A
+    rationale: 屏幕阅读器用户常脱离上下文浏览链接列表。
+    check_method: mixed
+
+  - id: wcag-2.4.6-headings-and-labels
+    title: 标题与标签具描述性
+    rule: 标题和表单标签清楚描述其主题或用途，不使用空泛或误导文案。
+    publisher: W3C
+    source_url: https://www.w3.org/TR/WCAG22/#headings-and-labels
+    source_version: WCAG 2.2
+    last_verified: "2026-07-24"
+    platforms: [web, mobile_web]
+    scope: [semantics, forms, headings]
+    strength: required
+    evidence_grade: A
+    rationale: 描述性标题与标签帮助用户定位与理解内容。
+    check_method: mixed
+
+  - id: wcag-2.4.7-focus-visible
+    title: 键盘焦点可见
+    rule: 任何键盘可聚焦元素在获得焦点时有清晰可见的焦点指示，不得移除且不被完全遮挡。
+    publisher: W3C
+    source_url: https://www.w3.org/TR/WCAG22/#focus-visible
+    source_version: WCAG 2.2
+    last_verified: "2026-07-24"
+    platforms: [web, mobile_web]
+    scope: [keyboard, focus]
+    strength: required
+    evidence_grade: A
+    rationale: 无可见焦点时键盘用户不知当前位置。
+    check_method: mixed
+
+  - id: wcag-2.4.11-focus-not-obscured-minimum
+    title: 聚焦元素不被完全遮挡
+    rule: 元素获得键盘焦点时，不被作者创建的粘性头/底栏等内容完全遮挡（至少部分可见）。
+    publisher: W3C
+    source_url: https://www.w3.org/TR/WCAG22/#focus-not-obscured-minimum
+    source_version: WCAG 2.2
+    last_verified: "2026-07-24"
+    platforms: [web, mobile_web]
+    scope: [focus, sticky, overflow]
+    strength: required
+    evidence_grade: A
+    rationale: WCAG 2.2 新增；粘性栏常把聚焦控件完全盖住，键盘用户失去定位。
+    check_method: manual
+
+  - id: wcag-2.5.3-label-in-name
+    title: 可见标签包含在可访问名称中
+    rule: 含可见文本标签的控件，其可访问名称须包含该可见文本，保证语音控制可用。
+    publisher: W3C
+    source_url: https://www.w3.org/TR/WCAG22/#label-in-name
+    source_version: WCAG 2.2
+    last_verified: "2026-07-24"
+    platforms: [web, mobile_web]
+    scope: [forms, semantics, voice]
+    strength: required
+    evidence_grade: A
+    rationale: 语音控制用户念出可见标签，名称不匹配则无法激活控件。
+    check_method: mixed
+
+  - id: wcag-2.5.8-target-size-minimum
+    title: 触控目标至少 24×24 CSS px
+    rule: 指针目标尺寸≥24×24 CSS px，或间距足够使 24px 判定圆不重叠；行内链接、等价替代等除外。
+    publisher: W3C
+    source_url: https://www.w3.org/TR/WCAG22/#target-size-minimum
+    source_version: WCAG 2.2
+    last_verified: "2026-07-24"
+    platforms: [web, mobile_web]
+    scope: [target-size, touch, components]
+    strength: required
+    evidence_grade: A
+    rationale: WCAG 2.2 新增；目标过小导致运动障碍与触屏用户误触。
+    check_method: mixed
+    exceptions:
+      - 行内文本链接、由用户代理决定尺寸、或存在等价大目标时可豁免。
+
+  - id: wcag-3.2.1-on-focus
+    title: 聚焦不触发上下文变化
+    rule: 组件获得焦点时不自动引发上下文变化（打开新窗口、跳转、提交、移动焦点）。
+    publisher: W3C
+    source_url: https://www.w3.org/TR/WCAG22/#on-focus
+    source_version: WCAG 2.2
+    last_verified: "2026-07-24"
+    platforms: [web, mobile_web]
+    scope: [focus, interaction]
+    strength: required
+    evidence_grade: A
+    rationale: 聚焦即跳转会使键盘用户迷失方向。
+    check_method: manual
+
+  - id: wcag-3.3.1-error-identification
+    title: 输入错误被识别并文字说明
+    rule: 自动检测到输入错误时，以文本明确指出出错项并描述错误内容，不仅靠颜色或图标。
+    publisher: W3C
+    source_url: https://www.w3.org/TR/WCAG22/#error-identification
+    source_version: WCAG 2.2
+    last_verified: "2026-07-24"
+    platforms: [web, mobile_web]
+    scope: [forms, errors, status]
+    strength: required
+    evidence_grade: A
+    rationale: 用户须知道哪一项出错及原因才能改正。
+    check_method: mixed
+
+  - id: wcag-3.3.2-labels-or-instructions
+    title: 表单提供标签或说明
+    rule: 需要用户输入的控件提供可见标签或必要说明（格式、必填等）。
+    publisher: W3C
+    source_url: https://www.w3.org/TR/WCAG22/#labels-or-instructions
+    source_version: WCAG 2.2
+    last_verified: "2026-07-24"
+    platforms: [web, mobile_web]
+    scope: [forms, labels]
+    strength: required
+    evidence_grade: A
+    rationale: 缺少标签或说明时用户不知如何正确填写。
+    check_method: mixed
+
+  - id: wcag-3.3.3-error-suggestion
+    title: 提供纠错建议
+    rule: 检测到输入错误且已知修正方式时，向用户提供纠正建议（除非危及安全或用途）。
+    publisher: W3C
+    source_url: https://www.w3.org/TR/WCAG22/#error-suggestion
+    source_version: WCAG 2.2
+    last_verified: "2026-07-24"
+    platforms: [web, mobile_web]
+    scope: [forms, errors]
+    strength: required
+    evidence_grade: A
+    rationale: 仅说"出错"而不给建议会让用户反复试错。
+    check_method: manual
+
+  - id: wcag-4.1.2-name-role-value
+    title: 控件具名称、角色、值
+    rule: 所有 UI 组件的名称、角色可编程确定；状态、属性、值可编程设置并在变化时通知辅助技术。
+    publisher: W3C
+    source_url: https://www.w3.org/TR/WCAG22/#name-role-value
+    source_version: WCAG 2.2
+    last_verified: "2026-07-24"
+    platforms: [web, mobile_web]
+    scope: [semantics, aria, components]
+    strength: required
+    evidence_grade: A
+    rationale: 名称/角色/值缺失时辅助技术无法呈现或操作自定义控件。
+    check_method: mixed

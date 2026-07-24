@@ -1,0 +1,160 @@
+# 设计工艺启发规则卡（排版 / 层级 / 留白 / 反馈）
+# 校验 schema: docs/superpowers/specs/schemas/rule-card.schema.json
+# 对应设计规范第 10.1 第 5 层（成熟可用性原则与领域研究）。全部 strength=heuristic：
+# 可被更高等级证据或明确品牌/项目要求覆盖（10.2 合成表），但覆盖须记录。
+# 这些规则支撑 skills/*/references/ 知识库中的工艺基准，为其提供可追溯来源。
+
+rules:
+  - id: craft-line-length
+    title: 正文行长控制在可读区间
+    rule: 正文行长不超过 80 西文字符 / 40 汉字（WCAG 1.4.8 AAA 上限）；本项目建议区间为西文 45–75 字符、中文 20–35 汉字，用容器 max-width 收敛。
+    publisher: W3C
+    source_url: https://www.w3.org/TR/WCAG22/#visual-presentation
+    source_version: WCAG 2.2 (1.4.8 Visual Presentation, AAA)
+    last_verified: "2026-07-24"
+    platforms: [web, mobile_web, ios, android, mini_program]
+    scope: [typography, readability, layout]
+    strength: heuristic
+    evidence_grade: A
+    rationale: 行过长回行时视线易迷失，行过短打断阅读节奏；AAA 条款给出硬上限，项目区间为其内的排版建议。
+    check_method: mixed
+
+  - id: craft-line-spacing
+    title: 正文行距与字号匹配
+    rule: 正文行距至少 1.5 倍字号（WCAG 1.4.8 AAA 基线）；中文正文因方块字无升降部建议 1.6–1.8（项目排版建议）。标题行距随字号增大递减。
+    publisher: W3C
+    source_url: https://www.w3.org/TR/WCAG22/#visual-presentation
+    source_version: WCAG 2.2 (1.4.8 Visual Presentation, AAA)
+    last_verified: "2026-07-24"
+    platforms: [web, mobile_web, ios, android, mini_program]
+    scope: [typography, readability]
+    strength: heuristic
+    evidence_grade: A
+    rationale: 行距不足文本发闷、过大行间失联；中文上调为基于字形结构的项目换算。
+    check_method: mixed
+
+  - id: craft-letterspacing
+    title: 字距只在特定场景调整
+    rule: 全大写西文序列增加字距（tracking）以保证辨读；西文大标题可微收紧；正文（中西文）不加字距；中文大标题可微增字距。M3 字阶为每档定义了 tracking 值。
+    publisher: Google
+    source_url: https://m3.material.io/styles/typography/applying-type
+    source_version: Material Design 3
+    last_verified: "2026-07-24"
+    platforms: [web, mobile_web, ios, android, mini_program]
+    scope: [typography, detail]
+    strength: heuristic
+    evidence_grade: B
+    rationale: 大写字母序列不加字距难以辨读；正文加字距破坏词形完整性。
+    check_method: manual
+
+  - id: craft-tabular-figures
+    title: 数据场景使用等宽数字
+    rule: "表格、金额、统计与倒计时等纵向对比或动态变化的数字使用等宽数字（font-variant-numeric: tabular-nums），避免宽度跳动与错位。"
+    publisher: MDN
+    source_url: https://developer.mozilla.org/en-US/docs/Web/CSS/font-variant-numeric
+    source_version: MDN Web Docs
+    last_verified: "2026-07-24"
+    platforms: [web, mobile_web, ios, android, mini_program]
+    scope: [typography, tables, data]
+    strength: heuristic
+    evidence_grade: B
+    rationale: 比例数字在列中无法对位，动态数字宽度变化引发布局抖动。
+    check_method: mixed
+
+  - id: craft-visual-hierarchy
+    title: 界面具备明确视觉层级
+    rule: 每个视图用尺寸、字重、颜色、位置中至少两种手段建立可辨识的层级；眯眼测试下仍能分辨标题、主操作与阅读起点。
+    publisher: Nielsen Norman Group
+    source_url: https://www.nngroup.com/articles/visual-hierarchy-ux-definition/
+    source_version: NN/g Articles
+    last_verified: "2026-07-24"
+    platforms: [web, mobile_web, ios, android, mini_program]
+    scope: [hierarchy, layout, scanning]
+    strength: heuristic
+    evidence_grade: B
+    rationale: 层级缺失时用户逐项扫描全部内容，任务时间与放弃率上升。
+    check_method: manual
+
+  - id: craft-proximity-grouping
+    title: 用接近性表达归属关系
+    rule: 相关元素靠近、无关元素拉开；组间距必须大于组内间距（建议 ≥2 倍），让分组不依赖边框也能被感知。
+    publisher: Nielsen Norman Group
+    source_url: https://www.nngroup.com/articles/gestalt-proximity/
+    source_version: NN/g Articles
+    last_verified: "2026-07-24"
+    platforms: [web, mobile_web, ios, android, mini_program]
+    scope: [layout, spacing, grouping]
+    strength: heuristic
+    evidence_grade: B
+    rationale: 格式塔接近性原理；间距关系错误会让用户把信息归属到错误分组。
+    check_method: manual
+
+  - id: craft-scannable-content
+    title: 内容为扫读而写
+    rule: 段落短小、关键词前置、善用小标题与列表；重要信息不埋在长段落中部；一段只讲一件事。
+    publisher: Nielsen Norman Group
+    source_url: https://www.nngroup.com/articles/how-users-read-on-the-web/
+    source_version: NN/g Articles
+    last_verified: "2026-07-24"
+    platforms: [web, mobile_web, ios, android, mini_program]
+    scope: [content, readability, scanning]
+    strength: heuristic
+    evidence_grade: B
+    rationale: 眼动研究表明用户扫读而非逐字阅读，未结构化的长段落会被跳过。
+    check_method: manual
+
+  - id: craft-internal-consistency
+    title: 同类元素内部一致
+    rule: 相同语义的元素在全产品内样式、位置、行为一致（同词同义、同控件同貌）；差异只用于表达真实的语义差异。
+    publisher: Nielsen Norman Group
+    source_url: https://www.nngroup.com/articles/consistency-and-standards/
+    source_version: NN/g Articles (Usability Heuristic 4)
+    last_verified: "2026-07-24"
+    platforms: [web, mobile_web, ios, android, mini_program]
+    scope: [consistency, components]
+    strength: heuristic
+    evidence_grade: B
+    rationale: 不一致迫使用户重新学习并怀疑差异是否有含义。
+    check_method: manual
+
+  - id: craft-response-feedback
+    title: 按响应时限设计反馈
+    rule: 0.1s 内的操作无需额外反馈；超过 1s 给加载指示；超过 10s 给进度与取消途径。反馈形式与等待时长匹配。
+    publisher: Nielsen Norman Group
+    source_url: https://www.nngroup.com/articles/response-times-3-important-limits/
+    source_version: NN/g Articles
+    last_verified: "2026-07-24"
+    platforms: [web, mobile_web, ios, android, mini_program]
+    scope: [feedback, loading, performance]
+    strength: heuristic
+    evidence_grade: B
+    rationale: 经典响应时限研究；反馈缺失或过度都会损害流畅感。
+    check_method: manual
+
+  - id: craft-color-roles-restraint
+    title: 色彩按角色克制使用
+    rule: 颜色按角色使用（主色/中性/状态各司其职），强调色占比克制（约 10%），一屏非状态色相不超过 3 个。
+    publisher: Google
+    source_url: https://m3.material.io/styles/color/roles
+    source_version: Material Design 3
+    last_verified: "2026-07-24"
+    platforms: [web, mobile_web, ios, android, mini_program]
+    scope: [color, hierarchy, restraint]
+    strength: heuristic
+    evidence_grade: B
+    rationale: 角色化用色让颜色承载稳定语义；强调色稀释后主操作辨识度下降。
+    check_method: manual
+
+  - id: craft-motion-duration
+    title: 动效时长与幅度克制
+    rule: 界面过渡 100–300ms 区间（小元素短、大面板长），退出快于进入；装饰性动画不阻塞操作，且尊重减少动效偏好。
+    publisher: Google
+    source_url: https://m3.material.io/styles/motion/easing-and-duration/applying-easing-and-duration
+    source_version: Material Design 3
+    last_verified: "2026-07-24"
+    platforms: [web, mobile_web, ios, android, mini_program]
+    scope: [motion, feedback, detail]
+    strength: heuristic
+    evidence_grade: B
+    rationale: 过慢动效拖累高频操作，过快则失去空间连续性提示。
+    check_method: manual

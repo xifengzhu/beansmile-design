@@ -1,0 +1,189 @@
+# 微信小程序核心规则卡
+# 校验 schema: docs/superpowers/specs/schemas/rule-card.schema.json
+# 对应设计规范第 10.1 第 2 层、第 11 章（小程序适配）、第 6.3 章（HTML 保真度边界）。
+# 小程序原生行为（胶囊、tabBar、授权弹窗、下拉刷新等）HTML 无法忠实表达，均 manual + 人工清单。
+
+rules:
+  - id: weapp-capsule-safe-area
+    title: 避让右上角胶囊按钮
+    rule: 自定义导航栏时为右上角胶囊（返回主页/关闭、更多）预留避让区，不与其重叠。
+    publisher: Tencent
+    source_url: https://developers.weixin.qq.com/miniprogram/design/
+    source_version: 微信小程序设计指南
+    last_verified: "2026-07-24"
+    platforms: [mini_program]
+    scope: [navigation, safe-area, capsule]
+    strength: required
+    evidence_grade: A
+    rationale: 胶囊为系统级固定控件，被遮挡会导致无法关闭/返回。
+    check_method: manual
+
+  - id: weapp-tabbar
+    title: 遵循 tabBar 规范
+    rule: 主要分区使用小程序 tabBar 配置，项数、图标与选中态符合规范，不用自绘控件冒充。
+    publisher: Tencent
+    source_url: https://developers.weixin.qq.com/miniprogram/dev/reference/configuration/app.html
+    source_version: 微信小程序全局配置文档
+    last_verified: "2026-07-24"
+    platforms: [mini_program]
+    scope: [navigation, tabbar]
+    strength: recommended
+    evidence_grade: A
+    rationale: 原生 tabBar 提供一致切换体验与系统级性能保证。
+    check_method: manual
+
+  - id: weapp-native-components
+    title: 优先使用原生组件
+    rule: picker、scroll-view、swiper、input 等能力优先用原生组件，避免自绘导致行为/无障碍缺陷。
+    publisher: Tencent
+    source_url: https://developers.weixin.qq.com/miniprogram/dev/component/
+    source_version: 微信小程序组件文档
+    last_verified: "2026-07-24"
+    platforms: [mini_program]
+    scope: [components, semantics]
+    strength: recommended
+    evidence_grade: A
+    rationale: 原生组件自带平台交互与可访问性，自绘实现易出缺陷。
+    check_method: manual
+
+  - id: weapp-authorization
+    title: 规范的授权与隐私请求
+    rule: 在明确场景内、由用户操作触发授权弹窗（位置、用户信息等），说明用途，被拒后有降级路径。
+    publisher: Tencent
+    source_url: https://developers.weixin.qq.com/miniprogram/design/
+    source_version: 微信小程序设计指南
+    last_verified: "2026-07-24"
+    platforms: [mini_program]
+    scope: [privacy, authorization, flows]
+    strength: required
+    evidence_grade: A
+    rationale: 无场景的强制授权损害信任且易被拒，须有拒绝后的可用路径。
+    check_method: manual
+
+  - id: weapp-safe-area-bottom
+    title: 底部安全区避让
+    rule: 全面屏机型底部操作区避让 Home 指示条安全区，关键按钮不被遮挡或误触。
+    publisher: Tencent
+    source_url: https://developers.weixin.qq.com/miniprogram/design/
+    source_version: 微信小程序设计指南
+    last_verified: "2026-07-24"
+    platforms: [mini_program]
+    scope: [layout, safe-area]
+    strength: recommended
+    evidence_grade: B
+    rationale: 底部按钮落在指示条区域会导致误触或难以点击。
+    check_method: manual
+
+  - id: weapp-pull-refresh
+    title: 使用原生下拉刷新
+    rule: 列表刷新优先用 onPullDownRefresh/scroll-view 原生下拉刷新，反馈及时且行为一致。
+    publisher: Tencent
+    source_url: https://developers.weixin.qq.com/miniprogram/dev/reference/api/wx.startPullDownRefresh.html
+    source_version: 微信小程序 API 文档
+    last_verified: "2026-07-24"
+    platforms: [mini_program]
+    scope: [interaction, refresh, feedback]
+    strength: heuristic
+    evidence_grade: B
+    rationale: 原生下拉刷新符合用户预期，自绘易与系统手势冲突。
+    check_method: manual
+
+  - id: weapp-nav-clarity
+    title: 导航明确，告知位置与去处
+    rule: 每个页面让用户清楚身在何处、可去哪里、如何返回；标题准确反映页面内容，返回路径不断裂。
+    publisher: Tencent
+    source_url: https://developers.weixin.qq.com/miniprogram/design/
+    source_version: 微信小程序设计指南
+    last_verified: "2026-07-24"
+    platforms: [mini_program]
+    scope: [navigation, structure]
+    strength: recommended
+    evidence_grade: A
+    rationale: 小程序设计指南首要原则"清晰明确"；导航迷失直接导致流失。
+    check_method: manual
+
+  - id: weapp-loading-feedback
+    title: 操作后及时反馈
+    rule: 任何操作立即给出反馈：页面加载用导航栏 loading 或骨架屏，局部操作用按钮态/toast，结果状态明确告知。
+    publisher: Tencent
+    source_url: https://developers.weixin.qq.com/miniprogram/design/
+    source_version: 微信小程序设计指南
+    last_verified: "2026-07-24"
+    platforms: [mini_program]
+    scope: [feedback, loading, states]
+    strength: recommended
+    evidence_grade: A
+    rationale: 无反馈等待造成重复点击与误判失败。
+    check_method: manual
+
+  - id: weapp-reduce-input
+    title: 减少用户输入成本
+    rule: 能选择的不让输入，能调用微信能力（地址、手机号、昵称头像）的不让手填；键盘类型与输入内容匹配。
+    publisher: Tencent
+    source_url: https://developers.weixin.qq.com/miniprogram/design/
+    source_version: 微信小程序设计指南
+    last_verified: "2026-07-24"
+    platforms: [mini_program]
+    scope: [forms, input, flows]
+    strength: recommended
+    evidence_grade: A
+    rationale: 小程序场景多为即用即走，输入摩擦是转化的主要杀手。
+    check_method: manual
+
+  - id: weapp-error-recovery
+    title: 异常状态明确且可恢复
+    rule: 网络异常、空数据、加载失败均给出明确状态页（说明原因 + 重试/引导动作），不出现无响应的空白页。
+    publisher: Tencent
+    source_url: https://developers.weixin.qq.com/miniprogram/design/
+    source_version: 微信小程序设计指南
+    last_verified: "2026-07-24"
+    platforms: [mini_program]
+    scope: [states, error, feedback]
+    strength: recommended
+    evidence_grade: A
+    rationale: 移动网络波动常态化，异常处理质量决定弱网体验下限。
+    check_method: manual
+
+  - id: weapp-rpx-adaptation
+    title: 使用 rpx 做多机型宽度适配
+    rule: 布局尺寸使用 rpx（以 750 设计稿为基准）适配不同屏宽，关键内容在窄屏不溢出、宽屏不失衡。
+    publisher: Tencent
+    source_url: https://developers.weixin.qq.com/miniprogram/dev/framework/view/wxss.html
+    source_version: 微信小程序 WXSS 文档
+    last_verified: "2026-07-24"
+    platforms: [mini_program]
+    scope: [responsive, layout]
+    strength: recommended
+    evidence_grade: A
+    rationale: rpx 是平台提供的标准适配机制，混用 px 易在异形屏破版。
+    check_method: manual
+    exceptions:
+      - HTML 原型以 CSS 相对单位近似演示，rpx 行为需在开发者工具/真机核对。
+
+  - id: weapp-page-depth
+    title: 页面栈深度不超过 10 层
+    rule: 导航流程设计控制页面栈 ≤10 层（平台硬限制），深流程用重定向或返回收敛，不依赖无限前进。
+    publisher: Tencent
+    source_url: https://developers.weixin.qq.com/miniprogram/dev/api/route/wx.navigateTo.html
+    source_version: 微信小程序 API 文档
+    last_verified: "2026-07-24"
+    platforms: [mini_program]
+    scope: [navigation, flows, structure]
+    strength: required
+    evidence_grade: A
+    rationale: 超过 10 层 navigateTo 直接失败，是平台技术硬限制而非建议。
+    check_method: manual
+
+  - id: weapp-share-scene
+    title: 分享行为符合场景预期
+    rule: 分享卡片标题与图片真实反映页面内容，分享落地页可直达且自包含（处理好未登录/无上下文进入）。
+    publisher: Tencent
+    source_url: https://developers.weixin.qq.com/miniprogram/design/
+    source_version: 微信小程序设计指南
+    last_verified: "2026-07-24"
+    platforms: [mini_program]
+    scope: [share, flows, content]
+    strength: heuristic
+    evidence_grade: B
+    rationale: 分享是小程序核心增长路径，落地断链直接损失新用户。
+    check_method: manual

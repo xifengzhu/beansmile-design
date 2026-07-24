@@ -1,0 +1,121 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://beansmile-design/schemas/context.schema.json",
+  "title": "统一设计上下文 (context.yaml)",
+  "description": "Design Director 维护的唯一机器可读任务上下文。所有 Skill 与评审 Agent 只通过它交换状态。对应设计规范第 8 章。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["project", "users", "goals", "stage"],
+  "properties": {
+    "project": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "mode", "task_type", "platforms"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "mode": { "enum": ["professional", "quick"] },
+        "task_type": { "enum": ["new_design", "redesign"] },
+        "platforms": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "enum": ["web", "mini_program", "ios", "android", "mobile_web"] }
+        }
+      }
+    },
+    "users": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["primary"],
+      "properties": {
+        "primary": { "type": "string", "minLength": 1 },
+        "needs": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "goals": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "business": { "type": "array", "items": { "type": "string" } },
+        "user_tasks": { "type": "array", "items": { "type": "string" } },
+        "success_criteria": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "brand": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "assets": { "type": "array", "items": { "type": "string" } },
+        "attributes": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "constraints": { "type": "array", "items": { "type": "string" } },
+    "assumptions": {
+      "type": "array",
+      "description": "明确标记的临时假设，不得伪装成用户结论 (第 15 章)。",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "statement", "status"],
+        "properties": {
+          "id": { "type": "string" },
+          "statement": { "type": "string" },
+          "status": { "enum": ["tentative", "confirmed", "rejected"] },
+          "source": { "enum": ["verified", "inferred", "user_provided"] }
+        }
+      }
+    },
+    "decisions": {
+      "type": "array",
+      "description": "关键决策与裁决记录，与 decisions.md 一一对应 (第 5.5、10、12 章)。",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "summary", "decided_by"],
+        "properties": {
+          "id": { "type": "string" },
+          "summary": { "type": "string" },
+          "rule_ids": { "type": "array", "items": { "type": "string" } },
+          "evidence_grade": { "enum": ["A", "B", "C", "D"] },
+          "rationale": { "type": "string" },
+          "decided_by": { "enum": ["director", "user"] },
+          "is_override": { "type": "boolean" },
+          "risk": { "type": "string" }
+        }
+      }
+    },
+    "exceptions": {
+      "type": "array",
+      "description": "规则覆盖与例外，含风险与影响范围 (第 12 章)。",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "rule_id", "reason", "risk"],
+        "properties": {
+          "id": { "type": "string" },
+          "rule_id": { "type": "string" },
+          "reason": { "type": "string" },
+          "risk": { "type": "string" },
+          "scope": { "type": "string" }
+        }
+      }
+    },
+    "artifacts": {
+      "type": "object",
+      "description": "各阶段产物的路径与版本。key 为逻辑名 (如 flows、tokens、prototype)。",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path"],
+        "properties": {
+          "path": { "type": "string" },
+          "artifact_version": { "type": "string" },
+          "updated_by": { "type": "string" }
+        }
+      }
+    },
+    "stage": {
+      "enum": ["intake", "research", "ux", "visual", "prototype", "review", "delivered"]
+    }
+  }
+}

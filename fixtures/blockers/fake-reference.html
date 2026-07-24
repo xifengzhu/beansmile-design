@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <!-- 植入：引用依据库中不存在的规则 id，即伪造/悬空引用 -->
+  <meta name="rule-refs" content="wcag-9.9.9-does-not-exist">
+  <title>伪造引用</title>
+</head>
+<body style="color:#111827;background-color:#ffffff">
+  <main>
+    <h1>关于</h1>
+    <p data-rule-id="web-invented-nonexistent-rule">本段声称依据一条并不存在的规则。</p>
+  </main>
+</body>
+</html>

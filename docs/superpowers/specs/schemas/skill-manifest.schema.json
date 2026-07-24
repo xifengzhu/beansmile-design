@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://beansmile-design/schemas/skill-manifest.schema.json",
+  "title": "Skill 读写白名单清单",
+  "description": "每个流程 Skill 必须声明的读写白名单。Design Director 用它做字段级 diff 门禁，强制 '任何阶段只能修改自己负责的字段' (设计规范第 5.2、8 章)。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["skill", "reads", "writes", "produces"],
+  "properties": {
+    "skill": {
+      "description": "Skill 唯一标识。",
+      "enum": [
+        "requirements_research",
+        "ux_architecture",
+        "visual_system",
+        "html_prototype",
+        "decision_record"
+      ]
+    },
+    "reads": {
+      "type": "array",
+      "description": "允许读取的 context 字段路径 (点号分隔，支持顶层或二级)。",
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/contextPath" }
+    },
+    "writes": {
+      "type": "array",
+      "description": "允许写入的 context 字段路径。Director 校验补丁仅触及这些路径。",
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/contextPath" }
+    },
+    "produces": {
+      "type": "array",
+      "description": "该 Skill 产出的文件路径 (相对交付包根)。验收时逐一检查其存在 (第 18.2 章)。",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "type": "string", "minLength": 1 }
+    }
+  },
+  "$defs": {
+    "contextPath": {
+      "type": "string",
+      "pattern": "^(project|users|goals|brand|constraints|assumptions|decisions|exceptions|artifacts|stage)(\\.[a-z_]+)?$"
+    }
+  }
+}

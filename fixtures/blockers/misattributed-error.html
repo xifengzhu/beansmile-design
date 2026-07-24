@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><title>错位的错误状态</title></head>
+<body style="color:#111827;background-color:#ffffff">
+  <!-- 页面别处存在 .error（全局提示条），但它不属于表单 -->
+  <div class="error" role="status">网络较慢</div>
+  <main>
+    <h1>反馈</h1>
+    <!-- 植入：表单自身没有任何错误状态机制；页面别处的 .error 不能替代 -->
+    <form>
+      <label for="msg">留言</label>
+      <textarea id="msg" name="msg" required></textarea>
+      <button type="submit">提交</button>
+    </form>
+  </main>
+</body>
+</html>

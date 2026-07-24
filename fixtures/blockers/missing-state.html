@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><title>缺少错误状态</title></head>
+<body style="color:#111827;background-color:#ffffff">
+  <main>
+    <h1>注册</h1>
+    <!-- 植入：表单没有任何错误反馈机制（无 role=alert / aria-invalid / data-state / .error） -->
+    <form>
+      <label for="pwd">密码</label>
+      <input id="pwd" name="pwd" type="password" required>
+      <button type="submit">注册</button>
+    </form>
+  </main>
+</body>
+</html>

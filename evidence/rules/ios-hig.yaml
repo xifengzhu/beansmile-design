@@ -1,0 +1,219 @@
+# Apple Human Interface Guidelines 核心规则卡（iOS）
+# 校验 schema: docs/superpowers/specs/schemas/rule-card.schema.json
+# 对应设计规范第 10.1 第 2 层（平台官方规范）、第 11 章（iOS 适配）、第 6.3 章（HTML 保真度边界）。
+# 多数为 manual：HTML 原型无法忠实表达原生手势/系统行为，只作"设计意图一致性"判定 + 人工清单。
+
+rules:
+  - id: hig-target-size-44pt
+    title: 可点击目标至少 44×44pt
+    rule: 所有可点击控件的命中区域不小于 44×44pt。
+    publisher: Apple
+    source_url: https://developer.apple.com/design/human-interface-guidelines/accessibility
+    source_version: Apple Human Interface Guidelines
+    last_verified: "2026-07-24"
+    platforms: [ios]
+    scope: [target-size, touch, components]
+    strength: required
+    evidence_grade: A
+    rationale: 过小目标导致触控误操作，尤其影响运动能力受限用户。
+    check_method: mixed
+
+  - id: hig-dynamic-type
+    title: 支持动态字体（Dynamic Type）
+    rule: 文本随系统字号设置缩放，布局在放大字号下不裁切、不重叠、保持可用。
+    publisher: Apple
+    source_url: https://developer.apple.com/design/human-interface-guidelines/typography
+    source_version: Apple Human Interface Guidelines
+    last_verified: "2026-07-24"
+    platforms: [ios]
+    scope: [typography, zoom, accessibility]
+    strength: recommended
+    evidence_grade: A
+    rationale: 低视力用户依赖系统级字体放大，固定字号会损害可读性。
+    check_method: manual
+    exceptions:
+      - HTML 原型只能近似演示，真机 Dynamic Type 行为需人工在设备核对。
+
+  - id: hig-safe-area
+    title: 尊重安全区域与布局边距
+    rule: 内容避让刘海、灵动岛、Home 指示条等安全区域，关键操作不落在系统遮挡区。
+    publisher: Apple
+    source_url: https://developer.apple.com/design/human-interface-guidelines/layout
+    source_version: Apple Human Interface Guidelines
+    last_verified: "2026-07-24"
+    platforms: [ios]
+    scope: [layout, safe-area]
+    strength: recommended
+    evidence_grade: A
+    rationale: 忽略安全区会使内容被系统 UI 遮挡或误触。
+    check_method: manual
+
+  - id: hig-navigation-patterns
+    title: 采用标准导航模式
+    rule: 使用导航栏、标签栏等系统导航范式，层级返回清晰，标题与返回语义正确。
+    publisher: Apple
+    source_url: https://developer.apple.com/design/human-interface-guidelines/navigation-bars
+    source_version: Apple Human Interface Guidelines
+    last_verified: "2026-07-24"
+    platforms: [ios]
+    scope: [navigation, structure]
+    strength: recommended
+    evidence_grade: A
+    rationale: 遵循系统导航范式降低用户学习成本。
+    check_method: manual
+
+  - id: hig-back-swipe
+    title: 支持边缘滑动返回
+    rule: 层级页面支持从左边缘滑动返回上一级，不破坏该系统级手势。
+    publisher: Apple
+    source_url: https://developer.apple.com/design/human-interface-guidelines/navigation-bars
+    source_version: Apple Human Interface Guidelines
+    last_verified: "2026-07-24"
+    platforms: [ios]
+    scope: [gesture, navigation]
+    strength: recommended
+    evidence_grade: B
+    rationale: 边缘返回是 iOS 用户根深蒂固的预期，破坏它会造成困惑。
+    check_method: manual
+    exceptions:
+      - 原生手势无法在 HTML 忠实表达，仅作设计意图判定并转入人工清单（规范 6.3）。
+
+  - id: hig-appearance-modes
+    title: 适配浅色/深色外观
+    rule: 界面同时适配浅色与深色模式，语义色随外观切换，保证两种模式下对比与可读。
+    publisher: Apple
+    source_url: https://developer.apple.com/design/human-interface-guidelines/dark-mode
+    source_version: Apple Human Interface Guidelines
+    last_verified: "2026-07-24"
+    platforms: [ios]
+    scope: [color, dark-mode]
+    strength: recommended
+    evidence_grade: A
+    rationale: 用户按系统偏好切换外观，未适配会造成对比失衡或刺眼。
+    check_method: manual
+
+  - id: hig-typography-hierarchy
+    title: 使用 iOS 文本样式层级
+    rule: 采用系统文本样式层级（Large Title/Title/Headline/Body/Footnote/Caption），正文基准 17pt，层级差异用样式而非随意字号。
+    publisher: Apple
+    source_url: https://developer.apple.com/design/human-interface-guidelines/typography
+    source_version: Apple Human Interface Guidelines
+    last_verified: "2026-07-24"
+    platforms: [ios]
+    scope: [typography, hierarchy]
+    strength: recommended
+    evidence_grade: A
+    rationale: 系统文本样式自带动态字体支持与用户熟悉的层级语义。
+    check_method: manual
+
+  - id: hig-tab-bar
+    title: 标签栏遵循系统范式
+    rule: 底部标签栏 3–5 项，图标+文字标签，仅用于顶层分区切换，不承载动作按钮；当前项状态清晰。
+    publisher: Apple
+    source_url: https://developer.apple.com/design/human-interface-guidelines/tab-bars
+    source_version: Apple Human Interface Guidelines
+    last_verified: "2026-07-24"
+    platforms: [ios]
+    scope: [navigation, tabbar, structure]
+    strength: recommended
+    evidence_grade: A
+    rationale: 标签栏承载动作或项数过多会破坏用户对全局导航的心智模型。
+    check_method: manual
+
+  - id: hig-modality-sparingly
+    title: 克制使用模态
+    rule: 模态（sheet/全屏）只用于需要聚焦完成或明确取消的独立任务，提供明确的完成/取消出口，不做模态套模态。
+    publisher: Apple
+    source_url: https://developer.apple.com/design/human-interface-guidelines/modality
+    source_version: Apple Human Interface Guidelines
+    last_verified: "2026-07-24"
+    platforms: [ios]
+    scope: [modal, navigation, flows]
+    strength: recommended
+    evidence_grade: A
+    rationale: 滥用模态打断上下文并造成导航迷失。
+    check_method: manual
+
+  - id: hig-buttons-prominence
+    title: 按钮显著度分级
+    rule: 按 filled/tinted/gray/plain 分级使用按钮显著度，一屏一个最高显著度主按钮，破坏性操作用红色系并二次确认。
+    publisher: Apple
+    source_url: https://developer.apple.com/design/human-interface-guidelines/buttons
+    source_version: Apple Human Interface Guidelines
+    last_verified: "2026-07-24"
+    platforms: [ios]
+    scope: [components, buttons, hierarchy]
+    strength: recommended
+    evidence_grade: B
+    rationale: 显著度失衡使用户无法辨识主操作。
+    check_method: manual
+
+  - id: hig-alerts-minimal
+    title: 警告框克制且按钮明确
+    rule: Alert 只用于重要信息；按钮优先两个以内、标题为具体动词；破坏性动作用红色且不设为默认。
+    publisher: Apple
+    source_url: https://developer.apple.com/design/human-interface-guidelines/alerts
+    source_version: Apple Human Interface Guidelines
+    last_verified: "2026-07-24"
+    platforms: [ios]
+    scope: [alerts, feedback, components]
+    strength: recommended
+    evidence_grade: A
+    rationale: 频繁或含糊的警告框训练用户盲目点击，破坏关键确认的保护作用。
+    check_method: manual
+
+  - id: hig-feedback-progress
+    title: 等待有反馈，可估用进度
+    rule: 操作需要等待时立即给出反馈；可预估时长用确定进度条，不可预估用活动指示器，长任务允许取消。
+    publisher: Apple
+    source_url: https://developer.apple.com/design/human-interface-guidelines/feedback
+    source_version: Apple Human Interface Guidelines
+    last_verified: "2026-07-24"
+    platforms: [ios]
+    scope: [feedback, loading, states]
+    strength: recommended
+    evidence_grade: B
+    rationale: 无反馈的等待让用户认为应用无响应并重复操作。
+    check_method: manual
+
+  - id: hig-color-semantic
+    title: 语义化用色并适配外观
+    rule: 色彩承载一致语义（同色同义），优先系统语义色；自定义色在浅深两种外观下均保证对比与语义成立。
+    publisher: Apple
+    source_url: https://developer.apple.com/design/human-interface-guidelines/color
+    source_version: Apple Human Interface Guidelines
+    last_verified: "2026-07-24"
+    platforms: [ios]
+    scope: [color, dark-mode, semantics]
+    strength: recommended
+    evidence_grade: A
+    rationale: 色彩语义漂移让用户无法建立稳定预期。
+    check_method: manual
+
+  - id: hig-lists-layout
+    title: 列表遵循系统行布局范式
+    rule: 列表行采用系统范式（标题/副文本/前后辅件位置固定），分组与分隔风格全应用一致，行可点时整行可点。
+    publisher: Apple
+    source_url: https://developer.apple.com/design/human-interface-guidelines/lists-and-tables
+    source_version: Apple Human Interface Guidelines
+    last_verified: "2026-07-24"
+    platforms: [ios]
+    scope: [components, lists, consistency]
+    strength: recommended
+    evidence_grade: B
+    rationale: 列表是 iOS 信息组织的基本单元，偏离范式抬高扫读成本。
+    check_method: manual
+
+  - id: hig-search-pattern
+    title: 搜索用标准搜索栏范式
+    rule: 搜索入口使用标准搜索栏（占位提示、清除按钮、取消操作），激活即可输入，支持最近搜索或建议。
+    publisher: Apple
+    source_url: https://developer.apple.com/design/human-interface-guidelines/search-fields
+    source_version: Apple Human Interface Guidelines
+    last_verified: "2026-07-24"
+    platforms: [ios]
+    scope: [search, components, patterns]
+    strength: heuristic
+    evidence_grade: B
+    rationale: 标准搜索范式降低高频任务的操作成本。
+    check_method: manual

@@ -292,7 +292,7 @@ const referencedRules = new Set();
   else {
     const r = JSON.parse(readFileSync(axePath, "utf8"));
     const problems = [];
-    if ((r.checks_version ?? 1) < 3) problems.push("results.json 为旧版检查产物（缺核心任务场景执行或 200% 缩放/可见焦点/裁切/CLS/同源指纹），请重跑 browser-check");
+    if ((r.checks_version ?? 1) < 5) problems.push("results.json 为旧版检查产物（缺移动视口页边距渲染检查（v1.6）或更早能力：核心任务场景/200% 缩放/可见焦点/裁切/CLS/同源指纹/截图默认态复位），请重跑 browser-check");
     if (r.artifact_version !== undefined && r.artifact_version !== currentVersion) problems.push(`版本不符: results=${r.artifact_version}, 当前=${currentVersion}`);
     // 同源：检查时的原型指纹必须与当前交付原型一致（拒绝陈旧/异次运行的审计产物冒充）
     if (r.page_hashes) {

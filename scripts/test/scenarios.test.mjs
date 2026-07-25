@@ -7,24 +7,27 @@ import { tmpdir } from "node:os";
 import { loadScenarios } from "../lib/scenarios.mjs";
 
 const GOOD = [
-  { id: "subscribe-ok", name: "订阅成功路径", kind: "success", page: "index.html",
+  { id: "subscribe-ok", name: "订阅成功路径", kind: "success", flow: "订阅产品更新", page: "index.html",
     steps: [
       { action: "fill", selector: "#email", value: "user@example.com" },
       { action: "click", selector: "button[type=submit]" },
       { action: "expect_visible", selector: "[role=status]" },
       { action: "expect_text", selector: "[role=status]", text: "订阅成功" },
     ] },
-  { id: "subscribe-empty", name: "空邮箱报错", kind: "error", page: "index.html",
+  { id: "subscribe-empty", name: "空邮箱报错", kind: "error", flow: "订阅产品更新", page: "index.html",
     steps: [
       { action: "click", selector: "button[type=submit]" },
       { action: "expect_visible", selector: "#email-error" },
     ] },
 ];
 
-function makePkg(scenarios) {
+const FLOWS = "# 任务流\n\n## 核心任务：订阅产品更新\n\n填写邮箱 → 提交 → 看到成功确认。\n";
+
+function makePkg(scenarios, { flows = FLOWS } = {}) {
   const dir = mkdtempSync(join(tmpdir(), "bsd-scen-"));
   mkdirSync(join(dir, "prototype"), { recursive: true });
   writeFileSync(join(dir, "prototype", "index.html"), "<html></html>");
+  if (flows !== null) writeFileSync(join(dir, "flows.md"), flows); // 传 null 表示不写 flows.md
   if (scenarios !== undefined) {
     writeFileSync(join(dir, "prototype", "scenarios.json"),
       typeof scenarios === "string" ? scenarios : JSON.stringify(scenarios));
@@ -60,6 +63,42 @@ test("无 expect_* 断言步骤 → 拒绝（跑完不验证等于没跑）", ()
   const noAssert = [{ ...GOOD[0], steps: GOOD[0].steps.slice(0, 2) }, GOOD[1]];
   const dir = makePkg(noAssert);
   assert.ok(loadScenarios(dir).errors.some((s) => s.includes("无任何 expect_*")));
+  rmSync(dir, { recursive: true, force: true });
+});
+
+// —— 场景绑定与断言有效性（规范 24.3）——
+
+test("断言目标为 body/html → 拒绝（页面存在不证明任务完成）", () => {
+  const dir = makePkg([
+    { ...GOOD[0], steps: [{ action: "click", selector: "button" }, { action: "expect_visible", selector: "body" }] },
+    { ...GOOD[1], steps: [{ action: "click", selector: "button" }, { action: "expect_visible", selector: " HTML " }] },
+  ]);
+  const { errors } = loadScenarios(dir);
+  assert.equal(errors.filter((s) => s.includes("只证明页面存在")).length, 2);
+  rmSync(dir, { recursive: true, force: true });
+});
+
+test("零交互场景（纯 expect）→ 拒绝（加载检查不是任务场景）", () => {
+  const dir = makePkg([
+    { ...GOOD[0], steps: [{ action: "expect_visible", selector: "[role=status]" }] },
+    GOOD[1],
+  ]);
+  assert.ok(loadScenarios(dir).errors.some((s) => s.includes("无任何交互步骤")));
+  rmSync(dir, { recursive: true, force: true });
+});
+
+test("缺 flow / flow 未出现在 flows.md → 逐项拒绝（不许自造场景自证可用）", () => {
+  const { flow: _f, ...noFlow } = GOOD[0];
+  const dir = makePkg([noFlow, { ...GOOD[1], flow: "一个 flows.md 里不存在的任务" }]);
+  const { errors } = loadScenarios(dir);
+  assert.ok(errors.some((s) => s.includes("缺 flow")));
+  assert.ok(errors.some((s) => s.includes("未出现在 flows.md 中")));
+  rmSync(dir, { recursive: true, force: true });
+});
+
+test("缺 flows.md → 拒绝（场景必须绑定 IA 文档）", () => {
+  const dir = makePkg(GOOD, { flows: null });
+  assert.ok(loadScenarios(dir).errors.some((s) => s.includes("缺 flows.md")));
   rmSync(dir, { recursive: true, force: true });
 });
 

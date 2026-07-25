@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="rule-refs" content="craft-proximity-grouping">
+  <title>案例详情 · 移动视口文本贴边样本</title>
+  <style>
+    /* 故意植入：区块类的 padding 简写把容器的水平页边距覆盖为 0（真实事故形态：
+       <div class="wrap body"> 同时挂容器类与区块类，后者声明在后、优先级相同，
+       `padding: 72px 0` 整体覆盖 `padding: 0 16px`），正文文本贴视口左右边缘。 */
+    body { margin: 0; color: #111827; background: #ffffff; }
+    .wrap { max-width: 1200px; margin: 0 auto; padding: 0 16px; }
+    .body { padding: 48px 0; }
+    h1 { font-size: 24px; }
+  </style>
+</head>
+<body>
+  <main>
+    <div class="wrap body">
+      <h1>方案</h1>
+      <p>用「同步层－订单库－操作台」三层结构：同步层按平台各自节奏拉单并归一成统一模型；订单库以 PostgreSQL 为单一事实源。</p>
+      <p>关键取舍：放弃实时推送、改为分钟级轮询同步，换来的是同步逻辑可测试、可重放。</p>
+    </div>
+  </main>
+</body>
+</html>

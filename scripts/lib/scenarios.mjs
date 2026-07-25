@@ -14,6 +14,10 @@ export const STEP_ACTIONS = {
   expect_text: ["selector", "text"],
 };
 
+// 断言目标黑名单（规范 24.3）："页面存在"不构成任务完成证明。
+const TRIVIAL_TARGETS = new Set(["body", "html", "*", ":root"]);
+const INTERACTIONS = new Set(["fill", "click", "press"]);
+
 // 返回 { scenarios, errors }；errors 非空即定义不合法（验收按 fail 处理）。
 export function loadScenarios(pkgRoot) {
   const p = join(pkgRoot, "prototype", "scenarios.json");
@@ -26,6 +30,10 @@ export function loadScenarios(pkgRoot) {
   if (!Array.isArray(raw) || !raw.length) return { scenarios: [], errors: ["scenarios.json 须为非空数组"] };
 
   const errors = [];
+  // 场景须绑定 flows.md 里真实存在的核心任务（规范 24.3），杜绝"自造场景自证可用"。
+  const flowsPath = join(pkgRoot, "flows.md");
+  const flowsText = existsSync(flowsPath) ? readFileSync(flowsPath, "utf8") : null;
+  if (flowsText === null) errors.push("缺 flows.md：场景必须绑定 IA 文档中的核心任务（规范 24.3）");
   const ids = new Set();
   for (const [i, s] of raw.entries()) {
     const where = `scenarios[${i}]${s?.id ? `(${s.id})` : ""}`;
@@ -34,6 +42,10 @@ export function loadScenarios(pkgRoot) {
     else ids.add(s.id);
     if (!s?.name) errors.push(`${where} 缺 name`);
     if (!["success", "error"].includes(s?.kind)) errors.push(`${where} kind 须为 success|error`);
+    if (!s?.flow) errors.push(`${where} 缺 flow（须逐字引用 flows.md 中的核心任务名，规范 24.3）`);
+    else if (flowsText !== null && !flowsText.includes(s.flow)) {
+      errors.push(`${where} flow "${s.flow}" 未出现在 flows.md 中——场景必须证明 IA 文档里真实存在的任务`);
+    }
     if (!s?.page) errors.push(`${where} 缺 page（相对 prototype/ 的路径）`);
     else if (!existsSync(join(pkgRoot, "prototype", s.page))) errors.push(`${where} page 不存在: prototype/${s.page}`);
     if (!Array.isArray(s?.steps) || !s.steps.length) { errors.push(`${where} steps 须为非空数组`); continue; }
@@ -41,9 +53,15 @@ export function loadScenarios(pkgRoot) {
       const req = STEP_ACTIONS[st?.action];
       if (!req) { errors.push(`${where}.steps[${j}] 未知 action: ${st?.action}`); continue; }
       for (const k of req) if (st[k] === undefined || st[k] === "") errors.push(`${where}.steps[${j}] (${st.action}) 缺 ${k}`);
+      if (String(st?.action).startsWith("expect_") && TRIVIAL_TARGETS.has(String(st?.selector ?? "").trim().toLowerCase())) {
+        errors.push(`${where}.steps[${j}] 断言目标 "${st.selector}" 只证明页面存在，不证明任务完成（规范 24.3）`);
+      }
     }
     if (!s.steps.some((st) => String(st?.action).startsWith("expect_"))) {
       errors.push(`${where} 无任何 expect_* 断言步骤（跑完不验证等于没跑）`);
+    }
+    if (!s.steps.some((st) => INTERACTIONS.has(st?.action))) {
+      errors.push(`${where} 无任何交互步骤（fill/click/press）——零交互只是加载检查，不是任务场景（规范 24.3）`);
     }
   }
   if (!raw.some((s) => s?.kind === "success")) errors.push("缺 kind=success 场景（核心任务成功路径）");

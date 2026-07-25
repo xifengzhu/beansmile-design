@@ -3,6 +3,7 @@
 // "竞争确实发生、每个候选都被看过、选择被记录"。
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
+import { sha256File } from "./hash.mjs";
 
 // 返回 { dir, cands: ["cand-1", ...] } 或 null（目录不存在）。
 export function collectCandidates(pkgRoot) {
@@ -27,6 +28,23 @@ export function candidateIssues(pkgRoot) {
     const pngs = files.filter((f) => f.endsWith(".png"));
     if (!pngs.length) problems.push(`${cand} 无截图（候选必须渲染对比，不许纸上谈兵）`);
     shotsByCand.set(cand, pngs);
+  }
+  // 候选同一性（规范 24.1）：内容组合摘要（逐文件 sha256 排序拼接，与文件名无关）两两不得相同——
+  // 字节相同的候选意味着竞争没有真实发生。机器只判字节级同一；近似重复留给视觉评审按方向对标判定。
+  const digest = (cand, ext) =>
+    readdirSync(join(c.dir, cand)).filter((f) => f.endsWith(ext))
+      .map((f) => sha256File(join(c.dir, cand, f))).sort().join(",");
+  for (const ext of [".html", ".png"]) {
+    const seen = new Map();
+    for (const cand of c.cands) {
+      const d = digest(cand, ext);
+      if (!d) continue; // 缺文件已在上面单独报
+      if (seen.has(d)) {
+        problems.push(ext === ".html"
+          ? `${seen.get(d)} 与 ${cand} 的 HTML 内容完全相同（竞争未发生，规范 24.1）`
+          : `${seen.get(d)} 与 ${cand} 的截图完全相同（截图并非渲染自各自候选，规范 24.1）`);
+      } else seen.set(d, cand);
+    }
   }
   const selPath = join(c.dir, "selection.md");
   if (!existsSync(selPath)) {

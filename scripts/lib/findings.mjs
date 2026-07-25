@@ -51,10 +51,24 @@ export const DIMENSIONS = ["hierarchy", "rhythm", "typography", "color", "consis
 // visual 评审的语义校验（schema 之外的"必须真看过图"纪律，规范 7.8 / rubric）：
 // 八维各恰好一条；引用的截图真实存在且哈希匹配（防引用不存在或事后被换的图）；
 // observed 含实测数值；非 pass 判定须有同维度的 finding 对应；finding 须标注维度。
+// 证据多样性（规范 24.2）：可选截图 ≥2 张时八维不得全引用同一张；observed 两两不得
+// 完全相同——机器不判语义真假，只封"八份复制一份"的零成本造假。
 // 返回问题清单，空数组=通过。
 export function semanticIssuesVisual(doc, pkgRoot) {
   const issues = [];
   const reviews = doc.dimension_reviews ?? [];
+
+  const shotDir = join(pkgRoot, "audit", "screenshots");
+  const availableShots = existsSync(shotDir) ? readdirSync(shotDir).filter((f) => f.endsWith(".png")).length : 0;
+  if (availableShots >= 2 && reviews.length >= 2 && new Set(reviews.map((r) => r.screenshot)).size < 2) {
+    issues.push(`八维全部引用同一张截图（audit/screenshots/ 有 ${availableShots} 张可用），不构成逐维看图的证据`);
+  }
+  const byObserved = new Map();
+  for (const r of reviews) {
+    const key = String(r.observed ?? "").trim();
+    if (byObserved.has(key)) issues.push(`[${r.dimension}] observed 与 [${byObserved.get(key)}] 完全相同——模板化复制不构成逐维观察`);
+    else byObserved.set(key, r.dimension);
+  }
 
   const seen = new Map();
   for (const r of reviews) seen.set(r.dimension, (seen.get(r.dimension) ?? 0) + 1);

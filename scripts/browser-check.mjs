@@ -15,6 +15,7 @@ import { probeBrowser, launchBrowser } from "./lib/browser.mjs";
 import { collectPrototypePages, pageSlug } from "./lib/pages.mjs";
 import { hashPaths } from "./lib/hash.mjs";
 import { loadScenarios } from "./lib/scenarios.mjs";
+import { collectEdgeInsetTargetsInPage, edgeOffenders, EDGE_INSET_MIN_PX } from "./lib/edge-inset.mjs";
 
 const require = createRequire(import.meta.url);
 function arg(name) { const i = process.argv.indexOf(name); return i >= 0 ? process.argv[i + 1] : undefined; }
@@ -40,7 +41,7 @@ const shotDir = join(root, "audit", "screenshots");
 mkdirSync(shotDir, { recursive: true });
 
 const result = {
-  checks_version: 3,
+  checks_version: 5,
   artifact_version: version,
   method: probe.method,
   generated_at: new Date().toISOString(),
@@ -54,6 +55,7 @@ const result = {
   reflow_ok: true,
   zoom_ok: true,
   clipped_text: [],
+  edge_insets: {},
   cls: {},
   task_flows: { total: 0, passed: 0, failures: [], definition_errors: [] },
   screenshots: [],
@@ -171,7 +173,10 @@ for (const { file, name } of pages) {
   result.cls[name] = await page.evaluate(() => Number((window.__cls ?? 0).toFixed(4)));
   if (result.cls[name] >= 0.1) result.violations.push({ page: name, id: "layout-shift", impact: "serious", help: `加载期 CLS=${result.cls[name]}（阈值 0.1）` });
 
-  // 截图：桌面 + 手机
+  // 截图：桌面 + 手机。先 reload 复位到默认态（规范 24.4）——上面的 Tab 遍历会把焦点留在
+  // 最后一个元素上（skip link 展开、焦点框可见），不复位会把测试残留态截进审计证据。
+  await page.reload({ waitUntil: "load" }).catch(() => {});
+  await page.waitForTimeout(300);
   await page.setViewportSize({ width: 1280, height: 800 });
   const shotD = join(shotDir, `${pageSlug(name)}.desktop.png`);
   await page.screenshot({ path: shotD, fullPage: true });
@@ -179,6 +184,18 @@ for (const { file, name } of pages) {
   const shotM = join(shotDir, `${pageSlug(name)}.mobile.png`);
   await page.screenshot({ path: shotM, fullPage: true });
   result.screenshots.push(shotD, shotM);
+
+  // 移动视口页边距（渲染几何，规范 25 / v1.6）：文本承载元素距视口左右边缘
+  // < EDGE_INSET_MIN_PX 判贴边。声明层的间距档位检查抓不到简写覆盖容器 padding 的失效。
+  const edgeRaw = await page.evaluate(collectEdgeInsetTargetsInPage);
+  const offenders = edgeOffenders(edgeRaw.items, edgeRaw.vw);
+  result.edge_insets[name] = { viewport: edgeRaw.vw, offenders: offenders.slice(0, 12) };
+  if (offenders.length) {
+    result.violations.push({
+      page: name, id: "edge-inset", impact: "serious",
+      help: `移动视口(${edgeRaw.vw}px)文本贴边 ${offenders.length} 处（阈值 ${EDGE_INSET_MIN_PX}px），如 ${offenders[0].el} left=${offenders[0].leftInset}px/right=${offenders[0].rightInset}px "${offenders[0].text}"`,
+    });
+  }
 
   result.console_errors.push(...consoleErrors);
   result.pages.push(name);
@@ -238,12 +255,13 @@ const blockers = [
   !result.reflow_ok ? "320px 重排失败" : null,
   !result.zoom_ok ? "200% 缩放重排失败" : null,
   result.clipped_text.length ? `文本裁切 ${result.clipped_text.length} 处` : null,
+  Object.values(result.edge_insets).some((e) => e.offenders.length) ? `移动视口文本贴边（${Object.entries(result.edge_insets).filter(([, e]) => e.offenders.length).map(([p, e]) => `${p}:${e.offenders.length}处`).join(", ")}）` : null,
   maxCls >= 0.1 ? `CLS=${maxCls}` : null,
   result.task_flows.definition_errors.length ? `核心任务场景定义问题 ${result.task_flows.definition_errors.length} 条` : null,
   result.task_flows.failures.length ? `核心任务执行失败 ${result.task_flows.failures.length}/${result.task_flows.total}` : null,
 ].filter(Boolean);
 
-console.log(`${blockers.length ? "✗" : "✓"} 浏览器检查完成（${probe.method}）：axe 严重违规 ${severe}，控制台错误 ${result.console_errors.length}，键盘可达 ${(result.keyboard_reachable_ratio * 100).toFixed(0)}%，可见焦点 ${(result.focus_visible_ratio * 100).toFixed(0)}%，reflow ${result.reflow_ok ? "OK" : "FAIL"}，200%缩放 ${result.zoom_ok ? "OK" : "FAIL"}，裁切 ${result.clipped_text.length}，CLS≤${maxCls}，核心任务 ${result.task_flows.passed}/${result.task_flows.total}`);
+console.log(`${blockers.length ? "✗" : "✓"} 浏览器检查完成（${probe.method}）：axe 严重违规 ${severe}，控制台错误 ${result.console_errors.length}，键盘可达 ${(result.keyboard_reachable_ratio * 100).toFixed(0)}%，可见焦点 ${(result.focus_visible_ratio * 100).toFixed(0)}%，reflow ${result.reflow_ok ? "OK" : "FAIL"}，200%缩放 ${result.zoom_ok ? "OK" : "FAIL"}，裁切 ${result.clipped_text.length}，页边距贴边 ${Object.values(result.edge_insets).reduce((n, e) => n + e.offenders.length, 0)}，CLS≤${maxCls}，核心任务 ${result.task_flows.passed}/${result.task_flows.total}`);
 if (blockers.length) {
   console.error(`  阻断信号：${blockers.join("；")}（结果已写盘，须修复后重跑）`);
   process.exit(1);

@@ -1,6 +1,8 @@
 // 浏览器侧 blocker 检测（运行时），用于召回基准中 browser_only 类别。
-// 捕获运行时控制台错误 / 资源加载失败（静态检测无法发现的 console-error），
-// 以及基于 computed style 的低对比度采样。
+// 捕获运行时控制台错误 / 资源加载失败（静态检测无法发现的 console-error）、
+// 基于 computed style 的低对比度采样，以及移动视口文本贴边（edge-flush，规范 25 / v1.6）。
+import { collectEdgeInsetTargetsInPage, edgeOffenders, EDGE_INSET_VIEWPORT } from "./edge-inset.mjs";
+
 export async function detectBlockersBrowser(browser, fileUrl) {
   const found = new Set();
   const context = await browser.newContext();
@@ -37,6 +39,12 @@ export async function detectBlockersBrowser(browser, fileUrl) {
     return false;
   }).catch(() => false);
   if (low) found.add("low-contrast");
+
+  // 移动视口文本贴边（渲染几何：文本承载元素距视口边缘 < 阈值，声明层检查抓不到）
+  await page.setViewportSize(EDGE_INSET_VIEWPORT).catch(() => {});
+  await page.waitForTimeout(100);
+  const edgeRaw = await page.evaluate(collectEdgeInsetTargetsInPage).catch(() => null);
+  if (edgeRaw && edgeOffenders(edgeRaw.items, edgeRaw.vw).length) found.add("edge-flush");
 
   await context.close();
   return { categories: [...found], errors: errs };

@@ -25,5 +25,8 @@ fixtures:
     browser_only: [console-error]
   - file: fake-reference.html
     injected: [fake-reference]
+  - file: edge-flush.html
+    injected: [edge-flush]
+    browser_only: [edge-flush]
   - file: mixed.html
     injected: [low-contrast, keyboard-unreachable, fake-reference]

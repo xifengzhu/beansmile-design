@@ -6,13 +6,14 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { candidateIssues, collectCandidates } from "../lib/candidates.mjs";
 
+// 各候选内容必须真实不同（规范 24.1），fixture 默认按候选名区分内容。
 function makePkg(cands = ["cand-1", "cand-2"], { selection } = {}) {
   const dir = mkdtempSync(join(tmpdir(), "bsd-cand-"));
   for (const cand of cands) {
     const cd = join(dir, "audit", "candidates", cand);
     mkdirSync(cd, { recursive: true });
-    writeFileSync(join(cd, "index.html"), "<html></html>");
-    writeFileSync(join(cd, `index.desktop-1440.png`), "PNG");
+    writeFileSync(join(cd, "index.html"), `<html><!-- ${cand} 构成 --></html>`);
+    writeFileSync(join(cd, `index.desktop-1440.png`), `PNG-${cand}`);
   }
   if (selection !== undefined) writeFileSync(join(dir, "audit", "candidates", "selection.md"), selection);
   return dir;
@@ -80,6 +81,37 @@ test("selection.md 未以限定路径引用某候选的截图 → 拒绝（每�
     "index.desktop-1440.png：没细看，感觉不如另一个。"); // 裸文件名与 cand-2 同名，不构成对 cand-1 的引用
   const dir = makePkg(["cand-1", "cand-2"], { selection: sel });
   assert.ok(candidateIssues(dir).some((s) => s.includes("未以 cand-1/<截图名> 形式引用")));
+  rmSync(dir, { recursive: true, force: true });
+});
+
+// —— 候选同一性（规范 24.1）——
+
+test("两个候选 HTML 字节相同 → 拒绝（复制粘贴不是竞争）", () => {
+  const dir = makePkg(["cand-1", "cand-2"], { selection: GOOD_SELECTION });
+  writeFileSync(join(dir, "audit", "candidates", "cand-2", "index.html"), "<html><!-- cand-1 构成 --></html>");
+  assert.ok(candidateIssues(dir).some((s) => s.includes("HTML 内容完全相同")));
+  rmSync(dir, { recursive: true, force: true });
+});
+
+test("HTML 改名但内容相同仍被识别（摘要与文件名无关）", () => {
+  const dir = makePkg(["cand-1", "cand-2"], { selection: GOOD_SELECTION });
+  rmSync(join(dir, "audit", "candidates", "cand-2", "index.html"));
+  writeFileSync(join(dir, "audit", "candidates", "cand-2", "home.html"), "<html><!-- cand-1 构成 --></html>");
+  assert.ok(candidateIssues(dir).some((s) => s.includes("HTML 内容完全相同")));
+  rmSync(dir, { recursive: true, force: true });
+});
+
+test("HTML 不同但截图字节相同 → 拒绝（截图并非渲染自各自候选）", () => {
+  const dir = makePkg(["cand-1", "cand-2"], { selection: GOOD_SELECTION });
+  writeFileSync(join(dir, "audit", "candidates", "cand-2", "index.desktop-1440.png"), "PNG-cand-1");
+  assert.ok(candidateIssues(dir).some((s) => s.includes("截图完全相同")));
+  rmSync(dir, { recursive: true, force: true });
+});
+
+test("仅一字符差异 → 机器门放行（字节级同一是机器边界，近似重复留给评审方向对标）", () => {
+  const dir = makePkg(["cand-1", "cand-2"], { selection: GOOD_SELECTION });
+  writeFileSync(join(dir, "audit", "candidates", "cand-2", "index.html"), "<html><!-- cand-1 构成! --></html>");
+  assert.deepEqual(candidateIssues(dir), []);
   rmSync(dir, { recursive: true, force: true });
 });
 

@@ -117,3 +117,42 @@ test("warning/blocker 的 evidence 无数值 → 拒绝", () => {
   assert.ok(semanticIssuesVisual(doc, pkg.dir).some((s) => s.includes("evidence 无实测数值")));
   rmSync(pkg.dir, { recursive: true, force: true });
 });
+
+// —— 证据多样性（规范 24.2）——
+
+function makePkgWithTwoShots() {
+  const pkg = makePkgWithShot();
+  const shot2 = join(pkg.dir, "audit", "screenshots", "index.mobile.png");
+  writeFileSync(shot2, "PNGDATA-MOBILE");
+  return { ...pkg, shot2Rel: "audit/screenshots/index.mobile.png", shot2Sha: sha256File(shot2) };
+}
+
+test("有 ≥2 张截图可用但八维全引用同一张 → 拒绝（未逐维看图）", () => {
+  const pkg = makePkgWithTwoShots();
+  const doc = fullDoc(pkg); // 八维全引用 desktop 一张
+  assert.ok(semanticIssuesVisual(doc, pkg.dir).some((s) => s.includes("全部引用同一张截图")));
+  rmSync(pkg.dir, { recursive: true, force: true });
+});
+
+test("八维引用 ≥2 张不同截图 → 不误伤", () => {
+  const pkg = makePkgWithTwoShots();
+  const doc = fullDoc(pkg);
+  doc.dimension_reviews[0].screenshot = pkg.shot2Rel;
+  doc.dimension_reviews[0].screenshot_sha256 = pkg.shot2Sha;
+  assert.deepEqual(semanticIssuesVisual(doc, pkg.dir), []);
+  rmSync(pkg.dir, { recursive: true, force: true });
+});
+
+test("包内仅 1 张截图时八维同图不误伤（单图包降级为哈希匹配）", () => {
+  const pkg = makePkgWithShot();
+  assert.deepEqual(semanticIssuesVisual(fullDoc(pkg), pkg.dir), []);
+  rmSync(pkg.dir, { recursive: true, force: true });
+});
+
+test("observed 模板化复制（两维文本完全相同）→ 拒绝", () => {
+  const pkg = makePkgWithShot();
+  const doc = fullDoc(pkg);
+  doc.dimension_reviews[2].observed = doc.dimension_reviews[1].observed;
+  assert.ok(semanticIssuesVisual(doc, pkg.dir).some((s) => s.includes("模板化复制")));
+  rmSync(pkg.dir, { recursive: true, force: true });
+});

@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://beansmile-design/schemas/findings.schema.json",
   "title": "评审 findings",
-  "description": "两个只读评审 Agent 的统一返回结构。对应设计规范第 7.8 章。评审只返回本结构，由 Director 校验后落盘。",
+  "description": "两个只读评审 Agent 的统一返回结构。对应设计规范第 7.8 章。评审只返回本结构，由 Director 校验后落盘。visual 评审必须附带八维 dimension_reviews（逐维度的截图证据与实测观察），否则拒绝落盘——防止未看图就写 pass。",
   "type": "object",
   "additionalProperties": false,
   "required": ["reviewer", "artifact_version", "verdict", "findings"],
@@ -19,11 +19,31 @@
         "properties": {
           "id": { "type": "string", "minLength": 1 },
           "severity": { "enum": ["blocker", "warning", "note"] },
+          "dimension": { "$ref": "#/$defs/dimension" },
           "location": { "type": "string", "minLength": 1 },
           "rule_id": { "type": ["string", "null"] },
           "evidence": { "type": "string", "minLength": 1 },
           "user_impact": { "type": "string", "minLength": 1 },
           "recommendation": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "dimension_reviews": {
+      "type": "array",
+      "description": "visual 评审必填：八个维度各一条，记录看了哪张截图的哪个区域、观察到什么（须含实测值）、判定如何。",
+      "minItems": 8,
+      "maxItems": 8,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["dimension", "screenshot", "screenshot_sha256", "region", "observed", "judgment"],
+        "properties": {
+          "dimension": { "$ref": "#/$defs/dimension" },
+          "screenshot": { "type": "string", "minLength": 1, "description": "相对交付包根的截图路径（audit/snapshots/<v>/… 或 audit/screenshots/… 或 audit/iterations/…）" },
+          "screenshot_sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+          "region": { "type": "string", "minLength": 1, "description": "截图上的区域定位（坐标或明确的区域描述，如 \"表单卡片 x≈456,y≈240,w≈528\"）" },
+          "observed": { "type": "string", "minLength": 20, "description": "观察事实，必须含实测值（px/hex/比值/字重/数量），\"感觉不错\"不合格" },
+          "judgment": { "enum": ["pass", "warning", "blocker"] }
         }
       }
     }
@@ -49,6 +69,17 @@
           }
         }
       }
+    },
+    {
+      "$comment": "visual 评审必须提交八维 dimension_reviews。",
+      "if": { "properties": { "reviewer": { "const": "visual" } } },
+      "then": { "required": ["dimension_reviews"] }
     }
-  ]
+  ],
+  "$defs": {
+    "dimension": {
+      "enum": ["hierarchy", "rhythm", "typography", "color", "consistency", "content", "brand", "completion"],
+      "$comment": "对应 rubric 八维：视觉层级/版式节奏/字体系统/色彩系统/组件一致性/内容适配/品牌辨识度/完成度"
+    }
+  }
 }

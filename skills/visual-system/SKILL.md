@@ -11,6 +11,9 @@ description: 基于品牌、内容与情境提出 2-3 个真正不同的视觉�
 - `references/type-and-spacing.md`：字阶比率与档位、中文排版规则、字体栈、8pt 间距、网格/密度、圆角/阴影/动效令牌。
 - `references/color-system.md`：从品牌色展开 10 档色阶、语义令牌清单、60-30-10 用色纪律、对比度预检表、深色模式、廉价感自查。
 - `references/direction-library.md`：8 个风格方向（人格/适用场景/令牌起点/关键手法）与方向提案的交付格式。
+- `references/direction-playbooks.md`：每个方向的执行手册（首屏构成/关键手法配方/敷衍 vs 到位）——提案时确认自己提的方向做得到位。
+- `references/font-pairings.md`：开源中文字体搭配库（按方向给配方，含加载方式与许可）——默认系统栈之上的品牌表现力升级。
+- `references/layout-composition.md`：版式构成知识（首屏构成模式/留白节奏/视觉记忆点菜单）——方向预览页按此构成，不许居中堆叠糊弄。
 
 产出的 `design-tokens.json` 必须含**原始层 + 语义层**两层；方向提案必须满足 direction-library.md 的交付格式（真正不同的方向 ≥ 2 项本质差异，同一关键页面真实内容对比渲染）。
 

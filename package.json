@@ -6,6 +6,7 @@
   "description": "设计 Agent 系统运行时：依据库、校验、门禁与验收脚本",
   "scripts": {
     "check": "node scripts/validate-system.mjs",
+    "test": "node --test scripts/test/*.test.mjs",
     "validate:rules": "node scripts/validate-rules.mjs",
     "validate:context": "node scripts/validate-context.mjs",
     "gate:diff": "node scripts/check-diff-gate.mjs",

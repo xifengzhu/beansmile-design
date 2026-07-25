@@ -1,9 +1,12 @@
 #!/usr/bin/env node
 // 冻结当前交付物到只读快照 audit/snapshots/<version>/（规范 5.3）。评审只对快照进行。
 // version 须单调递增；目标已存在则拒绝（保证快照不可变）。
+// 同时写入 manifest.json（逐文件 sha256 + 摘要指纹）：验收据此校验快照未被篡改、
+// 评审窗口内活动产物未被改动（outputs/ 不入 git，git diff 对其永远为空，不可依赖）。
 // 用法: node scripts/snapshot.mjs --package <目录> --version <artifact_version>
-import { cpSync, mkdirSync, existsSync, readdirSync } from "node:fs";
+import { cpSync, mkdirSync, existsSync, readdirSync, writeFileSync } from "node:fs";
 import { resolve, join } from "node:path";
+import { hashPaths, manifestDigest } from "./lib/hash.mjs";
 
 function arg(name) { const i = process.argv.indexOf(name); return i >= 0 ? process.argv[i + 1] : undefined; }
 
@@ -29,4 +32,15 @@ for (const it of items) {
   const src = join(root, it);
   if (existsSync(src)) { cpSync(src, join(dest, it), { recursive: true }); copied.push(it); }
 }
+
+// 内容哈希 manifest：以快照目录（而非活动目录）为准计算，保证 manifest 与快照内容严格对应。
+const manifest = {
+  artifact_version: String(version),
+  created_at: new Date().toISOString(),
+  files: hashPaths(dest, copied),
+};
+manifest.digest = manifestDigest(manifest);
+writeFileSync(join(dest, "manifest.json"), JSON.stringify(manifest, null, 2));
+
 console.log(`✓ 已冻结快照 v${version} → ${dest}（含 ${copied.join(", ")}）。评审仅授予此目录只读权限。`);
+console.log(`  manifest.json：${Object.keys(manifest.files).length} 个文件，digest=${manifest.digest.slice(0, 16)}…`);

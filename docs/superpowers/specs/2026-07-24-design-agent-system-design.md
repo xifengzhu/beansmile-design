@@ -589,11 +589,14 @@ design-project/
 | 结构稳定 | 交付包目录符合第 13 章结构；`context.yaml` 通过 `schemas/context.schema.json` 校验；每个 Skill 声明的 `produces` 产物均存在 | 全部为真 |
 | 规则可追溯 | `decisions.md` 中引用的每个 `rule_id` 都能在依据库解析，且规则卡含 `source_url` 与 `last_verified` | 未解析或缺字段数 = 0 |
 | 无伪造来源 | 抽查引用的 `source_url` 可访问或标注为"离线·最后核实版本" | 伪造/悬空来源数 = 0 |
-| 评审只读 | 对评审会话期间的 `prototype/`、`design-tokens.json`、`decisions.md` 做 git diff | 评审造成的改动 = 0 |
+| 评审只读 | 快照 `manifest.json`（逐文件 sha256）完好；活动 `prototype/`、`design-tokens.json` 与快照逐字节一致；`decisions.md` 只允许追加（快照内容须为当前内容前缀）。**不使用 git diff**——交付包目录不入 git，git diff 对其永远为空（确定性假阳性，v1.2 修正） | 篡改/改动/改写数 = 0 |
+| 迭代自评 | `audit/iterations/` ≥2 轮；每轮有截图 + 非空 `notes.md` 且引用当轮截图文件名 + `meta.json`；末轮 `page_hashes` 与交付原型一致（改完必须复评） | 全部为真 |
+| 流程确认 | 专业模式下 `context.confirmations` 含 requirements/flows/direction 三门记录；direction 候选 ≥2 且 chosen 在候选中（状态机层同时在推进时强制） | 全部为真 |
+| 执行竞争 | 专业模式下 `audit/candidates/` 含 ≥2 个候选（各有 HTML + 截图）；`selection.md` ≥100 字符、以 `cand-N/<截图名>` 限定路径引用每个候选的截图、`chosen` 指向存在的候选（v1.3，见第 22.2 节；浏览器不可用时记"未验证"） | 全部为真 |
 | 阻断召回 | 向原型注入 N 个已知 blocker（对比度、键盘不可达、缺状态、控制台错误、伪造引用各若干），运行自动检查 | 召回率 = 100% |
-| 无障碍 | axe 严重（critical/serious）违规数；核心流程键盘可达比例 | 违规 = 0；键盘可达 = 100% |
-| 视觉质量门 | 视觉评审 `blocker` 数（作为可判定的代理指标，不作打分） | blocker = 0 |
-| 环境诚实 | 若浏览器自动化不可用，受影响结论全部标注"未验证"，任务未标记为已完成 | 无"未验证却判通过"的项 |
+| 无障碍与渲染 | `results.json`（checks_version ≥2）与当前原型同源（`page_hashes` 一致）；axe 严重违规；键盘可达；可见焦点比率；控制台错误；320px 重排；640px（≈200% 缩放）重排；文本裁切；加载期 CLS | 违规 = 0；可达/可见焦点 = 100%；控制台 0 错；重排/缩放 OK；裁切 = 0；CLS < 0.1 |
+| 视觉质量门 | 视觉评审 `blocker` 数；八维 `dimension_reviews` 语义完整（八维各一、截图存在且 sha256 匹配、observed/evidence 含实测值、非 pass 判定有同维度 finding）；全部 warning 已在 `decisions.md` 以 `[finding:<id>]` 记录处理（修复或接受理由） | blocker = 0；语义问题 = 0；未处理 warning = 0 |
+| 环境诚实 | 若浏览器自动化不可用，受影响结论（无障碍与渲染、迭代自评）全部标注"未验证"，任务未标记为已完成 | 无"未验证却判通过"的项 |
 
 以上阈值同时验证：流程按预期执行、输出结构稳定、规则引用可追溯、两个评审 Agent 不直接修改设计、自动检查能捕获故意植入的阻断问题。schema 文件见 `schemas/`。
 
@@ -633,3 +636,50 @@ HTML 原型 Skill 在交付评审**之前**必须完成生成时迭代（区别�
 ### 20.3 视觉评审标尺
 
 视觉评审的八维度配备判定 rubric（`skills/visual-review/references/rubric.md`）：每维度有判定问题与 blocker/warning/note 判例；证据必须含可核实的具体值；有截图时先看截图、无截图时观感结论降级为 note；"无错但平庸"必须以 warning 显式写出。verdict 的松紧由 rubric 而非评审者临场情绪决定，保证同一快照评审可复现（对齐 18.2）。
+
+## 21. 门禁硬化（v1.2 增补）
+
+背景：2026-07-25 复审确认，v1.1 的多个"强制"仅存在于提示词散文，验收会给违反自身流程的产物发全绿（视觉门只读评审自填 verdict、评审只读 git diff 对 gitignore 的 outputs/ 恒为空、迭代与确认门无消费者、browser-check 采集信号不被消费）。v1.2 把这些提示词约束全部落成机器门：
+
+1. **内容哈希门禁**（`scripts/lib/hash.mjs`）：`snapshot.mjs` 写 `manifest.json`（逐文件 sha256 + digest）；验收校验快照不可变、活动产物与快照一致、`decisions.md` 仅追加。替换失效的 git diff 门。
+2. **审计产物同源**：`browser-check.mjs`（checks_version 2）与 `screenshot.mjs` 的每轮 `meta.json` 都携带原型 `page_hashes`；验收拒绝与当前原型指纹不符的陈旧/异次运行产物（同时消解"environment.md 与 results.json 自相矛盾"类问题）。
+3. **迭代循环闭环**：20.2 的 ≥2 轮 + notes 要求由验收"迭代自评"维度机器判定；末轮指纹必须等于交付原型（改完必须复评）。
+4. **确认门入状态机**：`context.confirmations`（schema 字段）+ `director-advance.mjs --confirm` 记录；专业模式下 research→ux / ux→visual / visual→prototype 缺对应记录时，状态机（含 hardenedGate）拒绝推进。
+5. **八维结构化评审**：findings schema 对 visual 评审强制 `dimension_reviews`（八维各一：截图路径+sha256、区域、含实测值的 observed、判定）；`record-findings.mjs` 落盘前做语义校验（截图真实存在且哈希匹配、非 pass 判定须有同维度 finding、warning/blocker 证据须含数值）。rubric 的证据纪律从散文变成 schema+校验。
+6. **warning 处置闭环**：验收要求两评审的每条 warning 在 `decisions.md` 以 `[finding:<id>]` 标记处理（修复或接受理由），拒绝沉默放行。
+7. **浏览器检查补齐**：640px（≈1280@200% 缩放）重排、可见焦点比率（真实 Tab 遍历 + computed style 对比）、文本裁切（排除 ellipsis）、加载期 CLS；发现阻断信号时退出码 1（结果仍写盘）。
+8. **测试套件**：`npm test`（`scripts/test/*.test.mjs`）覆盖哈希/manifest 校验、确认门状态机、八维语义校验的正反例。
+
+刻意不做：不设"最少 N 条 findings"的数量门槛（诱导编造问题）；美学上限仍依赖评审质量，机器门只保证"评审确实看了图、给出了可核实证据、平庸被显式记录"。
+
+## 22. 生成上限层（v1.3 增补）
+
+第 20 章（生成质量层）与第 21 章（门禁硬化）把下限抬起来之后，v1.3 针对复审结论"能稳定专业、够不到高水准"补三块上限机制。上限的四个结构性瓶颈是：知识库只编码工艺基准不编码执行深度、素材管线（系统字体+占位图形）封死品牌表现力、单路径生成靠修补迭代爬不出平庸初版、评审只有绝对 rubric 没有方向对标。
+
+### 22.1 执行深度知识（回答"选定方向之后怎么做到位"）
+
+- `visual-system/references/direction-playbooks.md`：D1–D8 每方向的执行手册——首屏构成、关键手法的具体 CSS 配方、**"敷衍 vs 到位"判别**、翻车点。html-prototype 写码前必读选定方向整节；关键手法至少落地 2 处且在首屏。
+- `visual-system/references/layout-composition.md`：版式构成知识——首屏构成 5 模式、留白胆量、区块节奏（宽窄/底色交替）、**视觉记忆点菜单（每交付 ≥2 处）**、动线与不对称张力、图文关系、构成自查清单。
+- `visual-system/references/font-pairings.md`：开源中文字体搭配库（Google Fonts / jsdelivr / 官方自托管三类来源，按方向给"展示×界面"配方，含许可与加载纪律）。标题字体从"系统栈默认"升级为"鼓励按库升级"——字体是最强的品牌人格载体。
+- `html-prototype/references/assets-guide.md` §3b：生成图像的工艺配方（mesh 渐变、噪点质感、图案底纹、统一风格的空态插画公式、设备样机 CSS）——"没有真图"不等于"看起来没设计"。
+
+### 22.2 执行竞争（结构性对抗平庸初版）
+
+专业模式下，方向确认后 html-prototype **必须**先做候选竞争，赢家才进入全量开发：
+
+1. 同一方向、同一套令牌，出 2–3 个候选关键页（`audit/candidates/cand-N/`），差异在**构成层**（不同首屏模式 × 不同手法组合），不是换颜色。
+2. `scripts/screenshot.mjs --candidates` 对候选在 375/1440 双视口截图（图落各候选目录）。
+3. 逐候选 Read 截图对比，按 playbook"敷衍 vs 到位"与构成自查写评语，`chosen: cand-N` 与理由写入 `audit/candidates/selection.md`。
+4. 验收「执行竞争」维度机器判定（18.2 表）：≥2 候选、各有 HTML+截图、selection.md 以 `cand-N/<截图名>` 限定路径逐候选引用（各候选截图常同名，裸文件名会互相蒙混）、chosen 存在。门禁逻辑在 `scripts/lib/candidates.mjs`，正反例见 `scripts/test/candidates.test.mjs`。
+
+快速模式豁免；浏览器不可用按 6.2 记"未验证"。机器门保证"竞争确实发生、每个候选都被看过、选择被记录"；候选质量本身仍靠 playbook 约束（每个候选都须落地 ≥2 关键手法，选一个陪跑的来假竞争会被视觉评审的方向对标抓到）。
+
+### 22.3 评审方向对标（生成↔评审同一本手册）
+
+视觉评审 rubric 升级：评审前必读已确认方向的 playbook 整节；品牌辨识度维度按"敷衍 vs 到位"判别执行深度（不是"有没有沾边"），evidence 写可数事实（哪个手法、几处、第几屏）；记忆点 <2、关键手法 <2 处或不在首屏、无理由的居中堆叠兜底构成 warning 判例。生成侧与评审侧引用同一份判别标准，"做到位"的定义不再依赖评审者临场判断。
+
+### 22.4 刻意不做
+
+- 不做"美学评分"数值门槛（会诱导刷分式评审）。
+- 不强制候选数 >3（边际收益递减，成本翻倍）。
+- 不在机器门里判定"赢家真的比落选者好"——那是评审与用户确认门的职责；机器只保证对比过程真实发生且可复查。

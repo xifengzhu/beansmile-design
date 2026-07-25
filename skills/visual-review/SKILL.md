@@ -35,6 +35,8 @@ description: 只读视觉评审 Agent。对冻结快照评估视觉层级、版�
 
 ## 返回结构（交回 Director，勿自行写盘；schema: docs/superpowers/specs/schemas/findings.schema.json）
 
+`dimension_reviews` **必填且机器校验**（record-findings 落盘前逐条核）：八维各恰好一条；`screenshot` 必须是真实存在的截图路径且 `screenshot_sha256` 与盘上文件一致（先 Read 截图、再算哈希，引用不存在或过期的图会被拒收）；`observed` 必须含实测值（px/hex/比值/数量）；`judgment` 非 pass 时必须有同维度、相称严重度的 finding 对应；warning/blocker 的 `evidence` 也必须含实测值。
+
 ```yaml
 reviewer: visual
 artifact_version: string
@@ -42,11 +44,19 @@ verdict: pass | fail
 findings:
   - id: string
     severity: blocker | warning | note
+    dimension: hierarchy | rhythm | typography | color | consistency | content | brand | completion
     location: string
     rule_id: string | null
-    evidence: string
+    evidence: string        # warning/blocker 须含实测值
     user_impact: string
     recommendation: string
+dimension_reviews:          # 八维各一条，缺一不可
+  - dimension: hierarchy | rhythm | typography | color | consistency | content | brand | completion
+    screenshot: string      # 相对交付包根，如 audit/screenshots/index.html.desktop.png
+    screenshot_sha256: string  # 该文件的 sha256（64 位十六进制）
+    region: string          # 区域定位（坐标或明确描述）
+    observed: string        # 观察事实，须含实测值
+    judgment: pass | warning | blocker
 ```
 
-只有 `blocker` 阻止交付；`warning` 说明影响后可交付；`note` 为非必要改进。
+只有 `blocker` 阻止交付；`warning` 说明影响后可交付（Director 须在 decisions.md 以 `[finding:id]` 记录处理）；`note` 为非必要改进。

@@ -76,12 +76,30 @@ const NEXT_QUICK = {
   intake: ["research", "prototype"], research: ["prototype"], ux: ["prototype"], visual: ["prototype"],
   prototype: ["review"], review: ["delivered"], delivered: [],
 };
-export function validateStageTransition(from, to, mode = "professional") {
+// 专业模式确认门 → 阶段推进映射：缺对应确认记录时禁止推进（规范 9.1 的 A/B/C 门）。
+const CONFIRMATION_GATES = { ux: "requirements", visual: "flows", prototype: "direction" };
+
+export function checkConfirmationGate(to, mode, ctx) {
+  if (mode !== "professional" || !ctx) return { ok: true };
+  const gate = CONFIRMATION_GATES[to];
+  if (!gate) return { ok: true };
+  const rec = ctx.confirmations?.[gate];
+  if (!rec) return { ok: false, reason: `进入 ${to} 需先记录确认门 confirmations.${gate}（用户确认${{ requirements: "需求与成功标准", flows: "流程与页面范围", direction: "视觉方向" }[gate]}）` };
+  if (gate === "direction") {
+    if (!Array.isArray(rec.candidates) || rec.candidates.length < 2) return { ok: false, reason: "确认门 direction 需 ≥2 个候选方向（candidates）" };
+    if (!rec.candidates.includes(rec.chosen)) return { ok: false, reason: `确认门 direction 的 chosen=${rec.chosen} 不在 candidates 中` };
+  }
+  return { ok: true };
+}
+
+export function validateStageTransition(from, to, mode = "professional", ctx = null) {
   if (from === to) return { ok: true };
   if (!STAGES.includes(from) || !STAGES.includes(to)) return { ok: false, reason: `未知阶段 ${from}→${to}` };
   if (STAGES.indexOf(to) < STAGES.indexOf(from)) return { ok: false, reason: `禁止回退 ${from}→${to}` };
   const next = (mode === "quick" ? NEXT_QUICK : NEXT_PROFESSIONAL)[from] || [];
   if (!next.includes(to)) return { ok: false, reason: `非法阶段跳转 ${from}→${to}（${mode} 模式）` };
+  const gate = checkConfirmationGate(to, mode, ctx);
+  if (!gate.ok) return gate;
   return { ok: true };
 }
 
@@ -118,10 +136,10 @@ export function hardenedGate(manifest, before, { after, patch } = {}) {
   const schemaCheck = validateContext(merged);
   if (!schemaCheck.ok) for (const e of schemaCheck.errors) reasons.push(`schema: ${e}`);
 
-  // 3. 阶段状态机
+  // 3. 阶段状态机（含专业模式确认门：合并后的 context 须已有对应 confirmations 记录）
   const mode = before.project?.mode || merged.project?.mode || "professional";
   if (before.stage !== merged.stage) {
-    const t = validateStageTransition(before.stage, merged.stage, mode);
+    const t = validateStageTransition(before.stage, merged.stage, mode, merged);
     if (!t.ok) reasons.push(t.reason);
   }
 

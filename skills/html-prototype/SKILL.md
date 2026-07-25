@@ -10,16 +10,31 @@ description: 根据已确认的用户流与视觉系统生成可点击高保真�
 
 - `references/component-patterns.md`：全局基线 CSS、按钮/表单/卡片/导航/表格/状态/弹层/微交互的工艺基准（专业与业余的分界线）。
 - `references/polish-checklist.md`：截图自评清单（对齐/层级/色彩/排版/状态/内容/响应式/手感）。
-- `references/assets-guide.md`：图标（单一图标集+内联 SVG）、字体（系统栈默认）、图像（CSS/SVG 生成优先）与许可记录。
+- `references/assets-guide.md`：图标（单一图标集+内联 SVG）、字体（标题层按搭配库升级）、图像（CSS/SVG 生成工艺配方）与许可记录。
+- `../visual-system/references/direction-playbooks.md`：**选定方向的整节必读**——首屏构成、关键手法配方、敷衍 vs 到位判别；关键手法至少落地 2 处且在首屏。
+- `../visual-system/references/layout-composition.md`：首屏构成模式、留白节奏、视觉记忆点菜单（≥2 处）、构成自查清单。
 - 上游令牌：只消费 `design-tokens.json` 的语义层变量；出现档位外魔法数字（px/hex）视为未完成。
 
-## 截图-自评-迭代循环（强制，不迭代不得进评审）
+## 执行竞争（专业模式强制，验收「执行竞争」维度机器判定）
 
-1. 首版完成后运行 `node scripts/screenshot.mjs --package <目录> --round 1`（375/768/1440 三视口截图到 `audit/iterations/round-1/`）。
+同一个已确认的方向，**先出 2–3 个候选执行版本，赢家才有资格进入全量开发**。竞争的是构成层（layout-composition.md 的首屏模式 × playbook 的手法组合），不是换颜色——令牌保持一致。
+
+1. 在 `audit/candidates/cand-1/`、`cand-2/`（可选 `cand-3/`）各放一个**关键页**（通常是首页/核心任务页）的完整 HTML：各候选取**不同的首屏构成模式**，各自落地本方向 ≥2 个关键手法。不许做一个认真的和两个陪跑的——每个候选都是你当时认为可能最好的做法。
+2. 运行 `node scripts/screenshot.mjs --package <目录> --candidates`（375/1440 双视口，截图落在各候选目录）。
+3. **Read 全部候选截图并排对比**，按 playbook 的"敷衍 vs 到位"与 layout-composition.md §7 构成自查逐个评语。
+4. 把逐候选评语（引用 `cand-N/<截图名>` 限定路径）、`chosen: cand-N` 与选择理由写入 `audit/candidates/selection.md`。
+5. 以赢家为底建 `prototype/`，再进入下方迭代循环。落选候选保留在原目录（验收要查）。
+
+验收判定：候选 ≥2、各有 HTML+截图、selection.md ≥100 字符且以限定路径引用每个候选的截图、`chosen` 指向存在的候选。浏览器不可用时此维度记"未验证"（6.2 降级）。
+
+## 截图-自评-迭代循环（强制，验收机器判定，不迭代过不了验收）
+
+1. 首版完成后运行 `node scripts/screenshot.mjs --package <目录> --round 1`（375/768/1440 三视口截图到 `audit/iterations/round-1/`，同时自动写 `meta.json` 记录当轮原型指纹）。
 2. **Read 每张截图**，对照 `references/polish-checklist.md` 逐节自评，列出命中项与修法（C/D 类"廉价感"问题必须正面检查，不许只挑硬伤）。
 3. 修改后 `--round 2` 再截再评。**至少完成 2 轮**；直到一轮零新增命中才可交回 Director 进评审。
-4. 每轮在 `audit/iterations/round-N/notes.md` 记录：命中项、修复动作（供 Director 与评审核查迭代确实发生）。
+4. 每轮在 `audit/iterations/round-N/notes.md` 记录：命中项、修复动作，并**引用当轮截图文件名**。
 5. 浏览器不可用时（6.2 降级）：跳过截图但仍按清单做代码级自评，并在 assumptions 记录"视觉未经渲染验证"。
+6. 验收（18.2「迭代自评」维度）机器判定：轮数 ≥2；每轮有截图 + 非空 notes.md（≥50 字符且引用当轮截图文件名）+ meta.json；**末轮 `page_hashes` 必须与交付原型一致**——截完图再改代码而不复评一轮，验收直接 fail。
 
 ## 白名单（由 Director 做字段级 diff 门禁强制）
 

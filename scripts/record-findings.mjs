@@ -5,7 +5,7 @@
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { join, resolve } from "node:path";
 import yaml from "js-yaml";
-import { validateFindingsDoc } from "./lib/findings.mjs";
+import { validateFindingsDoc, semanticIssuesVisual } from "./lib/findings.mjs";
 
 function arg(name) {
   const i = process.argv.indexOf(name);
@@ -34,6 +34,17 @@ if (doc.artifact_version !== version) {
 if (!["standards", "visual"].includes(doc.reviewer)) {
   console.error(`✗ 未知 reviewer: ${doc.reviewer}`);
   process.exit(1);
+}
+
+// visual 评审的语义校验：八维覆盖、截图存在且哈希匹配、observed/evidence 含实测值、
+// 判定与 findings 对应（rubric 证据纪律的机器化，防"没看图就写 pass"）。
+if (doc.reviewer === "visual") {
+  const issues = semanticIssuesVisual(doc, resolve(pkg));
+  if (issues.length) {
+    console.error("✗ visual findings 语义校验失败（rubric 证据纪律）：");
+    for (const s of issues) console.error(`  - ${s}`);
+    process.exit(1);
+  }
 }
 
 const dir = join(resolve(pkg), "audit", "findings");

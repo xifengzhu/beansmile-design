@@ -4,6 +4,7 @@ import { join } from "node:path";
 import yaml from "js-yaml";
 import { makeValidator } from "./rules.mjs";
 import { SCHEMAS } from "./paths.mjs";
+import { sha256File } from "./hash.mjs";
 
 let _validate;
 function validator() {
@@ -43,4 +44,44 @@ export function loadFindingsForVersion(pkgRoot, artifactVersion) {
 
 export function countBlockers(doc) {
   return (doc?.findings ?? []).filter((f) => f.severity === "blocker").length;
+}
+
+export const DIMENSIONS = ["hierarchy", "rhythm", "typography", "color", "consistency", "content", "brand", "completion"];
+
+// visual 评审的语义校验（schema 之外的"必须真看过图"纪律，规范 7.8 / rubric）：
+// 八维各恰好一条；引用的截图真实存在且哈希匹配（防引用不存在或事后被换的图）；
+// observed 含实测数值；非 pass 判定须有同维度的 finding 对应；finding 须标注维度。
+// 返回问题清单，空数组=通过。
+export function semanticIssuesVisual(doc, pkgRoot) {
+  const issues = [];
+  const reviews = doc.dimension_reviews ?? [];
+
+  const seen = new Map();
+  for (const r of reviews) seen.set(r.dimension, (seen.get(r.dimension) ?? 0) + 1);
+  for (const d of DIMENSIONS) {
+    const n = seen.get(d) ?? 0;
+    if (n === 0) issues.push(`缺维度 dimension_reviews: ${d}`);
+    if (n > 1) issues.push(`维度重复: ${d} 出现 ${n} 次`);
+  }
+
+  for (const r of reviews) {
+    const p = join(pkgRoot, r.screenshot);
+    if (r.screenshot.includes("..")) { issues.push(`[${r.dimension}] 截图路径非法: ${r.screenshot}`); continue; }
+    if (!/^audit\//.test(r.screenshot)) issues.push(`[${r.dimension}] 截图须位于 audit/ 下: ${r.screenshot}`);
+    if (!existsSync(p)) { issues.push(`[${r.dimension}] 引用的截图不存在: ${r.screenshot}`); continue; }
+    if (sha256File(p) !== r.screenshot_sha256) issues.push(`[${r.dimension}] 截图哈希不匹配（引用的不是盘上这张图）: ${r.screenshot}`);
+    if (!/\d/.test(r.observed)) issues.push(`[${r.dimension}] observed 无任何实测数值（px/hex/比值/数量），不满足证据纪律`);
+    if (r.judgment !== "pass") {
+      const linked = (doc.findings ?? []).some((f) => f.dimension === r.dimension && (r.judgment === "blocker" ? f.severity === "blocker" : ["blocker", "warning"].includes(f.severity)));
+      if (!linked) issues.push(`[${r.dimension}] judgment=${r.judgment} 但 findings 中无同维度、相称严重度的条目`);
+    }
+  }
+
+  for (const f of doc.findings ?? []) {
+    if (!f.dimension) issues.push(`finding ${f.id} 缺 dimension 标注（八维之一）`);
+    if (["blocker", "warning"].includes(f.severity) && !/\d/.test(f.evidence ?? "")) {
+      issues.push(`finding ${f.id}（${f.severity}）evidence 无实测数值，不满足证据纪律`);
+    }
+  }
+  return issues;
 }

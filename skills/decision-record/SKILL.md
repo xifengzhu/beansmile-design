@@ -29,6 +29,8 @@ description: 将设计问题映射到适用规则，解析规则强度/平台/�
 
 - 文件 `decisions.md`：每条关键决策含 摘要 · 引用的 `rule_id`（须能在依据库解析）· 证据等级 · 理由 · 决定人 · 覆盖与风险。
 - **引用书写约定**：在 `decisions.md` 正文中引用规则一律写成 `[rule:<id>]`（如 `[rule:wcag-1.4.3-contrast-minimum]`、`[rule:craft-proximity-grouping]`）——验收脚本以此标记做权威追溯扫描。
+- **评审 warning 处理约定**：评审产生的每条 `warning` 级 finding，处理结果写成 `[finding:<id>] <修复了什么，或接受的理由与风险>. 决定人：..`——验收以此标记判定 warning 已被显式处理，缺失判 fail。
+- **追加纪律**：快照冻结后 `decisions.md` 只允许追加（记录裁决与 warning 处理），不得改写既有内容——验收以快照前缀比对强制。
 - 补丁：同步 `context.decisions` 与 `context.exceptions`（`rule_ids` 数组），与 `decisions.md` 一一对应。
 
 ## 验收对齐（规范 18.2）

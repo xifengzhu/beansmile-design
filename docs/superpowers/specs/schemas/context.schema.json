@@ -114,8 +114,46 @@
         }
       }
     },
+    "confirmations": {
+      "type": "object",
+      "description": "专业模式三道用户确认门的记录 (规范 9.1)。缺失对应记录时，状态机拒绝推进：requirements 缺失不得 research→ux；flows 缺失不得 ux→visual；direction 缺失不得 visual→prototype。",
+      "additionalProperties": false,
+      "properties": {
+        "requirements": { "$ref": "#/$defs/confirmation" },
+        "flows": { "$ref": "#/$defs/confirmation" },
+        "direction": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["summary", "user_reply", "candidates", "chosen"],
+          "properties": {
+            "summary": { "type": "string", "minLength": 1 },
+            "user_reply": { "type": "string", "minLength": 1 },
+            "decided_at": { "type": "string" },
+            "candidates": {
+              "type": "array",
+              "minItems": 2,
+              "uniqueItems": true,
+              "items": { "type": "string", "minLength": 1 }
+            },
+            "chosen": { "type": "string", "minLength": 1 }
+          }
+        }
+      }
+    },
     "stage": {
       "enum": ["intake", "research", "ux", "visual", "prototype", "review", "delivered"]
+    }
+  },
+  "$defs": {
+    "confirmation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["summary", "user_reply"],
+      "properties": {
+        "summary": { "type": "string", "minLength": 1, "description": "呈给用户确认的内容摘要" },
+        "user_reply": { "type": "string", "minLength": 1, "description": "用户答复原文（可审计，不得由 Agent 代拟）" },
+        "decided_at": { "type": "string" }
+      }
     }
   }
 }

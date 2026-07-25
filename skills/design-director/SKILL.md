@@ -33,12 +33,12 @@ description: 设计 Agent 系统的唯一决策中心。识别任务、维护 co
 
 1. **intake / 澄清**：识别任务类型、目标平台、模式；一次只问一个需要用户决定的问题。初始化 `context.yaml`。
 2. **research**：调度 `requirements-research`，产出 `brief.md`。
-3. **确认门 A**：用户确认需求与成功标准。
+3. **确认门 A**：用户确认需求与成功标准。得到答复后**必须落盘**：`node scripts/director-advance.mjs --package <目录> --confirm requirements --summary <呈给用户的摘要> --reply <用户答复原文>`。未落盘时状态机拒绝 research→ux。
 4. **ux**：调度 `ux-architecture`，产出 `flows.md`。
-5. **确认门 B**：用户确认流程与页面范围。
+5. **确认门 B**：用户确认流程与页面范围。落盘：`--confirm flows --summary .. --reply ..`。未落盘时拒绝 ux→visual。
 6. **visual**：调度 `visual-system`，展示 2–3 个视觉方向。
-7. **确认门 C**：用户选择/修订方向。
-8. **prototype**：调度 `html-prototype`，产出高保真响应式 HTML。
+7. **确认门 C**：用户选择/修订方向。落盘：`--confirm direction --summary .. --reply .. --candidates D1,D3,D5 --chosen D3`（候选须 ≥2 且 chosen 在其中）。未落盘时拒绝 visual→prototype。`--reply` 一律为用户答复原文，不得代拟。
+8. **prototype**：调度 `html-prototype`。专业模式下它必须先完成**执行竞争**（同方向 2–3 个候选关键页 → `screenshot.mjs --candidates` 截图 → 对比择优写 `audit/candidates/selection.md`），再以赢家为底做全量原型。验收「执行竞争」维度机器判定。
 9. **自动检查**：运行 14.1 检查（axe、Playwright、多视口截图、溢出、控制台错误、200% 缩放）。
 10. **双重评审**：见下"评审编排"。
 11. **修订**：处理 findings，记录取舍到 `decisions.md`。
@@ -52,12 +52,12 @@ description: 设计 Agent 系统的唯一决策中心。识别任务、维护 co
 
 ## 评审编排（强制只读，规范 5.3）
 
-1. 触发评审前，用 `node scripts/snapshot.mjs --package <目录> --version <v>` 把当前交付物冻结到 `audit/snapshots/<v>/`，`artifact_version` 单调递增（与 `context.artifacts.prototype.artifact_version` 一致）。
-2. 分别派发 `standards-audit` 与 `visual-review` 两个**纯只读**子代理，仅授予该快照目录 + 依据库只读权限。它们不访问 `context.yaml`，**不写任何文件**。
-3. 两评审互不可见对方 findings（避免锚定），各自把结构化 findings **返回**给你；你用 `node scripts/record-findings.mjs --package <目录> --version <v> --in <临时findings>` 校验 schema、绑定当前版本后落盘到 `audit/findings/<reviewer>-<v>.yaml`。版本不符会被拒绝，杜绝旧评审蒙混。
-4. 你读取两份 findings 后自行判断与修订。
+1. 触发评审前，用 `node scripts/snapshot.mjs --package <目录> --version <v>` 把当前交付物冻结到 `audit/snapshots/<v>/`，`artifact_version` 单调递增（与 `context.artifacts.prototype.artifact_version` 一致）。快照会写入 `manifest.json`（逐文件 sha256）；验收据此校验快照未被篡改、评审期间活动产物未被改动、`decisions.md` 仅追加——**评审后到验收前不得再改 `prototype/` 与 `design-tokens.json`**，改了就必须升版本重走截图自评+快照+评审。
+2. 分别派发 `standards-audit` 与 `visual-review` 两个**纯只读**子代理，仅授予该快照目录 + 依据库读权限（visual 另需 `audit/screenshots|iterations` 读权限以引用截图）。它们不访问 `context.yaml`，**不写任何文件**。
+3. 两评审互不可见对方 findings（避免锚定），各自把结构化 findings **返回**给你；你用 `node scripts/record-findings.mjs --package <目录> --version <v> --in <临时findings>` 校验 schema、绑定当前版本后落盘到 `audit/findings/<reviewer>-<v>.yaml`。版本不符会被拒绝；visual 评审还须通过八维 `dimension_reviews` 语义校验（八维各一、截图 sha256 匹配、observed 含实测值），杜绝"没看图就写 pass"。
+4. 你读取两份 findings 后自行判断与修订。**每条 warning 必须在 `decisions.md` 以 `[finding:<id>]` 标记处理**（修复了什么，或接受的理由与风险）——验收对未处理 warning 判 fail。
 
-只有 `blocker` 阻止交付；`warning` 说明影响后可交付；`note` 为非必要改进。
+只有 `blocker` 阻止交付；`warning` 说明影响后可交付（但须显式处理并记录）；`note` 为非必要改进。
 
 ## 裁决与可审计性（规范 5.5、10、12）
 
@@ -71,7 +71,7 @@ description: 设计 Agent 系统的唯一决策中心。识别任务、维护 co
 
 原型可打开 · 核心任务可完成 · 目标平台与关键状态覆盖 · blocker=0 · 关键决策有依据可追溯 · 假设/覆盖/例外已记录 · 目标视口真实截图已生成 · 浏览器自动化实际执行（否则标"待人工验证"）· 用户确认方向与范围。
 
-最后运行 `node scripts/acceptance.mjs --package <目录> [--review-before <ref> --review-after <ref>]` 执行第 18.2 节可机器判定的验收阈值（`--package` 必填，缺失会以退出码 2 结束）。
+最后运行 `node scripts/acceptance.mjs --package <目录> [--check-urls]` 执行第 18.2 节可机器判定的验收阈值（`--package` 必填，缺失会以退出码 2 结束）。评审只读改为内容哈希判定（快照 manifest），不再需要 git ref 参数。
 
 ## 可执行命令映射（Director 逐阶段调用）
 
@@ -79,6 +79,9 @@ description: 设计 Agent 系统的唯一决策中心。识别任务、维护 co
 |---|---|
 | 初始化 | `node scripts/init-project.mjs --package <目录> --name .. --mode .. --task-type .. --platforms web,mobile_web --primary-user ..` |
 | 自检 | `node scripts/env-check.mjs --out <目录>/audit/environment.md` |
+| 记录确认门（A/B/C，专业模式必需） | `node scripts/director-advance.mjs --package <目录> --confirm requirements\|flows\|direction --summary .. --reply .. [--candidates .. --chosen ..]` |
+| 推进阶段 | `node scripts/director-advance.mjs --package <目录> --stage <阶段>` |
+| 候选竞争截图（prototype 阶段、全量开发前） | `node scripts/screenshot.mjs --package <目录> --candidates` |
 | 合并 Skill 补丁（唯一写 context） | `node scripts/apply-patch.mjs --package <目录> --skill <canonical id> --patch <patch.yaml>` |
 | 浏览器自动检查 | `node scripts/browser-check.mjs --package <目录> --version <v>` |
 | 冻结快照 | `node scripts/snapshot.mjs --package <目录> --version <v>` |

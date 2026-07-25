@@ -11,6 +11,7 @@
     "validate:context": "node scripts/validate-context.mjs",
     "gate:diff": "node scripts/check-diff-gate.mjs",
     "env:check": "node scripts/env-check.mjs",
+    "setup:agents": "node scripts/setup-agent-skills.mjs",
     "recall": "node scripts/recall-harness.mjs",
     "init": "node scripts/init-project.mjs",
     "apply": "node scripts/apply-patch.mjs",

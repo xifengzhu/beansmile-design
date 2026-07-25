@@ -1,5 +1,7 @@
 .superpowers/
 .worktrees/
+.claude/skills/
+.codex/skills/
 /work/
 /outputs/
 node_modules/

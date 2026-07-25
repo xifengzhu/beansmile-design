@@ -17,6 +17,7 @@ npm run check                             # 校验依据库、Skill manifest 与
 npm run validate:rules                    # 校验 evidence/rules/ 规则卡
 npm run env:check                         # 真实启动浏览器探测能力（退出码 3 = 降级）
 npm run recall -- --out /tmp/recall.json  # 对 fixtures/blockers 跑召回/误报测试
+npm run setup:agents                      # 把 skills/ 链接进 .claude/skills 与 .codex/skills（幂等）
 ```
 
 提交前至少跑 `npm run check && npm test && npm run validate:rules`。交付包相关命令（init/shot/browser:check/snapshot/review:record/accept 等）见 README「常用命令」表。

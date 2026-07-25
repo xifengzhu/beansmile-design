@@ -58,7 +58,26 @@ npm run env:check
 - 退出码 `3`：进入降级状态，浏览器相关结论只能标为“未验证”，任务不能标记为已完成。
 - 其他非零退出码：命令失败，需要先修复环境或参数问题。
 
-### 3. 初始化交付包
+### 3. 在 Claude Code 或 Codex 中启用 Skills
+
+Skill 定义遵循 [Agent Skills 开放标准](https://agentskills.io)（SKILL.md 格式），Claude Code 和 Codex CLI 都原生支持。运行一次：
+
+```bash
+npm run setup:agents
+```
+
+该命令把 `skills/` 下的 8 个 Skill 以相对符号链接挂进 `.claude/skills/` 和 `.codex/skills/`（两个目录已被 Git 忽略，每位使用者在自己的克隆里运行一次即可）。命令幂等，新增 Skill 后重跑一次即可更新。
+
+之后**在仓库根目录**开启会话：
+
+| 工具 | 调用方式 |
+|---|---|
+| Claude Code | `/design-director`，或直接描述设计任务（按 description 自动触发） |
+| Codex CLI | `$design-director`，或用 `/skills` 选择器浏览 |
+
+注意：所有 Skill 中的脚本命令都假定当前目录是本仓库根目录，会话必须从这里启动；交付包目录则可以通过 `--package` 指向任意位置。
+
+### 4. 初始化交付包
 
 下面的示例会在 `outputs/demo` 创建专业模式的 Web 交付包。`outputs/` 已被 Git 忽略，可以替换为其他目录。
 
@@ -86,12 +105,12 @@ npm run init -- \
 npm run validate:context -- outputs/demo/context.yaml
 ```
 
-### 4. 启动设计任务
+### 5. 启动设计任务
 
-以 [`skills/design-director/SKILL.md`](skills/design-director/SKILL.md) 作为主会话入口，让 Codex 或 Claude 按阶段调度各 Skill。示例任务描述：
+主会话入口是 `design-director` Skill：在 Claude Code 中输入 `/design-director`，在 Codex 中输入 `$design-director`，由它按阶段调度其余 Skill。未启用 Skill 机制时，也可以直接让 Agent 阅读 [`skills/design-director/SKILL.md`](skills/design-director/SKILL.md)。示例任务描述：
 
 ```text
-请按 skills/design-director/SKILL.md 的专业模式执行设计任务。
+请按 design-director 的专业模式执行设计任务。
 交付包目录使用 outputs/demo，目标平台为 web 和 mobile_web。
 从需求澄清开始，一次只问一个需要我决定的问题，并在每个确认门等待我的答复。
 ```
@@ -167,6 +186,7 @@ node scripts/director-advance.mjs \
 | `npm run validate:rules` | 校验规则卡 schema、ID 唯一性和冲突引用 |
 | `npm run validate:context -- <context.yaml>` | 校验任务上下文及当前阶段 |
 | `npm run env:check` | 探测 Node、Playwright、axe-core，并真实启动浏览器 |
+| `npm run setup:agents` | 把 Skills 链接进 `.claude/skills/` 与 `.codex/skills/`（幂等） |
 | `npm run recall -- --out <报告路径>` | 对已知 blocker fixtures 运行召回与误报测试 |
 
 ### 状态与补丁门禁

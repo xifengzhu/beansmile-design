@@ -40,7 +40,16 @@ description: 根据已确认的用户流与视觉系统生成可点击高保真�
 
 - reads: `project`, `users`, `goals`, `brand`, `constraints`, `artifacts.flows`, `artifacts.tokens`
 - writes: `artifacts.prototype`, `assumptions`, `stage`
-- produces: `prototype/index.html`
+- produces: `prototype/index.html`, `prototype/scenarios.json`
+
+## 核心任务场景（prototype/scenarios.json，验收机器执行）
+
+原型不只是"能看"，要"能被证明可用"。按 flows.md 的核心任务写可执行场景，browser-check 会用 Playwright 逐步执行并断言：
+
+- 至少 1 个 `kind: success`（核心任务成功路径：填写 → 提交 → 断言成功态出现）和 1 个 `kind: error`（错误路径：漏填/错填 → 断言错误提示出现，wcag-3.3.1）。
+- 每个场景 `{ id, name, kind, page, steps }`；step 动作：`fill{selector,value}` / `click{selector}` / `press{key}` / `expect_visible{selector}` / `expect_hidden{selector}` / `expect_text{selector,text}`。每个场景至少一步 `expect_*` 断言——跑完不验证等于没跑。
+- 选择器写稳定的（id / 语义标签 / aria 属性），别依赖易变的 class 链。
+- 场景失败 = browser-check 阻断信号 = 验收 fail。写场景时自己先跑一遍 `node scripts/browser-check.mjs`。
 
 ## 职责
 

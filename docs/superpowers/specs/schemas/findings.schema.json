@@ -28,6 +28,25 @@
         }
       }
     },
+    "rule_coverage": {
+      "type": "array",
+      "description": "standards 评审必填：目标平台全部适用规则的逐条核查记录（覆盖矩阵）。空 findings 不等于合规——必须证明每条适用规则都被核查过。",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["rule_id", "result", "checked_via", "evidence"],
+        "properties": {
+          "rule_id": { "type": "string", "minLength": 1 },
+          "result": {
+            "enum": ["pass", "fail", "intent_only", "not_applicable"],
+            "description": "pass/fail=实际验证结论；intent_only=HTML 无法忠实验证的原生项，仅判设计意图一致性（规范 6.3，Web 规则禁用）；not_applicable=本次范围不适用（evidence 须说明为何）"
+          },
+          "checked_via": { "enum": ["automated", "screenshot", "code", "manual_checklist"] },
+          "evidence": { "type": "string", "minLength": 10, "description": "检查了什么、看到了什么（含定位或实测值）" }
+        }
+      }
+    },
     "dimension_reviews": {
       "type": "array",
       "description": "visual 评审必填：八个维度各一条，记录看了哪张截图的哪个区域、观察到什么（须含实测值）、判定如何。",
@@ -74,6 +93,11 @@
       "$comment": "visual 评审必须提交八维 dimension_reviews。",
       "if": { "properties": { "reviewer": { "const": "visual" } } },
       "then": { "required": ["dimension_reviews"] }
+    },
+    {
+      "$comment": "standards 评审必须提交 rule_coverage 覆盖矩阵。",
+      "if": { "properties": { "reviewer": { "const": "standards" } } },
+      "then": { "required": ["rule_coverage"] }
     }
   ],
   "$defs": {

@@ -85,3 +85,64 @@ export function semanticIssuesVisual(doc, pkgRoot) {
   }
   return issues;
 }
+
+// standards 评审的语义校验（覆盖矩阵纪律）："pass + 空 findings"不构成合规证明——
+// 目标平台的每条适用规则都必须在 rule_coverage 里逐条出现，带核查方式与证据；
+// fail 须有对应 finding；Web 规则不得用 intent_only（HTML 即目标载体，规范 6.3 的
+// 保真度边界只豁免原生平台项）。rules 由调用方传入（生产走 loadRules().rules，测试可注入）。
+// 行业规则包（_file 为 industry-*.yaml）只在项目 industry 匹配时进入适用集——
+// 电商规则不追着所有 Web 项目跑。返回问题清单，空数组=通过。
+const WEB_PLATFORMS = ["web", "mobile_web"];
+
+// 行业 slug → 规则包文件名（下划线归一为连字符：saas_b2b → industry-saas-b2b.yaml）。
+export function industryPackFile(industry) {
+  return `industry-${String(industry).replaceAll("_", "-")}.yaml`;
+}
+
+export function semanticIssuesStandards(doc, platforms, rules, industry) {
+  const issues = [];
+  const cov = doc.rule_coverage ?? [];
+  const byId = new Map(rules.map((r) => [r.id, r]));
+  const applicable = rules.filter((r) => {
+    const file = r._file ?? "";
+    if (file.startsWith("industry-")) {
+      if (!industry || file !== industryPackFile(industry)) return false;
+    }
+    return (r.platforms ?? []).some((p) => (platforms ?? []).includes(p));
+  });
+
+  const seen = new Map();
+  for (const c of cov) seen.set(c.rule_id, (seen.get(c.rule_id) ?? 0) + 1);
+  for (const [id, n] of seen) {
+    if (!byId.has(id)) issues.push(`rule_coverage 引用不存在的规则: ${id}`);
+    if (n > 1) issues.push(`rule_coverage 重复条目: ${id} 出现 ${n} 次`);
+  }
+  const missing = applicable.filter((r) => !seen.has(r.id)).map((r) => r.id);
+  if (missing.length) {
+    issues.push(`覆盖缺口：目标平台适用规则未逐条核查，缺 ${missing.length} 条: ${missing.slice(0, 8).join(",")}${missing.length > 8 ? " 等" : ""}`);
+  }
+
+  for (const c of cov) {
+    const rule = byId.get(c.rule_id);
+    if (!rule) continue;
+    if ((c.evidence ?? "").trim().length < 10) {
+      issues.push(`[${c.rule_id}] 覆盖证据过短——每条要写检查了什么、看到了什么（含定位或实测值）`);
+    }
+    if (c.result === "intent_only" && (rule.platforms ?? []).some((p) => WEB_PLATFORMS.includes(p))) {
+      issues.push(`[${c.rule_id}] Web 平台规则不得用 intent_only（HTML 即目标载体，必须实际验证）`);
+    }
+    if (c.result === "fail") {
+      const linked = (doc.findings ?? []).some((f) => f.rule_id === c.rule_id && ["blocker", "warning"].includes(f.severity));
+      if (!linked) issues.push(`[${c.rule_id}] coverage result=fail 但 findings 中无对应 blocker/warning 条目（矩阵与 findings 脱钩）`);
+    }
+  }
+
+  // 反向一致性：带 rule_id 的 blocker/warning finding，coverage 里不得写 pass。
+  for (const f of doc.findings ?? []) {
+    if (f.rule_id && ["blocker", "warning"].includes(f.severity)) {
+      const c = cov.find((x) => x.rule_id === f.rule_id);
+      if (c && c.result === "pass") issues.push(`[${f.rule_id}] finding ${f.id}（${f.severity}）与 coverage result=pass 自相矛盾`);
+    }
+  }
+  return issues;
+}

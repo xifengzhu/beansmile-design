@@ -15,6 +15,11 @@
         "name": { "type": "string", "minLength": 1 },
         "mode": { "enum": ["professional", "quick"] },
         "task_type": { "enum": ["new_design", "redesign"] },
+        "industry": {
+          "type": "string",
+          "minLength": 1,
+          "description": "行业 profile 标识（规范第 23 章）。有对应规则包 evidence/rules/industry-<industry>.yaml 时激活行业规则层；通用产品用 general。专业模式验收要求必填。已备包：ecommerce、saas_b2b。"
+        },
         "platforms": {
           "type": "array",
           "minItems": 1,

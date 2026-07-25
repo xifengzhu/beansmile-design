@@ -17,6 +17,7 @@ description: 从业务目标、目标用户、核心任务与成功指标出发�
 - 提取业务目标、目标用户、核心任务和成功指标。
 - 区分新产品设计（`project.task_type=new_design`）与改版（`redesign`）。
 - 识别目标平台惯例、领域风险和必要竞品参考。
+- **核实行业归属**：对照 `context.project.industry` 与实际业务判断行业是否标注正确（有规则包的行业：`ecommerce`、`saas_b2b`；通用产品 `general`）。不符时通过 Director 修正（project.* 由 Director 写）。行业包存在时，brief 的"平台与领域约束"节须列出该包与本项目相关的规则要点，供后续决策引用（验收「行业依据」要求行业规则实际参与决策）。
 - 对每条来源标注 `verified` / `inferred` / `user_provided`（写入 `assumptions[].source`）。
 
 ## 流程

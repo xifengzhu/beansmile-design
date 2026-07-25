@@ -1,0 +1,118 @@
+# 电商行业规则卡（industry profile: ecommerce）
+# 校验 schema: docs/superpowers/specs/schemas/rule-card.schema.json
+# 对应设计规范第 10.1 第 5 层（成熟可用性原则与领域研究）、第 23 章（行业规则层）。
+# 来源全部于 last_verified 日期 curl 核实可达（Baymard 为大样本电商可用性研究，评 B；
+# NN/g 文章评 B/C）。行业规则不覆盖 WCAG/平台规范，只在其上叠加领域纪律。
+
+rules:
+  - id: ecom-price-transparency-checkout
+    title: 费用透明：总价构成在结账前完整可见
+    rule: 运费、税费、附加费在进入支付步骤前明确展示；购物车页给出可计算的总价预估，不把额外费用留到最后一步。
+    publisher: Baymard Institute
+    source_url: https://baymard.com/lists/cart-abandonment-rate
+    source_version: Cart Abandonment Rate Statistics (2026 在线版)
+    last_verified: "2026-07-25"
+    platforms: [web, mobile_web, ios, android, mini_program]
+    scope: [checkout, pricing, trust]
+    strength: recommended
+    evidence_grade: B
+    rationale: Baymard 长期统计中"额外费用过高/过晚出现"是最大弃购原因，费用意外感直接摧毁信任。
+    check_method: manual
+
+  - id: ecom-guest-checkout-option
+    title: 提供游客结账
+    rule: 结账不得强制注册；提供游客结账入口，注册引导放在下单完成后（利用已填信息一键建号）。
+    publisher: Baymard Institute
+    source_url: https://baymard.com/lists/cart-abandonment-rate
+    source_version: Cart Abandonment Rate Statistics (2026 在线版)
+    last_verified: "2026-07-25"
+    platforms: [web, mobile_web, ios, android, mini_program]
+    scope: [checkout, conversion, forms]
+    strength: recommended
+    evidence_grade: B
+    rationale: 强制注册长期位列弃购原因前二；小程序场景对应"授权弹窗延后到必要时"。
+    check_method: manual
+
+  - id: ecom-checkout-form-minimal
+    title: 结账表单字段最少化
+    rule: 结账流程只收集完成订单必需的字段；地址等可推导信息自动填充/合并；单列布局，明示步骤进度。
+    publisher: Baymard Institute
+    source_url: https://baymard.com/blog/checkout-flow-average-form-fields
+    source_version: Checkout Flow Average Form Fields（在线版）
+    last_verified: "2026-07-25"
+    platforms: [web, mobile_web, ios, android, mini_program]
+    scope: [checkout, forms, conversion]
+    strength: recommended
+    evidence_grade: B
+    rationale: Baymard 测得均值远高于必要字段数；每个多余字段都是流失点。理想结账可压缩到 8 字段以内。
+    check_method: manual
+
+  - id: ecom-payment-perceived-security
+    title: 支付区的感知安全
+    rule: 支付信息输入区用视觉围合（边框/底色分区）与安全线索（锁形图标、简短加密说明）强化感知安全；不堆砌无关徽标。
+    publisher: Baymard Institute
+    source_url: https://baymard.com/blog/perceived-security-of-payment-form
+    source_version: Perceived Security of Payment Form（在线版）
+    last_verified: "2026-07-25"
+    platforms: [web, mobile_web, ios, android, mini_program]
+    scope: [checkout, payment, trust]
+    strength: heuristic
+    evidence_grade: B
+    rationale: 用户对支付安全的判断主要来自视觉线索而非实际技术；感知不安全即弃购，与真实安全无关。
+    check_method: manual
+
+  - id: ecom-product-page-essentials
+    title: 产品页要素完备
+    rule: 产品页必备：多角度图（可放大）、当前价格与促销价对比、库存/发货预期、规格参数、退换政策入口；关键购买信息在首屏或一次滚动内。
+    publisher: Nielsen Norman Group
+    source_url: https://www.nngroup.com/articles/ecommerce-product-pages/
+    source_version: NN/g 在线文章（持续更新版）
+    last_verified: "2026-07-25"
+    platforms: [web, mobile_web, ios, android, mini_program]
+    scope: [product-page, content, conversion]
+    strength: recommended
+    evidence_grade: B
+    rationale: 产品页是购买决策现场，要素缺失迫使用户离站找信息，回不来的居多。
+    check_method: manual
+
+  - id: ecom-order-confirmation-summary
+    title: 下单前订单摘要与提交后确认
+    rule: 提交订单前展示完整订单摘要（商品、数量、地址、支付方式、总价，均可就地修改）；提交后给明确确认态与后续预期（邮件/物流）。
+    publisher: Nielsen Norman Group
+    source_url: https://www.nngroup.com/articles/confirmation-dialog/
+    source_version: NN/g 在线文章（持续更新版）
+    last_verified: "2026-07-25"
+    platforms: [web, mobile_web, ios, android, mini_program]
+    scope: [checkout, error-prevention, feedback]
+    strength: recommended
+    evidence_grade: B
+    rationale: 下单是高代价不可逆操作，确认时机与信息完整度直接决定错误率与客诉率。
+    check_method: manual
+
+  - id: ecom-checkout-error-recovery
+    title: 结账错误的就地恢复
+    rule: 校验错误就地标识在字段旁、说明怎么改（不只说错了）、绝不清空用户已填内容；提交失败后焦点移到第一个错误字段。
+    publisher: Nielsen Norman Group
+    source_url: https://www.nngroup.com/articles/error-message-guidelines/
+    source_version: NN/g 在线文章（持续更新版）
+    last_verified: "2026-07-25"
+    platforms: [web, mobile_web, ios, android, mini_program]
+    scope: [checkout, forms, error-recovery]
+    strength: recommended
+    evidence_grade: B
+    rationale: 结账环节的错误处理粗暴（清空重填/只报"失败"）是高转化流程里最昂贵的可用性缺陷。
+    check_method: mixed
+
+  - id: ecom-empty-cart-guidance
+    title: 空购物车与空结果的引导
+    rule: 空购物车/空搜索结果/空收藏不是死胡同：说明为什么空、给继续逛的入口（推荐位、热门分类、清除筛选）。
+    publisher: Nielsen Norman Group
+    source_url: https://www.nngroup.com/articles/empty-state-interface-design/
+    source_version: NN/g 在线文章（持续更新版）
+    last_verified: "2026-07-25"
+    platforms: [web, mobile_web, ios, android, mini_program]
+    scope: [empty-state, navigation, conversion]
+    strength: heuristic
+    evidence_grade: C
+    rationale: 电商空态是转化挽回位；裸空态等于把用户请出门。
+    check_method: manual

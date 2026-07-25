@@ -1,0 +1,117 @@
+# B2B SaaS 行业规则卡（industry profile: saas_b2b）
+# 校验 schema: docs/superpowers/specs/schemas/rule-card.schema.json
+# 对应设计规范第 10.1 第 5 层（成熟可用性原则与领域研究）、第 23 章（行业规则层）。
+# 来源全部于 last_verified 日期 curl 核实可达。行业规则不覆盖 WCAG/平台规范，只叠加领域纪律。
+
+rules:
+  - id: saas-empty-state-onboarding
+    title: 空状态承担新用户引导
+    rule: 首次使用的空状态必须回答"这里将来是什么、现在怎么开始"：一句话说明 + 主动作按钮 + 可选示例数据/模板入口；不用裸的"暂无数据"。
+    publisher: Nielsen Norman Group
+    source_url: https://www.nngroup.com/articles/empty-state-interface-design/
+    source_version: NN/g 在线文章（持续更新版）
+    last_verified: "2026-07-25"
+    platforms: [web, mobile_web, ios, android, mini_program]
+    scope: [empty-state, onboarding, activation]
+    strength: recommended
+    evidence_grade: C
+    rationale: B2B 产品的激活率瓶颈常在首个空屏；空态是成本最低的 onboarding 位。
+    check_method: manual
+
+  - id: saas-destructive-confirm
+    title: 破坏性操作的分级确认
+    rule: 可逆操作用"操作后撤销"（undo toast）代替打断式确认；不可逆操作（删除项目/工作区）用明确后果描述 + 输入名称确认；确认按钮写具体动词（"删除 3 个项目"），不写"确定"。
+    publisher: Nielsen Norman Group
+    source_url: https://www.nngroup.com/articles/confirmation-dialog/
+    source_version: NN/g 在线文章（持续更新版）
+    last_verified: "2026-07-25"
+    platforms: [web, mobile_web, ios, android, mini_program]
+    scope: [error-prevention, destructive-actions, dialogs]
+    strength: recommended
+    evidence_grade: B
+    rationale: 确认框滥用导致习惯性点击（确认疲劳），真正危险的操作反而失去保护；分级是唯一出路。
+    check_method: manual
+
+  - id: saas-system-status-visibility
+    title: 系统状态持续可见
+    rule: 保存状态（已保存/保存中/离线）、同步状态、后台任务进行中必须有常驻可见指示；自动保存也要告知，不让用户猜"存了没有"。
+    publisher: Nielsen Norman Group
+    source_url: https://www.nngroup.com/articles/visibility-system-status/
+    source_version: NN/g 在线文章（持续更新版）
+    last_verified: "2026-07-25"
+    platforms: [web, mobile_web, ios, android, mini_program]
+    scope: [feedback, status, trust]
+    strength: recommended
+    evidence_grade: B
+    rationale: 可用性启发式第一条；工作数据场景下状态不可见直接转化为焦虑与重复操作。
+    check_method: manual
+
+  - id: saas-slow-operation-progress
+    title: 慢操作的进度反馈分级
+    rule: 操作 <1s 无需指示；1–10s 用 spinner/骨架；>10s 或可预估的用进度条 + 剩余预期；超长任务允许离开并完成后通知。
+    publisher: Nielsen Norman Group
+    source_url: https://www.nngroup.com/articles/progress-indicators/
+    source_version: NN/g 在线文章（持续更新版）
+    last_verified: "2026-07-25"
+    platforms: [web, mobile_web, ios, android, mini_program]
+    scope: [feedback, performance, loading]
+    strength: recommended
+    evidence_grade: B
+    rationale: 无反馈等待是放弃与重复提交的主因；指示类型错配（10 分钟任务配 spinner）同样有害。
+    check_method: manual
+
+  - id: saas-error-prevention-slips
+    title: 防滑差错（无意识失误）
+    rule: 高频操作防手滑：合理默认值、输入约束与格式化（日期选择器而非裸文本）、危险按钮与常用按钮保持距离、批量操作前显示影响数量。
+    publisher: Nielsen Norman Group
+    source_url: https://www.nngroup.com/articles/slips/
+    source_version: NN/g 在线文章（持续更新版）
+    last_verified: "2026-07-25"
+    platforms: [web, mobile_web, ios, android, mini_program]
+    scope: [error-prevention, forms, interaction]
+    strength: recommended
+    evidence_grade: B
+    rationale: 专家用户的错误多为滑差而非误解；约束与布局防错比事后报错便宜一个量级。
+    check_method: manual
+
+  - id: saas-error-prevention-mistakes
+    title: 防理解性错误
+    rule: 后果不直观的操作先预览影响（"此变更将影响 12 名成员"）；权限/计费等心智模型复杂处就地解释；提供沙盒或试运行时优先。
+    publisher: Nielsen Norman Group
+    source_url: https://www.nngroup.com/articles/user-mistakes/
+    source_version: NN/g 在线文章（持续更新版）
+    last_verified: "2026-07-25"
+    platforms: [web, mobile_web, ios, android, mini_program]
+    scope: [error-prevention, mental-model, permissions]
+    strength: recommended
+    evidence_grade: B
+    rationale: B2B 的理解性错误（权限、计费、批量规则）代价高且难撤销，预览后果是最有效解法。
+    check_method: manual
+
+  - id: saas-data-table-tasks
+    title: 数据表按用户任务设计
+    rule: 表格按"查找/对比/查看单条/执行操作"四类任务配能力：可排序表头、列显隐、行内主操作 + 批量操作、当前筛选状态可见可清除。
+    publisher: Nielsen Norman Group
+    source_url: https://www.nngroup.com/articles/data-tables/
+    source_version: NN/g 在线文章（持续更新版）
+    last_verified: "2026-07-25"
+    platforms: [web, mobile_web]
+    scope: [tables, data-density, workflow]
+    strength: recommended
+    evidence_grade: C
+    rationale: 表格是 B2B 的主战场；缺任务支撑的表格把高频工作变成逐行肉眼扫描。
+    check_method: manual
+
+  - id: saas-pricing-comparison-table
+    title: 方案对比表的可比性
+    rule: 定价/方案对比列数 ≤5；同一属性同一行、可横向扫读；差异项突出、共有项可折叠；推荐方案单一标注；移动端降级为可切换单列而非缩小字号。
+    publisher: Nielsen Norman Group
+    source_url: https://www.nngroup.com/articles/comparison-tables/
+    source_version: NN/g 在线文章（持续更新版）
+    last_verified: "2026-07-25"
+    platforms: [web, mobile_web]
+    scope: [pricing, comparison, conversion]
+    strength: recommended
+    evidence_grade: C
+    rationale: 对比表的目的是支持决策而非陈列；不可比的对比表把选型压力全推给用户。
+    check_method: manual

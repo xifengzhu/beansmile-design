@@ -11,7 +11,7 @@ import { resolve, join } from "node:path";
 import { loadRules } from "./lib/rules.mjs";
 import { loadManifests } from "./lib/manifests.mjs";
 import { loadYaml, validateContext } from "./lib/context.mjs";
-import { loadFindingsForVersion, countBlockers, semanticIssuesVisual } from "./lib/findings.mjs";
+import { loadFindingsForVersion, countBlockers, semanticIssuesVisual, semanticIssuesStandards, industryPackFile } from "./lib/findings.mjs";
 import { hashPaths, manifestDigest, verifyManifest, diffHashMaps } from "./lib/hash.mjs";
 import { collectCandidates, candidateIssues } from "./lib/candidates.mjs";
 import { checkEnvironment } from "./env-check.mjs";
@@ -56,10 +56,13 @@ const activeHashes = hashPaths(root, GUARDED);
       .filter(Boolean).join(" | "));
 }
 
+// 全部被引用的规则 id（block 2 填充；「行业依据」门复用）。
+const referencedRules = new Set();
+
 // —— 2. 规则可追溯 & 3. 无伪造来源 ——
 {
   const { byId } = loadRules();
-  const referenced = new Set();
+  const referenced = referencedRules;
   for (const d of ctx?.decisions ?? []) for (const rid of d.rule_ids ?? []) referenced.add(rid);
   if (existsSync(P("decisions.md"))) {
     const text = readFileSync(P("decisions.md"), "utf8");
@@ -127,10 +130,14 @@ const activeHashes = hashPaths(root, GUARDED);
       add("标准合规门", "fail", `缺/非法 standards findings: ${f.errors.join("; ")}`);
     } else {
       const unacked = unackedWarnings(f.standards);
-      const sOk = f.standards.verdict === "pass" && countBlockers(f.standards) === 0 && unacked.length === 0;
+      const coverage = semanticIssuesStandards(f.standards, ctx?.project?.platforms ?? [], loadRules().rules, ctx?.project?.industry);
+      const sOk = f.standards.verdict === "pass" && countBlockers(f.standards) === 0 && unacked.length === 0 && coverage.length === 0;
       add("标准合规门", sOk ? "pass" : "fail",
-        `standards(v${currentVersion}) verdict=${f.standards.verdict}, blocker=${countBlockers(f.standards)}` +
-        (unacked.length ? `；未处理 warning（decisions.md 缺 [finding:id] 记录）: ${unacked.join(",")}` : ""));
+        [`standards(v${currentVersion}) verdict=${f.standards.verdict}, blocker=${countBlockers(f.standards)}`,
+         coverage.length ? `覆盖矩阵不满足: ${coverage.slice(0, 4).join("; ")}${coverage.length > 4 ? ` 等 ${coverage.length} 项` : ""}`
+           : `覆盖矩阵完整（${(f.standards.rule_coverage ?? []).length} 条逐规则核查）`,
+         unacked.length ? `未处理 warning（decisions.md 缺 [finding:id] 记录）: ${unacked.join(",")}` : null]
+          .filter(Boolean).join(" | "));
     }
 
     if (!f.visual) {
@@ -245,6 +252,27 @@ const activeHashes = hashPaths(root, GUARDED);
   }
 }
 
+// —— 5e. 行业依据（v1.4：行业 profile 激活时，行业规则必须实际参与决策）——
+{
+  const industry = ctx?.project?.industry;
+  if (mode === "quick") add("行业依据", "pass", "快速模式，无行业依据要求");
+  else if (!industry) add("行业依据", "fail", "缺 project.industry（intake 应识别行业；通用产品用 general）");
+  else if (industry === "general") add("行业依据", "pass", "行业=general（通用产品，无行业规则包要求）");
+  else {
+    const packFile = industryPackFile(industry);
+    const packRules = loadRules().rules.filter((r) => r._file === packFile);
+    if (!packRules.length) {
+      add("行业依据", "unverified", `无行业规则包 evidence/rules/${packFile}：行业合规须人工评审（或先补规则包）`);
+    } else {
+      const used = packRules.filter((r) => referencedRules.has(r.id));
+      add("行业依据", used.length ? "pass" : "fail",
+        used.length
+          ? `行业包 ${packFile}（${packRules.length} 条）中 ${used.length} 条参与决策: ${used.slice(0, 5).map((r) => r.id).join(",")}${used.length > 5 ? " 等" : ""}`
+          : `行业包 ${packFile} 存在（${packRules.length} 条）但 decisions 零引用——行业规则未参与设计决策`);
+    }
+  }
+}
+
 // —— 6. 阻断召回 ——
 {
   const recallPath = P("audit/recall.json");
@@ -264,7 +292,7 @@ const activeHashes = hashPaths(root, GUARDED);
   else {
     const r = JSON.parse(readFileSync(axePath, "utf8"));
     const problems = [];
-    if ((r.checks_version ?? 1) < 2) problems.push("results.json 为旧版检查产物（缺 200% 缩放/可见焦点/裁切/CLS/同源指纹），请重跑 browser-check");
+    if ((r.checks_version ?? 1) < 3) problems.push("results.json 为旧版检查产物（缺核心任务场景执行或 200% 缩放/可见焦点/裁切/CLS/同源指纹），请重跑 browser-check");
     if (r.artifact_version !== undefined && r.artifact_version !== currentVersion) problems.push(`版本不符: results=${r.artifact_version}, 当前=${currentVersion}`);
     // 同源：检查时的原型指纹必须与当前交付原型一致（拒绝陈旧/异次运行的审计产物冒充）
     if (r.page_hashes) {
@@ -281,8 +309,13 @@ const activeHashes = hashPaths(root, GUARDED);
     if ((r.clipped_text ?? []).length) problems.push(`文本裁切 ${r.clipped_text.length} 处`);
     const maxCls = Math.max(0, ...Object.values(r.cls ?? {}));
     if (maxCls >= 0.1) problems.push(`CLS=${maxCls}（阈值 0.1）`);
+    const tf = r.task_flows;
+    if (tf) {
+      if (tf.definition_errors?.length) problems.push(`核心任务场景定义问题: ${tf.definition_errors.slice(0, 3).join("; ")}`);
+      if (tf.failures?.length) problems.push(`核心任务执行失败 ${tf.failures.length}/${tf.total}: ${tf.failures.slice(0, 3).map((x) => `${x.id}(${x.error})`).join("; ")}`);
+    } else if ((r.checks_version ?? 1) >= 3) problems.push("results.json 缺 task_flows");
     add("无障碍与渲染", problems.length === 0 ? "pass" : "fail",
-      problems.length ? problems.join("; ") : `同源指纹一致；axe 严重违规 0，键盘可达 100%，可见焦点 100%，控制台 0 错，reflow/200% 缩放 OK，无裁切，CLS≤${maxCls}`);
+      problems.length ? problems.join("; ") : `同源指纹一致；axe 严重违规 0，键盘可达 100%，可见焦点 100%，控制台 0 错，reflow/200% 缩放 OK，无裁切，CLS≤${maxCls}，核心任务场景 ${tf?.passed ?? 0}/${tf?.total ?? 0} 通过（含错误路径）`);
   }
 }
 

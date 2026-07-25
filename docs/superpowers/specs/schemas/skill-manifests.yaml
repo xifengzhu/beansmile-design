@@ -28,6 +28,7 @@ manifests:
     writes: [artifacts.prototype, assumptions, stage]
     produces:
       - prototype/index.html
+      - prototype/scenarios.json
 
   - skill: decision_record
     reads: [project, goals, users, brand, constraints, decisions, exceptions, assumptions]

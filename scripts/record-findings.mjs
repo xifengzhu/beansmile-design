@@ -2,10 +2,12 @@
 // Director 侧落盘评审结果（规范 5.3 / 7.8）。评审 Agent 只返回结构化 findings（只读），
 // 由本脚本校验 schema + 绑定当前 artifact_version 后写入 audit/findings/。
 // 用法: node scripts/record-findings.mjs --package <目录> --version <artifact_version> --in <findings.yaml>
-import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
+import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
 import { join, resolve } from "node:path";
 import yaml from "js-yaml";
-import { validateFindingsDoc, semanticIssuesVisual } from "./lib/findings.mjs";
+import { validateFindingsDoc, semanticIssuesVisual, semanticIssuesStandards } from "./lib/findings.mjs";
+import { loadYaml } from "./lib/context.mjs";
+import { loadRules } from "./lib/rules.mjs";
 
 function arg(name) {
   const i = process.argv.indexOf(name);
@@ -42,6 +44,19 @@ if (doc.reviewer === "visual") {
   const issues = semanticIssuesVisual(doc, resolve(pkg));
   if (issues.length) {
     console.error("✗ visual findings 语义校验失败（rubric 证据纪律）：");
+    for (const s of issues) console.error(`  - ${s}`);
+    process.exit(1);
+  }
+}
+
+// standards 评审的语义校验：覆盖矩阵纪律——目标平台每条适用规则逐条核查、fail 有对应
+// finding、Web 规则不得 intent_only（防"pass + 空 findings"的形式化合规）。
+if (doc.reviewer === "standards") {
+  const ctxPath = join(resolve(pkg), "context.yaml");
+  const project = existsSync(ctxPath) ? (loadYaml(ctxPath)?.project ?? {}) : {};
+  const issues = semanticIssuesStandards(doc, project.platforms ?? [], loadRules().rules, project.industry);
+  if (issues.length) {
+    console.error("✗ standards findings 语义校验失败（覆盖矩阵纪律）：");
     for (const s of issues) console.error(`  - ${s}`);
     process.exit(1);
   }

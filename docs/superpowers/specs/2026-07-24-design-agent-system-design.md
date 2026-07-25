@@ -593,8 +593,10 @@ design-project/
 | 迭代自评 | `audit/iterations/` ≥2 轮；每轮有截图 + 非空 `notes.md` 且引用当轮截图文件名 + `meta.json`；末轮 `page_hashes` 与交付原型一致（改完必须复评） | 全部为真 |
 | 流程确认 | 专业模式下 `context.confirmations` 含 requirements/flows/direction 三门记录；direction 候选 ≥2 且 chosen 在候选中（状态机层同时在推进时强制） | 全部为真 |
 | 执行竞争 | 专业模式下 `audit/candidates/` 含 ≥2 个候选（各有 HTML + 截图）；`selection.md` ≥100 字符、以 `cand-N/<截图名>` 限定路径引用每个候选的截图、`chosen` 指向存在的候选（v1.3，见第 22.2 节；浏览器不可用时记"未验证"） | 全部为真 |
+| 规范覆盖矩阵 | standards findings 含 `rule_coverage`：目标平台（+已激活行业包）的全部适用规则逐条出现，各带 result/checked_via/证据（≥10 字符）；`result=fail` 有对应 blocker/warning finding；Web 规则不用 `intent_only`；与 findings 无自相矛盾（v1.4，见第 23.1 节） | 缺口/矛盾数 = 0 |
+| 行业依据 | 专业模式 `project.industry` 必填（通用产品 `general`）；行业规则包存在时，decisions 引用 ≥1 条该包规则（v1.4，见第 23.3 节；industry 非 general 且无对应包时记"未验证"） | 全部为真 |
 | 阻断召回 | 向原型注入 N 个已知 blocker（对比度、键盘不可达、缺状态、控制台错误、伪造引用各若干），运行自动检查 | 召回率 = 100% |
-| 无障碍与渲染 | `results.json`（checks_version ≥2）与当前原型同源（`page_hashes` 一致）；axe 严重违规；键盘可达；可见焦点比率；控制台错误；320px 重排；640px（≈200% 缩放）重排；文本裁切；加载期 CLS | 违规 = 0；可达/可见焦点 = 100%；控制台 0 错；重排/缩放 OK；裁切 = 0；CLS < 0.1 |
+| 无障碍与渲染 | `results.json`（checks_version ≥3）与当前原型同源（`page_hashes` 一致）；axe 严重违规；键盘可达；可见焦点比率；控制台错误；320px 重排；640px（≈200% 缩放）重排；文本裁切；加载期 CLS；核心任务场景（`prototype/scenarios.json`，成功+错误双路径）Playwright 逐步执行（v1.4，见第 23.2 节） | 违规 = 0；可达/可见焦点 = 100%；控制台 0 错；重排/缩放 OK；裁切 = 0；CLS < 0.1；场景定义合法且 100% 通过 |
 | 视觉质量门 | 视觉评审 `blocker` 数；八维 `dimension_reviews` 语义完整（八维各一、截图存在且 sha256 匹配、observed/evidence 含实测值、非 pass 判定有同维度 finding）；全部 warning 已在 `decisions.md` 以 `[finding:<id>]` 记录处理（修复或接受理由） | blocker = 0；语义问题 = 0；未处理 warning = 0 |
 | 环境诚实 | 若浏览器自动化不可用，受影响结论（无障碍与渲染、迭代自评）全部标注"未验证"，任务未标记为已完成 | 无"未验证却判通过"的项 |
 
@@ -683,3 +685,41 @@ HTML 原型 Skill 在交付评审**之前**必须完成生成时迭代（区别�
 - 不做"美学评分"数值门槛（会诱导刷分式评审）。
 - 不强制候选数 >3（边际收益递减，成本翻倍）。
 - 不在机器门里判定"赢家真的比落选者好"——那是评审与用户确认门的职责；机器只保证对比过程真实发生且可复查。
+
+## 23. 覆盖证明层（v1.4 增补）
+
+背景：2026-07-25 第三轮复审结论——"能稳定提高下限、具备机制条件，但不能**证明**能稳定产出高水准"。三个证明缺口：① 规范审计无覆盖结构，"pass + 空 findings"可过验收；② 浏览器检查不执行真实核心任务（只有加载/axe/Tab/重排）；③ 行业规范层为零。v1.4 逐条补机器门。
+
+### 23.1 规范覆盖矩阵
+
+standards 评审的 findings 必须附 `rule_coverage`（schema 强制 + `semanticIssuesStandards` 语义校验，record-findings 落盘前与验收各查一次）：
+
+- 目标平台的**全部适用规则**（按规则卡 `platforms` 筛选；行业包只在 `project.industry` 匹配时进入适用集，slug 下划线归一为文件名连字符）逐条出现，缺一条即拒收。
+- 每条含 `result`（pass/fail/intent_only/not_applicable）、`checked_via`、证据（≥10 字符，写检查了什么、看到了什么）。
+- `result=fail` 必须有同 rule_id 的 blocker/warning finding；反之带 rule_id 的 blocker/warning finding 不得在矩阵写 pass（双向一致性）。
+- `intent_only` 仅原生平台项可用（6.3 保真度边界）；Web/mobile_web 规则禁用——HTML 即目标载体。
+
+"没发现问题"从此不等于"合规"：必须证明每条规则都被看过。
+
+### 23.2 可执行核心任务场景
+
+规范 17"核心任务可以完成"从人工声明变成机器执行：
+
+- html-prototype 产出 `prototype/scenarios.json`（manifest produces 强制）：≥1 个 `kind: success`（填写→提交→断言成功态）+ ≥1 个 `kind: error`（漏填/错填→断言错误提示，对应 wcag-3.3.1）；每场景至少一步 `expect_*` 断言。
+- step 动作集：`fill/click/press/expect_visible/expect_hidden/expect_text`（`scripts/lib/scenarios.mjs` 静态校验，正反例见 `scripts/test/scenarios.test.mjs`）。
+- `browser-check.mjs`（checks_version 3）用 Playwright 逐步执行，结果写入 `results.json.task_flows`；定义问题或执行失败都是阻断信号；验收「无障碍与渲染」维度消费（含同源指纹）。
+- 已冒烟验证：双路径断言真实执行，注入错误断言被精确捕获（含实际文本对比）。
+
+### 23.3 行业规则层
+
+- `context.project.industry`（schema 字段，init `--industry`，intake 识别、requirements-research 核实）：有规则包的行业用对应 slug，通用产品用 `general`。专业模式验收必填。
+- 行业规则包 `evidence/rules/industry-<slug>.yaml`，与依据库同 schema 同校验（10.1 第 5 层，strength recommended/heuristic，不覆盖 WCAG/平台规范只叠加领域纪律）。首批：`ecommerce`（8 条：费用透明/游客结账/表单最少化/感知安全/产品页要素/订单确认/错误恢复/空态引导）与 `saas_b2b`（8 条：空态引导/破坏性操作分级确认/状态可见/进度分级/防滑差错/防理解错误/数据表任务/方案对比表），全部 source_url 于 2026-07-25 curl 核实（Baymard/NN/g，evidence_grade B/C）。
+- 双门禁：验收「行业依据」——industry 缺失判 fail；行业包存在但 decisions 零引用判 fail；industry 非 general 且无包记"未验证"（行业合规须人工评审）。覆盖矩阵（23.1）同时要求行业包规则逐条核查。
+
+### 23.4 基准交付物（待执行，非代码任务）
+
+18.1 的三类基准任务（响应式 Web、微信小程序、iOS/Android 核心流程）需在 v1.2–v1.4 全部门禁下端到端跑通并归档，才能把承诺从"有能力产出"升级为"能稳定产出"。确认门要求用户答复原文，**不能自动化伪造**——基准任务必须与用户协作执行。旧 demo（outputs/demo-web）在新门禁下按预期 fail，不作为基准。
+
+### 23.5 承诺边界（当前准确的产品承诺）
+
+能产出经过通用规范、可访问性、视觉流程与（已备包行业的）行业纪律约束的高保真 HTML 原型；Web/移动 Web 自动验证完整（含核心任务可执行证明），原生平台验证设计意图 + 人工清单；未备包行业不提供行业合规保证（验收显式记"未验证"）。"能稳定产出高水准"的证据以 23.4 基准交付物为准。

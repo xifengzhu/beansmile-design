@@ -65,9 +65,22 @@ export function planIncremental({ prevMeta, prevRound, currentHashes, tokensSha2
   return { full: false, changed, carried };
 }
 
+// 某轮 meta 的页面清单口径：page_hashes 中的 HTML 文件（排除 assets/，与 pages.mjs
+// 的遍历口径一致）。pages[] 出处登记必须与它一一对应——只登记截了的页、漏报其余页
+// 就能绕过"首末轮全量"，所以覆盖以哈希清单为准而非登记自述。
+export function pagesInHashes(pageHashes) {
+  return Object.keys(pageHashes ?? {})
+    .filter((k) => k.startsWith("prototype/") && k.endsWith(".html"))
+    .map((k) => k.replace(/^prototype\//, ""))
+    .filter((rel) => !rel.startsWith("assets/") && !rel.startsWith("node_modules/"))
+    .sort();
+}
+
 // 验收「迭代自评」维度的完整判定（原 acceptance 5b 迁入 + 携带链校验）。
 // 返回 { exists, rounds, problems }。activeHashes = 当前活动交付物指纹。
-export function iterationChainIssues(pkgRoot, activeHashes) {
+// requireV2（规范 27.3）：v1.8 包（snapshot_version>=2）强制每轮 meta_version>=2——
+// 删掉 meta_version 降级到 v1 兼容路径以跳过携带链/覆盖校验的规避无效。
+export function iterationChainIssues(pkgRoot, activeHashes, { requireV2 = false } = {}) {
   const iterRoot = join(pkgRoot, "audit", "iterations");
   if (!existsSync(iterRoot)) return { exists: false, rounds: 0, problems: ["缺 audit/iterations/：截图-自评-迭代循环未发生"] };
   const rounds = collectRounds(iterRoot);
@@ -97,7 +110,10 @@ export function iterationChainIssues(pkgRoot, activeHashes) {
       }
     }
 
-    if (!isV2 || !meta) return; // v1.7 meta 按全量轮兼容，不做携带链检查
+    if (!isV2 || !meta) {
+      if (requireV2 && meta) problems.push(`${r.dir} meta 非 v2（v1.8 包不允许 v1 兼容路径——删除 meta_version 规避携带链/覆盖校验无效），须用当前 screenshot.mjs 重跑`);
+      return; // v1.7 老包的 v1 meta 按全量轮兼容，不做携带链检查
+    }
 
     for (const s of meta.shots ?? []) {
       if (!files.includes(s)) problems.push(`${r.dir} meta 登记的截图缺失: ${s}`);
@@ -105,6 +121,25 @@ export function iterationChainIssues(pkgRoot, activeHashes) {
     const entries = Array.isArray(meta.pages) ? meta.pages : [];
     const carriedEntries = entries.filter((e) => e?.status === "carried");
     const isFirst = idx === 0, isLast = idx === rounds.length - 1;
+
+    // 精确覆盖（规范 27.3）：pages[] 必须与该轮 page_hashes 的 HTML 页面一一对应——
+    // 只登记部分页面即可让"首末轮全量"形同虚设。末轮 page_hashes 又被交付原型同源门锚定，
+    // 因此末轮的覆盖校验传递到真实页面列表。
+    const expected = pagesInHashes(meta.page_hashes);
+    const entryNames = entries.map((e) => e?.name).filter(Boolean).sort();
+    const missingPages = expected.filter((n) => !entryNames.includes(n));
+    const extraPages = entryNames.filter((n) => !expected.includes(n));
+    if (missingPages.length) problems.push(`${r.dir} pages[] 漏登记页面（覆盖不全）: ${missingPages.slice(0, 3).join(",")}${missingPages.length > 3 ? "…" : ""}`);
+    if (extraPages.length) problems.push(`${r.dir} pages[] 登记了 page_hashes 之外的页面: ${extraPages.slice(0, 3).join(",")}`);
+
+    // 实拍页必须三视口 PNG 全部在盘（只截一个视口不算全量证据）。
+    for (const e of entries.filter((x) => x?.status === "shot")) {
+      const slug = e.slug ?? String(e.name).replaceAll("/", "__");
+      for (const s of expectedShots(slug)) {
+        if (!files.includes(s)) problems.push(`${r.dir} 实拍页 ${e.name} 缺视口截图 ${s}`);
+      }
+    }
+
     if ((isFirst || isLast) && carriedEntries.length) {
       problems.push(`${r.dir} 为${isFirst ? "首" : "末"}轮但含 carried 页（首末轮必须全量重截）: ${carriedEntries.slice(0, 3).map((e) => e.name).join(",")}`);
     }

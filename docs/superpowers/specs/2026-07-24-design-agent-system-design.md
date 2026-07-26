@@ -847,7 +847,16 @@ standards 评审的 findings 必须附 `rule_coverage`（schema 强制 + `semant
 - **模式确认门机器化**：`director-advance.mjs --confirm mode`（`context.schema.json` 的 `confirmations` 新增 `mode` 键，`--reply` 仍须用户答复原文）。验收「流程确认」维度：`mode === "quick"` 的 v1.8 包（`snapshot_version >= 2`）须存在 `confirmations.mode`，缺失即 fail；老包不追溯。
 - 快速模式的既有硬底线（WCAG 2.2 AA、多视口截图、溢出/console 检查、依据记录，§9.2）均为验收无条件维度，不受本节影响。
 
-### 27.9 刻意不做
+### 27.9 复审修正（v1.8 落地后第一轮外部复审，3 P1 + 3 P2 逐条封堵）
+
+- **审计证据视口初始化（checks_version 6）**：此前 `screenshot.mjs` 先按默认 1280px 加载再缩放视口、`browser-check.mjs` 在 640px reload 后直接换视口截图——依赖初始化宽度的响应式页面（JS 断点、一次性布局计算）会把错误状态截进审计证据。修正：迭代截图每个视口用**独立 context 并在设置视口后才导航**；审计截图每个视口**先设尺寸再 reload**（同时保留 24.4 的默认态复位语义）。checks_version 升至 6，验收拒绝旧产物（沿用升版拒旧惯例）。
+- **迭代覆盖精确化**：「首末轮全量」不再只看"有 PNG 且无 carried"——每轮 `pages[]` 必须与该轮 `page_hashes` 中的 HTML 页面**一一对应**（漏登记/幽灵页都拒），实拍页三视口 PNG 缺一即 fail；末轮 `page_hashes` 被交付原型同源门锚定，覆盖校验因此传递到真实页面列表。v1.8 包（snapshot_version≥2）**强制 meta_version≥2**——删掉 meta_version 降级到 v1 兼容路径以跳过携带链/覆盖校验的规避无效（v1.7 老包的 v1 meta 仍按兼容语义放行）。
+- **评审链严格版本绑定**：`loadReviewerFindings` 要求文档内 `artifact_version` 等于文件名版本（文件里写别的版本号即拒载）；「迭代评审链」维度对首版与全部中间版的**全量评审完整复用全量语义门**（冻结规则 + 覆盖矩阵 + 模板闭合 + 视觉八维证据），不再只查文件存在；delta findings **必须绑定同版本快照的 `delta/changed-files.json`** 且 `baseline_version` 一致——无 delta 包或基线脱钩即拒收。
+- **变更页全局展开**：`delta/changed-pages.json` 对共享资产（`assets/**`）、`design-tokens.json`、页面删除等全局生效的变化**展开为全部页面**（`expanded_all: true` + reason），只有纯页面级 HTML 改动才按页增量——防视觉 delta 漏看受影响页。`decisions.md` 纳入 delta diff 范围（standards 评审可见基线后追加的裁决），但不触发页面展开。
+- **快照原子性**：`--delta-from` 等参数在创建任何目录**之前**校验完毕；快照组装到临时目录、全部成功后原子 rename——中途失败不再留下会被不可覆盖门卡死的半成品。
+- **模式分类输入合法性**：`suggestMode` 要求页面数为正整数、流程数为非负整数，拒绝负数/NaN/Infinity/小数（非法输入与信息缺失同样保守回退专业模式）。
+
+### 27.10 刻意不做
 
 - **不做 CSS AST 级相似度**——只封"规范化后逐字节重复"的零成本复制；规则重排序绕过属残余风险，由视觉评审组件一致性维度兜底（同 24.5 的 exact-dup 边界哲学）。
 - **不机器验证"Agent 实际读了哪章知识库"**——不可验证；产出质量仍由既有门守（候选竞争、确认门 C、视觉评审方向对标）。`font-pairings.md` 不拆分（5.5KB，收益低于维护成本）。

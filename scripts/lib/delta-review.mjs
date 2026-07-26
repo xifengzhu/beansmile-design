@@ -26,19 +26,23 @@ export function validateDeltaDoc(doc) {
 }
 
 // 读取某 reviewer 在某版本的 findings：优先全量（-<v>.yaml），其次 delta（-<v>-delta.yaml）。
+// 严格版本绑定：文档内 artifact_version 必须等于文件名版本——文件里写别的版本号
+// （standards-2.yaml 内写 999）即拒，防错版评审蒙混进链。
 // 返回 { doc, kind: "full"|"delta" } 或 null。
 export function loadReviewerFindings(pkgRoot, reviewer, version) {
   const dir = join(pkgRoot, "audit", "findings");
   const full = join(dir, `${reviewer}-${version}.yaml`);
   if (existsSync(full)) {
     const doc = yaml.load(readFileSync(full, "utf8"));
-    if (validateFindingsDoc(doc).ok && doc.reviewer === reviewer) return { doc, kind: "full" };
+    if (validateFindingsDoc(doc).ok && doc.reviewer === reviewer
+      && String(doc.artifact_version) === String(version)) return { doc, kind: "full" };
     return null;
   }
   const delta = join(dir, `${reviewer}-${version}-delta.yaml`);
   if (existsSync(delta)) {
     const doc = yaml.load(readFileSync(delta, "utf8"));
-    if (validateDeltaDoc(doc).ok && doc.reviewer === reviewer) return { doc, kind: "delta" };
+    if (validateDeltaDoc(doc).ok && doc.reviewer === reviewer
+      && String(doc.artifact_version) === String(version)) return { doc, kind: "delta" };
     return null;
   }
   return null;
@@ -54,14 +58,20 @@ export function openFindings(baselineDoc, kind) {
 
 // —— delta 包（audit/snapshots/<v>/delta/）——
 // 由两个冻结快照 + baseline findings 确定性生成；校验方重建比对（同 review-bundle 再生门）。
-const DELTA_SCOPE = ["prototype", "design-tokens.json"];
+// decisions.md 纳入 diff 范围（standards 评审要看到基线后追加了哪些裁决/ack）。
+const DELTA_SCOPE = ["prototype", "design-tokens.json", "decisions.md"];
 const TEXT_EXT = /\.(html|css|js|mjs|json|md|svg|txt)$/;
+const isPageKey = (k) => k.startsWith("prototype/") && k.endsWith(".html")
+  && !k.startsWith("prototype/assets/") && !k.startsWith("prototype/node_modules/");
 
-export function buildDeltaBundle({ pkgRoot, baselineVersion, version }) {
+// curDir 可覆盖：snapshot.mjs 先在临时目录组装快照（原子 rename 前 delta 就要生成，
+// 规范 27.5）；校验方 deltaIssues 重建时用最终路径。
+export function buildDeltaBundle({ pkgRoot, baselineVersion, version, curDir = null }) {
   const snapDir = (v) => join(pkgRoot, "audit", "snapshots", String(v));
-  const prevDir = snapDir(baselineVersion), curDir = snapDir(version);
+  const prevDir = snapDir(baselineVersion);
+  curDir = curDir ?? snapDir(version);
   if (!existsSync(prevDir)) throw new Error(`基线快照不存在: audit/snapshots/${baselineVersion}/`);
-  if (!existsSync(curDir)) throw new Error(`当前快照不存在: audit/snapshots/${version}/`);
+  if (!existsSync(curDir)) throw new Error(`当前快照不存在: ${curDir}`);
   const prev = hashPaths(prevDir, DELTA_SCOPE);
   const cur = hashPaths(curDir, DELTA_SCOPE);
 
@@ -108,9 +118,19 @@ export function buildDeltaBundle({ pkgRoot, baselineVersion, version }) {
   open.findings.sort((a, b) => (a.id < b.id ? -1 : 1));
   open.coverage_fail_rule_ids.sort();
 
+  // 变更页清单（规范 27.5/复审修正）：共享资产（assets/**）、design-tokens.json、页面删除
+  // 或任何非页面文件变化都全局生效——展开为全部页面，否则视觉 delta 会漏看受影响页；
+  // 只有纯页面级 HTML 改动才按页增量。decisions.md 是文档追加，不触发展开。
+  const curPages = Object.keys(cur).filter(isPageKey).sort();
+  const touched = [...changed, ...added, ...removed];
+  const expandAll = touched.some((k) => k !== "decisions.md" && !(isPageKey(k) && k in cur));
   const changedPages = {
     artifact_version: String(version),
-    pages: [...changed, ...added].filter((k) => k.startsWith("prototype/") && k.endsWith(".html")).map((k) => k.replace(/^prototype\//, "")),
+    expanded_all: expandAll,
+    reason: expandAll
+      ? `共享资产/令牌/结构级变化全局生效: ${touched.filter((k) => k !== "decisions.md" && !(isPageKey(k) && k in cur)).slice(0, 3).join(", ")}`
+      : null,
+    pages: (expandAll ? curPages : touched.filter((k) => isPageKey(k) && k in cur).sort()).map((k) => k.replace(/^prototype\//, "")),
   };
 
   return {
@@ -149,6 +169,20 @@ export function semanticIssuesDelta(doc, baseline, frozen, pkgRoot) {
   }
   if (Number(doc.baseline_version) >= Number(doc.artifact_version)) {
     issues.push(`baseline_version=${doc.baseline_version} 不小于 artifact_version=${doc.artifact_version}`);
+  }
+
+  // delta findings 必须绑定同版本快照的 delta 包（复审修正）：无 delta/ 意味着评审
+  // 没有可核查的变更输入面；baseline 不一致意味着评审看的 diff 与声称的基线脱钩。
+  const cfPath = join(pkgRoot, "audit", "snapshots", String(doc.artifact_version), "delta", "changed-files.json");
+  if (!existsSync(cfPath)) {
+    issues.push(`快照 v${doc.artifact_version} 无 delta/changed-files.json——delta 评审必须基于 snapshot --delta-from 生成的增量包`);
+  } else {
+    try {
+      const cf = JSON.parse(readFileSync(cfPath, "utf8"));
+      if (String(cf.baseline_version) !== String(doc.baseline_version)) {
+        issues.push(`delta findings 的 baseline_version=${doc.baseline_version} 与快照 delta 包的 ${cf.baseline_version} 不一致——评审看的 diff 与声称基线脱钩`);
+      }
+    } catch (e) { issues.push(`delta/changed-files.json 不可读: ${String(e.message).split("\n")[0]}`); }
   }
 
   // 闭合性：baseline 每条 open blocker/warning 必须核销或再断言。

@@ -9,7 +9,7 @@
 // v1.8（规范 27.4/27.5）：追加生成 rules/review-bundle.yaml（紧凑评审包）；--delta-from <基线版本>
 // 时在快照内生成 delta/（中间版本增量评审输入，验收可再生比对）。
 // 用法: node scripts/snapshot.mjs --package <目录> --version <artifact_version> [--delta-from <基线版本>]
-import { cpSync, mkdirSync, existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { cpSync, mkdirSync, existsSync, readdirSync, readFileSync, writeFileSync, rmSync, renameSync } from "node:fs";
 import { resolve, join } from "node:path";
 import yaml from "js-yaml";
 import { hashPaths, manifestDigest } from "./lib/hash.mjs";
@@ -54,17 +54,35 @@ if (existing.length && Number(version) <= Math.max(...existing)) {
 }
 const dest = join(snapRoot, String(version));
 if (existsSync(dest)) { console.error(`✗ 快照 ${dest} 已存在，拒绝覆盖（快照不可变）`); process.exit(1); }
-mkdirSync(dest, { recursive: true });
+
+// --delta-from 参数在创建任何目录**之前**校验完毕（复审修正）：晚校验会留下
+// 半成品 snapshots/<v>/，而不可覆盖门会拒绝重试，把包卡死。
+const deltaFrom = arg("--delta-from");
+if (deltaFrom !== undefined) {
+  if (!/^\d+$/.test(deltaFrom) || Number(deltaFrom) >= Number(version)) {
+    console.error(`✗ --delta-from ${deltaFrom} 非法：必须是小于当前版本 ${version} 的已有快照版本号`); process.exit(2);
+  }
+  if (!existsSync(join(snapRoot, deltaFrom))) {
+    console.error(`✗ 基线快照不存在: audit/snapshots/${deltaFrom}/`); process.exit(2);
+  }
+}
+
+// 组装到临时目录，全部成功后原子 rename 到最终路径——中途失败不留半成品。
+const work = join(snapRoot, `.tmp-${version}`);
+rmSync(work, { recursive: true, force: true });
+mkdirSync(work, { recursive: true });
+
+try {
 
 const items = ["prototype", "design-tokens.json", "decisions.md", "brief.md", "flows.md"];
 const copied = [];
 for (const it of items) {
   const src = join(root, it);
-  if (existsSync(src)) { cpSync(src, join(dest, it), { recursive: true }); copied.push(it); }
+  if (existsSync(src)) { cpSync(src, join(work, it), { recursive: true }); copied.push(it); }
 }
 
 // —— 冻结激活规则集（§8.4）——
-const rulesDir = join(dest, "rules");
+const rulesDir = join(work, "rules");
 mkdirSync(rulesDir, { recursive: true });
 
 // 每个来源文件只含激活卡的副本（结构保持 {rules:[...]}，卡逐字段原样、剔除 _file）。
@@ -80,7 +98,7 @@ for (const [file, cards] of byFile) {
 
 // rules-manifest.json：激活集的规范化哈希登记（按 rule_id 排序，applicableRules 已排序）。
 // snapshot_version 2 = v1.8 流程包标记：验收的「共享样式/迭代评审链/流程确认(mode)」
-// 门只对 >=2 的包启用，历史包输出迁移措辞不追溯（规范 27.1/27.9）。
+// 门只对 >=2 的包启用，历史包输出迁移措辞不追溯（规范 27.1/27.10）。
 const rulesManifest = {
   artifact_version: String(version),
   snapshot_version: 2,
@@ -92,8 +110,8 @@ writeFileSync(join(rulesDir, "rules-manifest.json"), JSON.stringify(rulesManifes
 // 覆盖模板（§8.3）：自动预填只信与冻结原型同源、同版本的 results.json；N/A 候选扫描冻结原型。
 const resultsPath = join(root, "audit", "results.json");
 const results = existsSync(resultsPath) ? JSON.parse(readFileSync(resultsPath, "utf8")) : null;
-const snapshotPrototypeHashes = hashPaths(dest, ["prototype"]);
-const naMap = naCandidates(join(dest, "prototype"));
+const snapshotPrototypeHashes = hashPaths(work, ["prototype"]);
+const naMap = naCandidates(join(work, "prototype"));
 const { template, stats } = buildCoverageTemplate({
   applicable, results, snapshotPrototypeHashes, naMap, snapshotVersion: String(version),
 });
@@ -115,15 +133,9 @@ writeFileSync(join(rulesDir, "review-bundle.yaml"), bundleText);
 
 // 中间版本增量评审包（规范 27.5）：--delta-from <基线版本> 时在快照内生成 delta/
 // （变更清单/行级 diff/遗留 findings/变更页），进入 manifest 哈希，验收可再生比对。
-const deltaFrom = arg("--delta-from");
-if (deltaFrom) {
-  if (Number(deltaFrom) >= Number(version)) {
-    console.error(`✗ --delta-from ${deltaFrom} 必须小于当前版本 ${version}`); process.exit(2);
-  }
-  let deltaBundle;
-  try { deltaBundle = buildDeltaBundle({ pkgRoot: root, baselineVersion: deltaFrom, version: String(version) }); }
-  catch (e) { console.error(`✗ delta 包生成失败: ${e.message}`); process.exit(1); }
-  const deltaDir = join(dest, "delta");
+if (deltaFrom !== undefined) {
+  const deltaBundle = buildDeltaBundle({ pkgRoot: root, baselineVersion: deltaFrom, version: String(version), curDir: work });
+  const deltaDir = join(work, "delta");
   mkdirSync(deltaDir, { recursive: true });
   for (const [name, text] of Object.entries(deltaBundle)) writeFileSync(join(deltaDir, name), text);
 }
@@ -133,13 +145,22 @@ if (deltaFrom) {
 const manifest = {
   artifact_version: String(version),
   created_at: new Date().toISOString(),
-  files: hashPaths(dest, [...copied, "rules", "delta"]),
+  files: hashPaths(work, [...copied, "rules", "delta"]),
 };
 manifest.digest = manifestDigest(manifest);
-writeFileSync(join(dest, "manifest.json"), JSON.stringify(manifest, null, 2));
+writeFileSync(join(work, "manifest.json"), JSON.stringify(manifest, null, 2));
+
+// 原子落位：全部产物就绪后一次 rename，之后目录进入不可变状态。
+renameSync(work, dest);
 
 console.log(`✓ 已冻结快照 v${version} → ${dest}（含 ${copied.join(", ")}, rules）。评审仅授予此目录只读权限。`);
 console.log(`  manifest.json：${Object.keys(manifest.files).length} 个文件，digest=${manifest.digest.slice(0, 16)}…`);
 console.log(`  rules/：冻结激活规则 ${applicable.length} 条（${byFile.size} 个来源文件）+ rules-manifest.json + review-scope.yaml`);
 console.log(`  覆盖模板成本统计：total_rules=${stats.total_rules}, automated_prefilled=${stats.automated_prefilled}, review_required=${stats.review_required}, not_applicable_candidates=${stats.not_applicable_candidates}`);
 if (results === null) console.log("  ! 无 audit/results.json：全部规则走 review_required（先跑 browser:check 再 snapshot 可获自动预填）");
+
+} catch (e) {
+  rmSync(work, { recursive: true, force: true });
+  console.error(`✗ 快照生成失败（临时目录已清理，可直接重试）: ${e.message}`);
+  process.exit(1);
+}

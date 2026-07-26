@@ -34,15 +34,20 @@ const FINDING = (id, severity = "warning", extra = {}) => ({
   evidence: `实测行高 1.2，低于要求的 1.5`, user_impact: "长读吃力", recommendation: "行高改 1.6", ...extra,
 });
 
-// 造包：v1 全量 findings（standards+visual）+ v1/v2 冻结快照（prototype 有 1 文件差异）。
-function makePkg({ openBlockerId = "s-1" } = {}) {
+// 造包：v1 全量 findings（standards+visual）+ v1/v2 冻结快照（prototype 有 1 文件差异）
+// + v2 的 delta/changed-files.json（delta findings 的绑定包，复审修正后为硬性要求）。
+function makePkg({ openBlockerId = "s-1", tokensChange = false, extraPage = false } = {}) {
   const root = mkdtempSync(join(tmpdir(), "delta-rev-"));
   for (const [v, body] of [["1", "<h1>v1</h1>"], ["2", "<h1>v2 改了标题</h1>"]]) {
     const snap = join(root, "audit", "snapshots", v);
     mkdirSync(join(snap, "prototype"), { recursive: true });
     writeFileSync(join(snap, "prototype", "index.html"), `<!doctype html><html><body>${body}</body></html>`);
-    writeFileSync(join(snap, "design-tokens.json"), `{"v":1}`);
+    if (extraPage) writeFileSync(join(snap, "prototype", "about.html"), `<!doctype html><html><body>about 不变</body></html>`);
+    writeFileSync(join(snap, "design-tokens.json"), tokensChange && v === "2" ? `{"v":2}` : `{"v":1}`);
   }
+  const deltaDir = join(root, "audit", "snapshots", "2", "delta");
+  mkdirSync(deltaDir, { recursive: true });
+  writeFileSync(join(deltaDir, "changed-files.json"), JSON.stringify({ baseline_version: "1", artifact_version: "2" }, null, 2));
   mkdirSync(join(root, "audit", "findings"), { recursive: true });
   const standards = {
     reviewer: "standards", artifact_version: "1", verdict: "fail",
@@ -90,6 +95,45 @@ test("loadReviewerFindings：全量优先；delta 文件不被全量语义拾取
   assert.equal(r1.kind, "full");
   const r2 = loadReviewerFindings(root, "standards", "2");
   assert.equal(r2.kind, "delta");
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("对抗：文件名版本与文档内 artifact_version 不符 → 拒载（standards-2.yaml 内写 999）", () => {
+  const root = makePkg();
+  const wrong = {
+    reviewer: "standards", artifact_version: "999", verdict: "pass", findings: [],
+    rule_coverage: [{ rule_id: "r-a", result: "pass", checked_via: "code", evidence: "错版评审蒙混进 v2 的探针" }],
+  };
+  writeFileSync(join(root, "audit", "findings", "standards-2.yaml"), yaml.dump(wrong));
+  assert.equal(loadReviewerFindings(root, "standards", "2"), null);
+  const wrongDelta = DELTA_DOC({ artifact_version: "999" });
+  writeFileSync(join(root, "audit", "findings", "visual-2-delta.yaml"), yaml.dump({ ...wrongDelta, reviewer: "visual" }));
+  assert.equal(loadReviewerFindings(root, "visual", "2"), null);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("对抗：delta findings 无绑定 delta 包 / baseline 与包不一致 → 拒收", () => {
+  const noBundle = makePkg();
+  rmSync(join(noBundle, "audit", "snapshots", "2", "delta"), { recursive: true, force: true });
+  const baseline = loadReviewerFindings(noBundle, "standards", "1");
+  assert.ok(semanticIssuesDelta(DELTA_DOC(), baseline, FROZEN_STUB, noBundle).some((s) => s.includes("无 delta/changed-files.json")));
+  rmSync(noBundle, { recursive: true, force: true });
+
+  const mismatch = makePkg();
+  writeFileSync(join(mismatch, "audit", "snapshots", "2", "delta", "changed-files.json"),
+    JSON.stringify({ baseline_version: "0", artifact_version: "2" }));
+  const b2 = loadReviewerFindings(mismatch, "standards", "1");
+  assert.ok(semanticIssuesDelta(DELTA_DOC(), b2, FROZEN_STUB, mismatch).some((s) => s.includes("脱钩")));
+  rmSync(mismatch, { recursive: true, force: true });
+});
+
+test("对抗：仅共享令牌/资产变化 → changed-pages 展开为全部页面（视觉 delta 不得漏看）", () => {
+  const root = makePkg({ tokensChange: true, extraPage: true });
+  const b = buildDeltaBundle({ pkgRoot: root, baselineVersion: "1", version: "2" });
+  const cp = JSON.parse(b["changed-pages.json"]);
+  assert.equal(cp.expanded_all, true);
+  assert.deepEqual(cp.pages.sort(), ["about.html", "index.html"]); // 未变的 about 也被展开进来
+  assert.ok(cp.reason.includes("design-tokens.json"));
   rmSync(root, { recursive: true, force: true });
 });
 

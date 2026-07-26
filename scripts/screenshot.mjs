@@ -37,20 +37,21 @@ if (!probe.available) {
   process.exit(3);
 }
 
+// 每个视口用独立 context 并在设置视口后才导航——先按默认 1280 加载再缩放会让
+// 依赖初始化宽度的响应式页面（JS 断点、srcset、一次性布局计算）产生错误证据。
 async function shootPages(browser, jobs, viewports) {
   const shots = [];
   for (const pg of jobs) {
-    const context = await browser.newContext();
-    const page = await context.newPage();
-    await page.goto(pathToFileURL(pg.file).href, { waitUntil: "load" }).catch((e) => console.error(`  ! ${pg.name} 导航失败: ${String(e.message).split("\n")[0]}`));
     for (const vp of viewports) {
-      await page.setViewportSize({ width: vp.width, height: vp.height });
+      const context = await browser.newContext({ viewport: { width: vp.width, height: vp.height } });
+      const page = await context.newPage();
+      await page.goto(pathToFileURL(pg.file).href, { waitUntil: "load" }).catch((e) => console.error(`  ! ${pg.name} 导航失败: ${String(e.message).split("\n")[0]}`));
       await page.waitForTimeout(120);
       const out = join(pg.outDir, `${pg.slug}.${vp.label}.png`);
       await page.screenshot({ path: out, fullPage: true });
       shots.push(out);
+      await context.close();
     }
-    await context.close();
   }
   return shots;
 }

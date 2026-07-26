@@ -191,6 +191,54 @@ test("对抗：notes 只引用 carried 图（未引用当轮新截）→ fail", 
   rmSync(root, { recursive: true, force: true });
 });
 
+test("对抗：pages[] 漏登记 page_hashes 中存在的页面 → 覆盖不全 fail（缺页不能算全量）", () => {
+  const { root, activeHashes } = threeRounds({
+    mutate(rounds) {
+      // 末轮只登记并"截了" index.html，完全省略 about.html（复审探针形态）
+      rounds[2].meta.pages = rounds[2].meta.pages.filter((e) => e.name === "index.html");
+      rounds[2].meta.shots = expectedShots("index.html");
+    },
+  });
+  const r = iterationChainIssues(root, activeHashes);
+  assert.ok(r.problems.some((p) => p.includes("漏登记页面") && p.includes("about.html")), r.problems.join("; "));
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("对抗：pages[] 登记 page_hashes 外的幽灵页 → fail", () => {
+  const { root, activeHashes } = threeRounds({
+    mutate(rounds) {
+      rounds[0].meta.pages.push({ name: "ghost.html", slug: "ghost.html", status: "shot", shots: expectedShots("ghost.html") });
+    },
+  });
+  assert.ok(iterationChainIssues(root, activeHashes).problems.some((p) => p.includes("之外的页面") && p.includes("ghost.html")));
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("对抗：实拍页缺一个视口截图 → fail（三视口缺一不构成全量证据）", () => {
+  const { root, activeHashes } = threeRounds({
+    mutate(rounds) {
+      // meta.shots 同步瘦身（绕过 shots-在盘检查），但盘上少一张视口图
+      delete rounds[2].files["about.html.tablet-768.png"];
+      rounds[2].meta.shots = rounds[2].meta.shots.filter((s) => s !== "about.html.tablet-768.png");
+    },
+  });
+  const r = iterationChainIssues(root, activeHashes);
+  assert.ok(r.problems.some((p) => p.includes("缺视口截图 about.html.tablet-768.png")), r.problems.join("; "));
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("对抗：v1.8 包（requireV2）删除 meta_version 降级到 v1 路径 → fail", () => {
+  const { root, activeHashes } = threeRounds({
+    mutate(rounds) { delete rounds[1].meta.meta_version; },
+  });
+  // 不带 requireV2：v1 meta 按兼容路径放行（老包语义）
+  assert.ok(!iterationChainIssues(root, activeHashes).problems.some((p) => p.includes("v1 兼容路径")));
+  // 带 requireV2（v1.8 包）：降级即 fail
+  const r = iterationChainIssues(root, activeHashes, { requireV2: true });
+  assert.ok(r.problems.some((p) => p.includes("规避") && p.includes("round-2")), r.problems.join("; "));
+  rmSync(root, { recursive: true, force: true });
+});
+
 test("对抗：末轮后原型又被改动（活动指纹漂移）→ fail（既有门保留）", () => {
   const { root } = threeRounds();
   const drifted = { "prototype/index.html": H("i4"), "prototype/about.html": H("a1") };

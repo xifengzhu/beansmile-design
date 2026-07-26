@@ -37,6 +37,16 @@ test("对抗：任一输入缺失 → 保守 professional（不猜），理由�
   assert.equal(suggestMode({}).mode, "professional");
 });
 
+test("对抗：非法数量（负数/零页/NaN/Infinity/小数）→ professional，不得建议 quick", () => {
+  assert.equal(suggestMode({ ...BASE, estimated_pages: -1, estimated_flows: -2 }).mode, "professional");
+  assert.equal(suggestMode({ ...BASE, estimated_pages: 0 }).mode, "professional");
+  assert.equal(suggestMode({ ...BASE, estimated_pages: 0.5 }).mode, "professional");
+  assert.equal(suggestMode({ ...BASE, estimated_flows: NaN }).mode, "professional");
+  assert.equal(suggestMode({ ...BASE, estimated_flows: Infinity }).mode, "professional");
+  assert.equal(suggestMode({ ...BASE, estimated_flows: 1.5 }).mode, "professional");
+  assert.equal(suggestMode({ ...BASE, estimated_flows: 0 }).mode, "quick"); // 0 条流程合法（纯展示页）
+});
+
 // —— 确认门集成（director-advance --confirm mode + schema）——
 
 const CTX = {

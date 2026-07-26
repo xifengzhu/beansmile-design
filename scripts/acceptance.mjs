@@ -125,6 +125,9 @@ const referencedRules = new Set();
 // 分层扩展 §8.4：standards 的适用集出自冻结快照 rules/（loadFrozenRules，与 record-findings
 // 同一实现），不读仓库当前 evidence/rules/——规则库升级不追溯漂移。
 const frozen = currentVersion ? loadFrozenRules(root, currentVersion) : { ok: false, errors: ["无当前 artifact_version"], cards: null, manifest: null, scope: null };
+// v1.8 流程包判定：snapshot_version >= 2 才启用本版新增门（共享样式/迭代评审链/流程确认 mode/
+// 迭代 meta v2 强制），历史包输出迁移措辞、不追溯 fail（规范 27.1/27.10）。
+const isV2Package = frozen.ok && (frozen.manifest.snapshot_version ?? 1) >= 2;
 {
   if (!currentVersion) {
     add("标准合规门", "fail", "无当前 artifact_version，无法绑定评审");
@@ -205,16 +208,12 @@ const frozen = currentVersion ? loadFrozenRules(root, currentVersion) : { ok: fa
   if (env.degraded) {
     add("迭代自评", "unverified", "浏览器不可用（6.2 降级）：无法产生截图轮次，须人工核对代码级自评记录");
   } else {
-    const { rounds, problems } = iterationChainIssues(root, activeHashes);
+    const { rounds, problems } = iterationChainIssues(root, activeHashes, { requireV2: isV2Package });
     add("迭代自评", problems.length === 0 ? "pass" : "fail",
       problems.length ? problems.slice(0, 5).join("; ")
         : `${rounds} 轮迭代，均有截图+自评记录，携带链完整，末轮全量且与交付原型一致`);
   }
 }
-
-// v1.8 流程包判定：snapshot_version >= 2 才启用本版新增门（共享样式/迭代评审链/流程确认 mode），
-// 历史包输出迁移措辞、不追溯 fail（规范 27.1/27.9）。
-const isV2Package = frozen.ok && (frozen.manifest.snapshot_version ?? 1) >= 2;
 
 // —— 5b-2. 共享样式（规范 27.2：多页原型必须抽取共享 CSS，静态检查不受降级豁免）——
 {
@@ -372,25 +371,35 @@ const isV2Package = frozen.ok && (frozen.manifest.snapshot_version ?? 1) >= 2;
     const problems = [];
     const cur = Number(currentVersion);
     const first = versions[0];
-    if (versions.length > 1 && first !== cur) {
-      const firstF = loadFindingsForVersion(root, String(first));
-      if (!firstF.standards || !firstF.visual) problems.push(`首版 v${first} 缺全量双评审（首版必须全量，规范 27.5）`);
-    }
     let deltaCount = 0, fullCount = 0;
-    for (const v of versions.filter((x) => x > first && x < cur)) {
-      const full = loadFindingsForVersion(root, String(v));
-      if (full.standards && full.visual) { fullCount++; continue; }
+    // 首版与全部中间版逐一核查；拟交付版（cur）由 blocks 4/7 + 规则快照四门全量把守。
+    // 复审修正：中间/首版的全量评审不再只看"文件存在"——完整复用全量语义门
+    // （冻结规则 + 覆盖矩阵 + 模板闭合 + 视觉八维证据），错版本文档已被
+    // loadReviewerFindings 的严格版本绑定拒之门外。
+    for (const v of versions.filter((x) => x < cur)) {
+      const isFirst = v === first;
       const frozenV = loadFrozenRules(root, String(v));
+      if (!frozenV.ok) { problems.push(`v${v} 冻结规则不可用: ${frozenV.errors[0]}`); continue; }
       for (const reviewer of ["standards", "visual"]) {
         const d = loadReviewerFindings(root, reviewer, String(v));
-        if (!d) { problems.push(`中间版 v${v} 缺 ${reviewer} 评审（全量或 delta 均无/非法）`); continue; }
-        if (d.kind !== "delta") continue; // 单侧全量 + 单侧 delta 的混排按各自规则查
-        if (!frozenV.ok) { problems.push(`中间版 v${v} 冻结规则不可用: ${frozenV.errors[0]}`); continue; }
-        const baseline = loadReviewerFindings(root, reviewer, d.doc.baseline_version);
-        const issues = semanticIssuesDelta(d.doc, baseline, frozenV, root);
-        if (issues.length) problems.push(`中间版 v${v} ${reviewer} delta 不通过: ${issues[0]}`);
-        else deltaCount++;
+        if (!d) { problems.push(`${isFirst ? "首版" : "中间版"} v${v} 缺 ${reviewer} 评审（全量或 delta 均无/非法/版本不符）`); continue; }
+        if (isFirst && d.kind !== "full") { problems.push(`首版 v${v} 的 ${reviewer} 评审须为全量（规范 27.5），不接受 delta`); continue; }
+        if (d.kind === "full") {
+          const issues = reviewer === "standards"
+            ? [...semanticIssuesStandards(d.doc, frozenV.cards),
+               ...templateClosureIssues(d.doc.rule_coverage ?? [], frozenV.scope?.rule_coverage_template ?? [], d.doc.findings ?? [])]
+            : semanticIssuesVisual(d.doc, root);
+          if (issues.length) problems.push(`v${v} ${reviewer} 全量评审语义不通过: ${issues[0]}`);
+          else fullCount++;
+        } else {
+          const baseline = loadReviewerFindings(root, reviewer, d.doc.baseline_version);
+          const issues = semanticIssuesDelta(d.doc, baseline, frozenV, root);
+          if (issues.length) problems.push(`中间版 v${v} ${reviewer} delta 不通过: ${issues[0]}`);
+          else deltaCount++;
+        }
       }
+      // delta 包再生比对：semanticIssuesDelta 已要求 delta findings 必有绑定包；
+      // 这里对存在的 delta/ 做重建字节比对（篡改/事后改基线 findings 即被抓）。
       const deltaDir = join(snapRoot, String(v), "delta");
       if (existsSync(deltaDir)) {
         try {
@@ -401,7 +410,7 @@ const isV2Package = frozen.ok && (frozen.manifest.snapshot_version ?? 1) >= 2;
     }
     add("迭代评审链", problems.length === 0 ? "pass" : "fail",
       problems.length ? problems.slice(0, 4).join("; ")
-        : `${versions.length} 个版本评审链完整（首版全量，中间版全量 ${fullCount} 个 / delta 评审 ${deltaCount} 份，拟交付版由标准/视觉门全量把守）`);
+        : `${versions.length} 个版本评审链完整（历史版全量 ${fullCount} 份 / delta ${deltaCount} 份均过语义门，拟交付版由标准/视觉门全量把守）`);
   }
 }
 
@@ -424,7 +433,7 @@ const isV2Package = frozen.ok && (frozen.manifest.snapshot_version ?? 1) >= 2;
   else {
     const r = JSON.parse(readFileSync(axePath, "utf8"));
     const problems = [];
-    if ((r.checks_version ?? 1) < 5) problems.push("results.json 为旧版检查产物（缺移动视口页边距渲染检查（v1.6）或更早能力：核心任务场景/200% 缩放/可见焦点/裁切/CLS/同源指纹/截图默认态复位），请重跑 browser-check");
+    if ((r.checks_version ?? 1) < 6) problems.push("results.json 为旧版检查产物（缺审计截图目标视口初始化（v1.8/27.9）或更早能力：页边距渲染检查/核心任务场景/200% 缩放/可见焦点/裁切/CLS/同源指纹/截图默认态复位），请重跑 browser-check");
     if (r.artifact_version !== undefined && r.artifact_version !== currentVersion) problems.push(`版本不符: results=${r.artifact_version}, 当前=${currentVersion}`);
     // 同源：检查时的原型指纹必须与当前交付原型一致（拒绝陈旧/异次运行的审计产物冒充）
     if (r.page_hashes) {

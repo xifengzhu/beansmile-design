@@ -9,8 +9,9 @@ export function suggestMode(input = {}) {
   const pro = (reason) => ({ mode: "professional", reasons: [reason] });
 
   if (!Array.isArray(platforms) || platforms.length === 0) return pro("platforms 未提供——信息不全不猜，走专业模式");
-  if (typeof estimated_pages !== "number") return pro("estimated_pages 未提供——信息不全不猜，走专业模式");
-  if (typeof estimated_flows !== "number") return pro("estimated_flows 未提供——信息不全不猜，走专业模式");
+  // 数量必须是合法整数（拒绝负数/NaN/Infinity/小数）：pages ≥1、flows ≥0，否则不猜。
+  if (!Number.isInteger(estimated_pages) || estimated_pages < 1) return pro("estimated_pages 未提供或非正整数——信息不全/非法不猜，走专业模式");
+  if (!Number.isInteger(estimated_flows) || estimated_flows < 0) return pro("estimated_flows 未提供或非非负整数——信息不全/非法不猜，走专业模式");
   if (typeof brand_exploration !== "boolean") return pro("brand_exploration 未明确——是否需要品牌方向探索未定，走专业模式");
 
   if (platforms.length > 1) return pro(`多平台（${platforms.join(",")}）需要跨平台一致性设计，走专业模式`);

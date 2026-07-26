@@ -41,7 +41,7 @@ const shotDir = join(root, "audit", "screenshots");
 mkdirSync(shotDir, { recursive: true });
 
 const result = {
-  checks_version: 5,
+  checks_version: 6,
   artifact_version: version,
   method: probe.method,
   generated_at: new Date().toISOString(),
@@ -173,14 +173,17 @@ for (const { file, name } of pages) {
   result.cls[name] = await page.evaluate(() => Number((window.__cls ?? 0).toFixed(4)));
   if (result.cls[name] >= 0.1) result.violations.push({ page: name, id: "layout-shift", impact: "serious", help: `加载期 CLS=${result.cls[name]}（阈值 0.1）` });
 
-  // 截图：桌面 + 手机。先 reload 复位到默认态（规范 24.4）——上面的 Tab 遍历会把焦点留在
-  // 最后一个元素上（skip link 展开、焦点框可见），不复位会把测试残留态截进审计证据。
+  // 截图：桌面 + 手机。每个视口先设尺寸**再** reload（规范 24.4/27.9）：reload 既复位
+  // 测试残留态（Tab 遍历留下的焦点框/skip link），也保证页面在目标视口下初始化——
+  // 先按 640px 或默认宽加载再缩放，响应式页面会把错误初始化宽度截进审计证据。
+  await page.setViewportSize({ width: 1280, height: 800 });
   await page.reload({ waitUntil: "load" }).catch(() => {});
   await page.waitForTimeout(300);
-  await page.setViewportSize({ width: 1280, height: 800 });
   const shotD = join(shotDir, `${pageSlug(name)}.desktop.png`);
   await page.screenshot({ path: shotD, fullPage: true });
   await page.setViewportSize({ width: 375, height: 812 });
+  await page.reload({ waitUntil: "load" }).catch(() => {});
+  await page.waitForTimeout(300);
   const shotM = join(shotDir, `${pageSlug(name)}.mobile.png`);
   await page.screenshot({ path: shotM, fullPage: true });
   result.screenshots.push(shotD, shotM);

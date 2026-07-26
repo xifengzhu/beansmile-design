@@ -290,6 +290,8 @@ PPT 使用已确认的混合模型：
 
 结构与渲染检查由仓库脚本根据最终 PPTX 重算，不能接受创作 Skill 自报的 `pass`。Director 必须在独立于 PPT 创作会话的主会话中逐页查看最终渲染图，处理 QA findings 后才登记 presentation artifact。
 
+Director 的逐页复核证据单独写入 `audit/presentation/director-review.json`，记录 PPTX SHA-256、已查看页码和 findings。结构检查脚本不能创建或修改该文件，只负责验证它与最终 PPTX 和完整页码集合一致。
+
 ## 10. PPT 生成能力抽象
 
 `design_presentation` 依赖一个跨运行时的 presentation adapter，而不是在 Skill 内假设单一私有 API。adapter 必须提供：

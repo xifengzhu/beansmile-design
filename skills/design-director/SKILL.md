@@ -57,6 +57,7 @@ description: 设计 Agent 系统的唯一决策中心。识别任务、维护 co
 2. 分别派发 `standards-audit` 与 `visual-review` 两个**纯只读**子代理，仅授予该快照目录读权限（visual 另需 `audit/screenshots|iterations` 读权限以引用截图）——**不授予仓库 `evidence/rules/`**：适用规则已冻结在快照 `rules/review-bundle.yaml`（紧凑评审包，规范 27.4）与冻结全卡中，评审读 bundle 即可，规则库升级不追溯漂移。它们不访问 `context.yaml`，**不写任何文件**。派发 standards 时在提示中告知目标平台列表与快照内 bundle 路径。
 3. 两评审互不可见对方 findings（避免锚定），各自把结构化 findings **返回**给你；你用 `node scripts/record-findings.mjs --package <目录> --version <v> --in <临时findings>` 校验 schema、绑定当前版本后落盘到 `audit/findings/<reviewer>-<v>.yaml`。版本不符会被拒绝；visual 评审还须通过八维 `dimension_reviews` 语义校验（八维各一、截图 sha256 匹配、observed 含实测值），杜绝"没看图就写 pass"。
 4. 你读取两份 findings 后自行判断与修订。**每条 warning 必须在 `decisions.md` 以 `[finding:<id>]` 标记处理**（修复了什么，或接受的理由与风险）——验收对未处理 warning 判 fail。
+5. **中间版本用增量评审（规范 27.5）**：首版与拟交付版必须全量双评审；修订产生的中间版本改用 `node scripts/snapshot.mjs --package <目录> --version <v> --delta-from <上一版>` 冻结（快照内自动生成 `delta/`：变更文件清单、行级 diff、遗留 findings、变更页），派发两评审做**增量评审**——输入只给 delta/ 四件套 + 变更页最新截图 + `rules/review-bundle.yaml` 中受影响规则；评审核销遗留问题（给证据）、复查变更面、新问题照报，findings 经 `record-findings.mjs --delta` 落盘为 `<reviewer>-<v>-delta.yaml`。**拟交付版本必须重新走全量协议——验收只认全量**（「迭代评审链」维度还会核对首版全量与中间版链完整）。
 
 只有 `blocker` 阻止交付；`warning` 说明影响后可交付（但须显式处理并记录）；`note` 为非必要改进。
 
@@ -87,6 +88,8 @@ description: 设计 Agent 系统的唯一决策中心。识别任务、维护 co
 | 合并 Skill 补丁（唯一写 context） | `node scripts/apply-patch.mjs --package <目录> --skill <canonical id> --patch <patch.yaml>` |
 | 浏览器自动检查 | `node scripts/browser-check.mjs --package <目录> --version <v>` |
 | 冻结快照 | `node scripts/snapshot.mjs --package <目录> --version <v>` |
+| 冻结中间版本快照 + 生成 delta 包（规范 27.5） | `node scripts/snapshot.mjs --package <目录> --version <v> --delta-from <上一版>` |
 | 落盘评审（评审只返回，Director 落盘） | `node scripts/record-findings.mjs --package <目录> --version <v> --in <findings.yaml>` |
+| 落盘中间版本增量评审 | `node scripts/record-findings.mjs --package <目录> --version <v> --in <findings.yaml> --delta` |
 | 聚合评审 | `node scripts/aggregate-reviews.mjs --package <目录> --version <v>` |
 | 验收 | `node scripts/acceptance.mjs --package <目录>` |

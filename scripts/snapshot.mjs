@@ -6,7 +6,9 @@
 // 分层扩展 §8.3/§8.4：快照同时冻结激活规则集到 rules/（规则卡只读副本 + rules-manifest.json
 // + review-scope.yaml 覆盖模板），评审与验收只读冻结集，规则库升级不追溯漂移。
 // 规则冻结无浏览器依赖，恒定执行，无降级旗标。
-// 用法: node scripts/snapshot.mjs --package <目录> --version <artifact_version>
+// v1.8（规范 27.4/27.5）：追加生成 rules/review-bundle.yaml（紧凑评审包）；--delta-from <基线版本>
+// 时在快照内生成 delta/（中间版本增量评审输入，验收可再生比对）。
+// 用法: node scripts/snapshot.mjs --package <目录> --version <artifact_version> [--delta-from <基线版本>]
 import { cpSync, mkdirSync, existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve, join } from "node:path";
 import yaml from "js-yaml";
@@ -16,6 +18,7 @@ import { loadRules } from "./lib/rules.mjs";
 import { loadRulePacks, applicableRules } from "./lib/rule-packs.mjs";
 import { buildCoverageTemplate } from "./lib/coverage-template.mjs";
 import { buildReviewBundle } from "./lib/review-bundle.mjs";
+import { buildDeltaBundle } from "./lib/delta-review.mjs";
 import { naCandidates } from "./lib/na-scan.mjs";
 import { MIGRATION_HINT } from "./lib/frozen-rules.mjs";
 
@@ -110,12 +113,27 @@ writeFileSync(join(rulesDir, "review-scope.yaml"), yaml.dump(reviewScope, { line
 const bundleText = buildReviewBundle({ cards: applicable.map((a) => a.rule), template, version: String(version) });
 writeFileSync(join(rulesDir, "review-bundle.yaml"), bundleText);
 
+// 中间版本增量评审包（规范 27.5）：--delta-from <基线版本> 时在快照内生成 delta/
+// （变更清单/行级 diff/遗留 findings/变更页），进入 manifest 哈希，验收可再生比对。
+const deltaFrom = arg("--delta-from");
+if (deltaFrom) {
+  if (Number(deltaFrom) >= Number(version)) {
+    console.error(`✗ --delta-from ${deltaFrom} 必须小于当前版本 ${version}`); process.exit(2);
+  }
+  let deltaBundle;
+  try { deltaBundle = buildDeltaBundle({ pkgRoot: root, baselineVersion: deltaFrom, version: String(version) }); }
+  catch (e) { console.error(`✗ delta 包生成失败: ${e.message}`); process.exit(1); }
+  const deltaDir = join(dest, "delta");
+  mkdirSync(deltaDir, { recursive: true });
+  for (const [name, text] of Object.entries(deltaBundle)) writeFileSync(join(deltaDir, name), text);
+}
+
 // 内容哈希 manifest：以快照目录（而非活动目录）为准计算，保证 manifest 与快照内容严格对应。
 // rules/ 在此之前已生成，一并纳入哈希清单（冻结规则也受不可变性保护）。
 const manifest = {
   artifact_version: String(version),
   created_at: new Date().toISOString(),
-  files: hashPaths(dest, [...copied, "rules"]),
+  files: hashPaths(dest, [...copied, "rules", "delta"]),
 };
 manifest.digest = manifestDigest(manifest);
 writeFileSync(join(dest, "manifest.json"), JSON.stringify(manifest, null, 2));

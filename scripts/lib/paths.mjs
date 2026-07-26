@@ -15,4 +15,5 @@ export const SCHEMAS = {
   context: resolve(SCHEMA_DIR, "context.schema.json"),
   skillManifest: resolve(SCHEMA_DIR, "skill-manifest.schema.json"),
   findings: resolve(SCHEMA_DIR, "findings.schema.json"),
+  findingsDelta: resolve(SCHEMA_DIR, "findings-delta.schema.json"),
 };

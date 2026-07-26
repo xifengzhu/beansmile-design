@@ -20,6 +20,7 @@ import { collectCandidates, candidateIssues } from "./lib/candidates.mjs";
 import { sharedCssIssues } from "./lib/css-dup.mjs";
 import { collectPrototypePages } from "./lib/pages.mjs";
 import { iterationChainIssues } from "./lib/iterations.mjs";
+import { loadReviewerFindings, semanticIssuesDelta, deltaIssues } from "./lib/delta-review.mjs";
 import { checkEnvironment } from "./env-check.mjs";
 
 function arg(name) { const i = process.argv.indexOf(name); return i >= 0 ? process.argv[i + 1] : undefined; }
@@ -352,6 +353,51 @@ const isV2Package = frozen.ok && (frozen.manifest.snapshot_version ?? 1) >= 2;
           issues.length ? issues.slice(0, 4).join("; ") : `全部 ${template.length} 条模板行闭合（自动预填 ${template.filter((t) => t.state === "prefilled_automated").length} 条），无 null/锁定字段修改/单向阀违规`);
       }
     }
+  }
+}
+
+// —— 5j. 迭代评审链（规范 27.5）：首版全量双评审；每个中间版本须有全量对或通过语义
+// 校验的 delta 对（baseline 链接续、闭合性满足）；快照带 delta/ 时再生比对。
+// 拟交付版本的全量双评审由 blocks 4/7 + 规则快照四门把守，本门不重复。
+{
+  if (!isV2Package) add("迭代评审链", "pass", "v1.7 流程包，无迭代评审链要求（新交付按规范 27.5 记录中间版本评审）");
+  else {
+    const snapRoot = P("audit", "snapshots");
+    const versions = existsSync(snapRoot)
+      ? readdirSync(snapRoot).filter((d) => /^\d+$/.test(d)).map(Number).sort((a, b) => a - b) : [];
+    const problems = [];
+    const cur = Number(currentVersion);
+    const first = versions[0];
+    if (versions.length > 1 && first !== cur) {
+      const firstF = loadFindingsForVersion(root, String(first));
+      if (!firstF.standards || !firstF.visual) problems.push(`首版 v${first} 缺全量双评审（首版必须全量，规范 27.5）`);
+    }
+    let deltaCount = 0, fullCount = 0;
+    for (const v of versions.filter((x) => x > first && x < cur)) {
+      const full = loadFindingsForVersion(root, String(v));
+      if (full.standards && full.visual) { fullCount++; continue; }
+      const frozenV = loadFrozenRules(root, String(v));
+      for (const reviewer of ["standards", "visual"]) {
+        const d = loadReviewerFindings(root, reviewer, String(v));
+        if (!d) { problems.push(`中间版 v${v} 缺 ${reviewer} 评审（全量或 delta 均无/非法）`); continue; }
+        if (d.kind !== "delta") continue; // 单侧全量 + 单侧 delta 的混排按各自规则查
+        if (!frozenV.ok) { problems.push(`中间版 v${v} 冻结规则不可用: ${frozenV.errors[0]}`); continue; }
+        const baseline = loadReviewerFindings(root, reviewer, d.doc.baseline_version);
+        const issues = semanticIssuesDelta(d.doc, baseline, frozenV, root);
+        if (issues.length) problems.push(`中间版 v${v} ${reviewer} delta 不通过: ${issues[0]}`);
+        else deltaCount++;
+      }
+      const deltaDir = join(snapRoot, String(v), "delta");
+      if (existsSync(deltaDir)) {
+        try {
+          const cf = JSON.parse(readFileSync(join(deltaDir, "changed-files.json"), "utf8"));
+          problems.push(...deltaIssues(root, cf.baseline_version, String(v)).map((s) => `v${v}: ${s}`));
+        } catch (e) { problems.push(`v${v} delta/changed-files.json 不可读: ${String(e.message).split("\n")[0]}`); }
+      }
+    }
+    add("迭代评审链", problems.length === 0 ? "pass" : "fail",
+      problems.length ? problems.slice(0, 4).join("; ")
+        : `${versions.length} 个版本评审链完整（首版全量，中间版全量 ${fullCount} 个 / delta 评审 ${deltaCount} 份，拟交付版由标准/视觉门全量把守）`);
   }
 }
 

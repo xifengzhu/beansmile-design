@@ -1,0 +1,104 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://beansmile-design/schemas/findings-delta.schema.json",
+  "title": "中间版本增量评审 findings（delta）",
+  "description": "规范 27.5：中间修订版（首版与拟交付版之间）的增量评审返回结构。只覆盖变更面与 baseline 遗留问题的核销/再断言，不做覆盖矩阵全量闭合——最终版本仍走 findings.schema.json 的全量协议，验收只认全量。落盘名为 <reviewer>-<v>-delta.yaml，与全量命名区隔；本 schema 的 baseline_version 字段在全量 schema（additionalProperties:false）下非法，双保险防冒充。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["reviewer", "artifact_version", "baseline_version", "verdict", "findings", "resolved_findings"],
+  "properties": {
+    "reviewer": { "enum": ["standards", "visual"] },
+    "artifact_version": { "type": "string", "minLength": 1 },
+    "baseline_version": { "type": "string", "minLength": 1, "description": "本次增量评审的基线版本（其 findings——全量或 delta——必须已落盘）" },
+    "verdict": { "enum": ["pass", "fail"] },
+    "findings": {
+      "type": "array",
+      "description": "新发现的问题，或对 baseline 遗留问题的再断言（沿用 baseline finding 的 id 即为再断言）。",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "severity", "location", "evidence", "user_impact", "recommendation"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "severity": { "enum": ["blocker", "warning", "note"] },
+          "dimension": { "$ref": "#/$defs/dimension" },
+          "location": { "type": "string", "minLength": 1 },
+          "rule_id": { "type": ["string", "null"] },
+          "evidence": { "type": "string", "minLength": 1 },
+          "user_impact": { "type": "string", "minLength": 1 },
+          "recommendation": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "resolved_findings": {
+      "type": "array",
+      "description": "对 baseline 遗留 blocker/warning 的核销记录。baseline 的每条遗留问题必须出现在这里或 findings（再断言）中，缺一拒收（闭合性，机器校验）。",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "evidence"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1, "description": "baseline finding 的 id" },
+          "evidence": { "type": "string", "minLength": 10, "description": "核销证据：改了什么、在哪张变更截图/哪个文件 diff 中确认已修复" }
+        }
+      }
+    },
+    "rule_coverage_delta": {
+      "type": "array",
+      "description": "standards 增量评审：仅变更相关规则的核查记录（条目形状同全量 rule_coverage），不要求全量闭合。",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["rule_id", "result", "checked_via", "evidence"],
+        "properties": {
+          "rule_id": { "type": "string", "minLength": 1 },
+          "result": { "enum": ["pass", "fail", "intent_only", "not_applicable"] },
+          "checked_via": { "enum": ["automated", "screenshot", "code", "manual_checklist"] },
+          "evidence": { "type": "string", "minLength": 10 }
+        }
+      }
+    },
+    "dimension_reviews_delta": {
+      "type": "array",
+      "description": "visual 增量评审：仅受变更影响维度的看图记录（0–8 条，条目形状同全量 dimension_reviews）。",
+      "maxItems": 8,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["dimension", "screenshot", "screenshot_sha256", "region", "observed", "judgment"],
+        "properties": {
+          "dimension": { "$ref": "#/$defs/dimension" },
+          "screenshot": { "type": "string", "minLength": 1 },
+          "screenshot_sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+          "region": { "type": "string", "minLength": 1 },
+          "observed": { "type": "string", "minLength": 20 },
+          "judgment": { "enum": ["pass", "warning", "blocker"] }
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "$comment": "verdict=pass 时不得有 blocker；verdict=fail 时至少一条 blocker（与全量一致）。",
+      "if": { "properties": { "verdict": { "const": "pass" } } },
+      "then": {
+        "properties": {
+          "findings": { "not": { "contains": { "properties": { "severity": { "const": "blocker" } }, "required": ["severity"] } } }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "verdict": { "const": "fail" } } },
+      "then": {
+        "properties": {
+          "findings": { "contains": { "properties": { "severity": { "const": "blocker" } }, "required": ["severity"] } }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "dimension": {
+      "enum": ["hierarchy", "rhythm", "typography", "color", "consistency", "content", "brand", "completion"]
+    }
+  }
+}

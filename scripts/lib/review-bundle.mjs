@@ -19,7 +19,9 @@ export function buildReviewBundle({ cards, template, version }) {
   const rules = rows.map((row) => {
     const card = byId.get(row.rule_id);
     if (!card) throw new Error(`模板行 ${row.rule_id} 无对应冻结卡`);
-    const entry = { rule_id: row.rule_id, pack_id: row.pack_id, rule_sha256: row.rule_sha256, state: row.state };
+    // 行内不带 rule_sha256：完整性由再生比对整体保证，逐规则哈希在 rules-manifest.json，
+    // 64 字符×每行会吃掉约 13% 投影收益。
+    const entry = { rule_id: row.rule_id, pack_id: row.pack_id, state: row.state };
     for (const f of BUNDLE_PROJECTED_FIELDS) if (card[f] !== undefined) entry[f] = card[f];
     if (card.exceptions !== undefined) entry.exceptions = card.exceptions;
     if (row.not_applicable_candidate?.value) {

@@ -197,6 +197,8 @@ node scripts/director-advance.mjs \
 | `node scripts/director-advance.mjs --package <目录> --stage <阶段>` | 由 Director 推进合法阶段 |
 | `npm run gate:diff -- --skill <canonical_id> --before <context.yaml> --patch <patch.yaml>` | 只检查 Skill 补丁的字段权限、schema、阶段和版本 |
 | `npm run apply -- --package <目录> --skill <canonical_id> --patch <patch.yaml>` | 门禁通过后合并补丁并写回上下文 |
+| `npm run ctx:project -- --package <目录> --skill <canonical_id> [--out <文件>]` | 按 Skill reads 白名单生成 context 字段投影视图（派发用，规范 27.6） |
+| `npm run mode:suggest -- --platforms web --pages 1 --flows 2 --brand-exploration false` | 快速模式建议（须经用户确认后 `--confirm mode` 落盘，规范 27.8） |
 
 内部脚本使用 [`skills/registry.yaml`](skills/registry.yaml) 中的 canonical snake_case ID，例如 `requirements_research`、`ux_architecture` 和 `html_prototype`，不要传目录使用的连字符名称。
 
@@ -205,10 +207,14 @@ node scripts/director-advance.mjs \
 | 命令 | 用途 |
 |---|---|
 | `npm run shot -- --package <目录> --candidates` | 对 2 至 3 个执行候选进行双视口截图 |
-| `npm run shot -- --package <目录> --round <N>` | 对所有原型页面生成一轮 375/768/1440 视口截图 |
+| `npm run shot -- --package <目录> --round <N>` | 对所有原型页面生成一轮 375/768/1440 视口截图（首轮与收官轮必须全量） |
+| `npm run shot -- --package <目录> --round <N> --incremental` | 第 2 轮起只重截变更页，未变页记 carried 并链到实拍轮（规范 27.3） |
+| `npm run lint:proto -- --package <目录>` | 静态检查多页原型共享样式抽取（规范 27.2，降级环境同样强制） |
 | `npm run browser:check -- --package <目录> --version <版本>` | 运行 axe、键盘、焦点、重排、缩放、溢出、CLS、控制台和核心场景检查 |
-| `npm run snapshot -- --package <目录> --version <版本>` | 冻结不可覆盖的评审快照并写入内容哈希 manifest |
+| `npm run snapshot -- --package <目录> --version <版本>` | 冻结不可覆盖的评审快照并写入内容哈希 manifest（含紧凑评审包 review-bundle） |
+| `npm run snapshot -- --package <目录> --version <版本> --delta-from <基线版本>` | 冻结中间版本快照并生成 delta 增量评审包（规范 27.5） |
 | `npm run review:record -- --package <目录> --version <版本> --in <findings.yaml>` | 校验并落盘只读评审返回的 findings |
+| `npm run review:record -- --package <目录> --version <版本> --in <findings.yaml> --delta` | 落盘中间版本增量评审（闭合性校验：遗留问题须核销或再断言） |
 | `npm run review:aggregate -- --package <目录> --version <版本>` | 聚合规范与视觉评审，生成 `audit/report.md` |
 | `npm run accept -- --package <目录>` | 执行最终机器验收 |
 | `npm run accept -- --package <目录> --check-urls` | 最终验收并在线核实已引用规则来源 |
@@ -236,11 +242,13 @@ outputs/demo/
     |-- screenshots/             # 最终多视口截图
     |-- results.json             # 浏览器自动检查结果
     |-- snapshots/<version>/     # 绑定版本的不可变评审快照
-    |-- findings/                # 标准与视觉评审结果
+    |   |-- rules/review-bundle.yaml  # 紧凑评审规则包（冻结卡确定性投影，规范 27.4）
+    |   `-- delta/               # 中间版本增量评审包（变更清单/diff/遗留 findings，规范 27.5）
+    |-- findings/                # 标准与视觉评审结果（中间版本为 <reviewer>-<v>-delta.yaml）
     `-- report.md                # 聚合评审和交付判定
 ```
 
-最终验收要求交付包中的原型、浏览器结果、截图、快照和两份评审都绑定当前 `artifact_version`。评审后若修改 `prototype/` 或 `design-tokens.json`，必须升级版本并重新执行截图自评、浏览器检查、快照和双评审。
+最终验收要求交付包中的原型、浏览器结果、截图、快照和两份评审都绑定当前 `artifact_version`。评审后若修改 `prototype/` 或 `design-tokens.json`，必须升级版本并重新执行截图自评、浏览器检查、快照和评审——首版与拟交付版为全量双评审，中间版本可用 delta 增量评审（规范 27.5，验收「迭代评审链」维度核对链完整性）。
 
 ## 项目结构
 

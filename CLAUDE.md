@@ -30,7 +30,7 @@ npm run setup:agents                      # 把 skills/ 链接进 .claude/skills
 
 **单一事实源与补丁门禁**：每个交付包只有 `context.yaml` 一个可写状态文件。流程 Skill 不直接写它，只产出补丁；只有 Director 经 `check-diff-gate.mjs` → `apply-patch.mjs` 合并。门禁依次检查：改动路径在该 Skill 的 `writes` 白名单内（`docs/superpowers/specs/schemas/skill-manifests.yaml`）、合并后符合 `context.schema.json`、阶段转换合法且确认门已记录、`artifact_version` 单调递增。
 
-**版本绑定**：评审后修改 `prototype/` 或 `design-tokens.json` 必须升级 `artifact_version`，并重做截图自评、浏览器检查、快照和双评审——`acceptance.mjs` 会校验所有产物绑定当前版本。
+**版本绑定**：评审后修改 `prototype/` 或 `design-tokens.json` 必须升级 `artifact_version`，并重做截图自评、浏览器检查、快照和评审——`acceptance.mjs` 会校验所有产物绑定当前版本。首版与拟交付版走全量双评审；中间版本可用 delta 增量评审（`snapshot --delta-from` + `review:record --delta`，规范 27.5），验收「迭代评审链」维度核对链完整，delta 结论不进最终验收。
 
 **创作与评审分离**：standards/visual 两个 reviewer 只能读 `audit/snapshots/<version>/` 的冻结快照，互相不可见，不能改原型。findings 经 `record-findings.mjs` 落盘，schema 校验之外还有语义校验（`scripts/lib/findings.mjs`）：截图 sha256 匹配、standards 评审的 `rule_coverage` 矩阵必须逐条覆盖目标平台+行业包的全部适用规则、fail 与 blocker/warning finding 双向一致。
 

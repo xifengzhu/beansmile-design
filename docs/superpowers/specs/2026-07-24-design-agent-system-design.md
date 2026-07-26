@@ -822,7 +822,7 @@ standards 评审的 findings 必须附 `rule_coverage`（schema 强制 + `semant
 
 ### 27.4 紧凑评审规则包（`scripts/lib/review-bundle.mjs`）
 
-- `snapshot.mjs` 冻结规则后追加生成 `rules/review-bundle.yaml`：激活规则按 `rule_id` 排序的**确定性投影**，每条含 `rule_id/pack_id/rule_sha256/state/title/rule/check_method/platforms/scope/strength` 及可选 `exceptions/na_candidate`；剔除 `publisher/source_url/source_version/last_verified/rationale/evidence_grade/conflicts_with`（溯源与裁决字段留在冻结全卡，评审需要时回读）。单卡约省 40%–55%，且 bundle 由 `applicableRules` 派生、不假设规则数，规则库扩张（扩展设计第 5–7 步）后收益自动放大。
+- `snapshot.mjs` 冻结规则后追加生成 `rules/review-bundle.yaml`：激活规则按 `rule_id` 排序的**确定性投影**，每条含 `rule_id/pack_id/state/title/rule/check_method/platforms/scope/strength` 及可选 `exceptions/na_candidate`；剔除 `publisher/source_url/source_version/last_verified/rationale/evidence_grade/conflicts_with`（溯源与裁决字段留在冻结全卡，评审需要时回读），也不带行级 `rule_sha256`（完整性由再生比对整体保证，逐规则哈希在 `rules-manifest.json`）。Web 48 条实测较冻结全卡省约 30% 字节（且评审从"读 3 个来源文件 + 可能通读 107 条规则库"收敛为"读 1 个已按适用集筛好的文件"）；bundle 由 `applicableRules` 派生、不假设规则数，规则库扩张（扩展设计第 5–7 步）后收益自动放大。
 - **再生比对门**：`buildReviewBundle` 为 snapshot 与校验方共用的纯函数；`loadFrozenRules` 在冻结卡哈希校验通过后用冻结卡重建 bundle 并比对 sha256——篡改 bundle 软化规则文本即被抓（篡改冻结卡本身已被既有哈希门拦）。v1.7 老快照无 bundle → 返回 `bundle: null`，评审回退读全卡，不报错。
 - standards-audit 的评审输入首选 bundle，同时**收回 `evidence/rules/` 读权限**（修正 v1.7 措辞残留——§8.4 本就要求评审只读冻结集）。
 

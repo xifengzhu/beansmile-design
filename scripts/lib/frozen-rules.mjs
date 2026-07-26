@@ -6,17 +6,20 @@ import { readFileSync, existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import yaml from "js-yaml";
 import { canonicalRuleHash, applicableRules } from "./rule-packs.mjs";
+import { bundleIssues } from "./review-bundle.mjs";
 
 // §9.1 统一迁移措辞：未迁移历史包得到迁移提示，不写成"历史交付非法"。
 export const MIGRATION_HINT =
   "需要迁移后重验：历史包按 §9.1 显式迁移（补 reference_system→升版→重新 snapshot→双评审）；历史 delivered 结论不因此失效";
 
-// 返回 { ok, errors, cards, manifest, scope }。
+// 返回 { ok, errors, cards, manifest, scope, bundle }。
 // cards: 冻结规则卡数组（含 _file=快照内来源文件名）；manifest: rules-manifest.json 对象；
-// scope: review-scope.yaml 对象（含 rule_coverage_template）。
+// scope: review-scope.yaml 对象（含 rule_coverage_template）；bundle: rules/review-bundle.yaml
+// 解析对象（规范 27.4 紧凑评审包，通过再生比对后才返回；v1.7 老快照无 bundle → null，
+// 评审回退读冻结全卡，不报错）。
 // 快照缺 rules/ → ok=false 且 errors 用 MIGRATION_HINT（§9.1，不得静默回填）。
 export function loadFrozenRules(pkgRoot, version) {
-  const out = { ok: false, errors: [], cards: null, manifest: null, scope: null };
+  const out = { ok: false, errors: [], cards: null, manifest: null, scope: null, bundle: null };
   const rulesDir = join(pkgRoot, "audit", "snapshots", String(version), "rules");
   const manifestPath = join(rulesDir, "rules-manifest.json");
   const scopePath = join(rulesDir, "review-scope.yaml");
@@ -78,8 +81,24 @@ export function loadFrozenRules(pkgRoot, version) {
     }
   }
 
+  // 紧凑评审包再生比对（规范 27.4）：只有卡集完好才有资格重建比对；
+  // v1.8 快照（snapshot_version>=2）缺 bundle 即拒（防"删掉紧凑包逼评审读全库"的降级面），
+  // v1.7 老快照无 bundle 属迁移语义，不报错。
+  let bundle = null;
+  if (out.errors.length === 0) {
+    const bundlePath = join(rulesDir, "review-bundle.yaml");
+    if (existsSync(bundlePath)) {
+      const diskText = readFileSync(bundlePath, "utf8");
+      const issues = bundleIssues(diskText, { cards, template: scope?.rule_coverage_template ?? [], version });
+      if (issues.length) out.errors.push(...issues);
+      else bundle = yaml.load(diskText);
+    } else if ((manifest.snapshot_version ?? 1) >= 2) {
+      out.errors.push(`快照 v${version} 缺 rules/review-bundle.yaml（v1.8 快照必须含紧凑评审包），须重新 snapshot`);
+    }
+  }
+
   out.ok = out.errors.length === 0;
-  if (out.ok) { out.cards = cards; out.manifest = manifest; out.scope = scope; }
+  if (out.ok) { out.cards = cards; out.manifest = manifest; out.scope = scope; out.bundle = bundle; }
   return out;
 }
 

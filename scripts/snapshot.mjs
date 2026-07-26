@@ -15,6 +15,7 @@ import { loadYaml } from "./lib/context.mjs";
 import { loadRules } from "./lib/rules.mjs";
 import { loadRulePacks, applicableRules } from "./lib/rule-packs.mjs";
 import { buildCoverageTemplate } from "./lib/coverage-template.mjs";
+import { buildReviewBundle } from "./lib/review-bundle.mjs";
 import { naCandidates } from "./lib/na-scan.mjs";
 import { MIGRATION_HINT } from "./lib/frozen-rules.mjs";
 
@@ -104,6 +105,10 @@ const reviewScope = {
   stats,
 };
 writeFileSync(join(rulesDir, "review-scope.yaml"), yaml.dump(reviewScope, { lineWidth: 120 }));
+
+// 紧凑评审规则包（规范 27.4）：冻结卡的确定性投影，评审输入首选；loadFrozenRules 再生比对防篡改。
+const bundleText = buildReviewBundle({ cards: applicable.map((a) => a.rule), template, version: String(version) });
+writeFileSync(join(rulesDir, "review-bundle.yaml"), bundleText);
 
 // 内容哈希 manifest：以快照目录（而非活动目录）为准计算，保证 manifest 与快照内容严格对应。
 // rules/ 在此之前已生成，一并纳入哈希清单（冻结规则也受不可变性保护）。

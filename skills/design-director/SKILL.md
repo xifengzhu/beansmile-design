@@ -54,7 +54,7 @@ description: 设计 Agent 系统的唯一决策中心。识别任务、维护 co
 ## 评审编排（强制只读，规范 5.3）
 
 1. 触发评审前，用 `node scripts/snapshot.mjs --package <目录> --version <v>` 把当前交付物冻结到 `audit/snapshots/<v>/`，`artifact_version` 单调递增（与 `context.artifacts.prototype.artifact_version` 一致）。快照会写入 `manifest.json`（逐文件 sha256）；验收据此校验快照未被篡改、评审期间活动产物未被改动、`decisions.md` 仅追加——**评审后到验收前不得再改 `prototype/` 与 `design-tokens.json`**，改了就必须升版本重走截图自评+快照+评审。
-2. 分别派发 `standards-audit` 与 `visual-review` 两个**纯只读**子代理，仅授予该快照目录 + 依据库读权限（visual 另需 `audit/screenshots|iterations` 读权限以引用截图）。它们不访问 `context.yaml`，**不写任何文件**。派发 standards 时必须在提示中告知目标平台列表（覆盖矩阵按平台筛选适用规则，它自己读不到 context）。
+2. 分别派发 `standards-audit` 与 `visual-review` 两个**纯只读**子代理，仅授予该快照目录读权限（visual 另需 `audit/screenshots|iterations` 读权限以引用截图）——**不授予仓库 `evidence/rules/`**：适用规则已冻结在快照 `rules/review-bundle.yaml`（紧凑评审包，规范 27.4）与冻结全卡中，评审读 bundle 即可，规则库升级不追溯漂移。它们不访问 `context.yaml`，**不写任何文件**。派发 standards 时在提示中告知目标平台列表与快照内 bundle 路径。
 3. 两评审互不可见对方 findings（避免锚定），各自把结构化 findings **返回**给你；你用 `node scripts/record-findings.mjs --package <目录> --version <v> --in <临时findings>` 校验 schema、绑定当前版本后落盘到 `audit/findings/<reviewer>-<v>.yaml`。版本不符会被拒绝；visual 评审还须通过八维 `dimension_reviews` 语义校验（八维各一、截图 sha256 匹配、observed 含实测值），杜绝"没看图就写 pass"。
 4. 你读取两份 findings 后自行判断与修订。**每条 warning 必须在 `decisions.md` 以 `[finding:<id>]` 标记处理**（修复了什么，或接受的理由与风险）——验收对未处理 warning 判 fail。
 

@@ -11,7 +11,7 @@ description: 根据已确认的用户流与视觉系统生成可点击高保真�
 - `references/component-patterns.md`：全局基线 CSS、按钮/表单/卡片/导航/表格/状态/弹层/微交互的工艺基准（专业与业余的分界线）。
 - `references/polish-checklist.md`：截图自评清单（对齐/层级/色彩/排版/状态/内容/响应式/手感）。
 - `references/assets-guide.md`：图标（单一图标集+内联 SVG）、字体（标题层按搭配库升级）、图像（CSS/SVG 生成工艺配方）与许可记录。
-- `../visual-system/references/direction-playbooks.md`：**选定方向的整节必读**——首屏构成、关键手法配方、敷衍 vs 到位判别；关键手法至少落地 2 处且在首屏。
+- `../visual-system/references/playbooks/<选定方向>.md`（如 `playbooks/D3.md`）+ `playbooks/_intro.md`：**只读选定方向的分章手册**（规范 27.7，不通读 8 个方向）——首屏构成、关键手法配方、敷衍 vs 到位判别；关键手法至少落地 2 处且在首屏。
 - `../visual-system/references/layout-composition.md`：首屏构成模式、留白节奏、视觉记忆点菜单（≥2 处）、构成自查清单。
 - 上游令牌：只消费 `design-tokens.json` 的语义层变量；出现档位外魔法数字（px/hex）视为未完成。
 

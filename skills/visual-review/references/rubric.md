@@ -13,7 +13,7 @@
 
 对照 `skills/visual-system/references/`（字阶/间距/色彩纪律）与 `skills/html-prototype/references/polish-checklist.md`。原型若偏离 design-tokens.json 的令牌（魔法数字），直接构成 finding。
 
-**方向对标（生成↔评审同一本手册）**：评审前先读 `skills/visual-system/references/direction-playbooks.md` 中已确认方向的整节，与 `layout-composition.md` 的记忆点菜单（§4）、构成自查（§7）。品牌辨识度与视觉层级维度按手册的"敷衍 vs 到位"判别，evidence 写"哪个关键手法、落地了几处、在第几屏"这类可数事实——评的是执行深度，不是有没有沾边。
+**方向对标（生成↔评审同一本手册）**：评审前先读 `skills/visual-system/references/playbooks/` 中已确认方向的分章（`<Dn>.md` + `_intro.md`，规范 27.7——只读该方向，不通读 8 章），与 `layout-composition.md` 的记忆点菜单（§4）、构成自查（§7）。品牌辨识度与视觉层级维度按手册的"敷衍 vs 到位"判别，evidence 写"哪个关键手法、落地了几处、在第几屏"这类可数事实——评的是执行深度，不是有没有沾边。
 
 ## 八维度判定问题与判例
 
@@ -54,7 +54,7 @@
 - **note 判例**：个别文案口吻与产品人格不符。
 
 ### 7. 品牌辨识度
-- 问：遮住 logo，这个界面和任意 Bootstrap 后台可区分吗？确认的方向（D1–D8 或自定义）的关键手法（按 direction-playbooks.md 该方向"关键手法配方"逐条对）是否至少落地 2 处、且在首屏？落地质量按该方向"敷衍 vs 到位"判别属于哪边？layout-composition.md §4 的视觉记忆点是否 ≥2 处？
+- 问：遮住 logo，这个界面和任意 Bootstrap 后台可区分吗？确认的方向（D1–D8 或自定义）的关键手法（按 playbooks/<Dn>.md 该方向"关键手法配方"逐条对）是否至少落地 2 处、且在首屏？落地质量按该方向"敷衍 vs 到位"判别属于哪边？layout-composition.md §4 的视觉记忆点是否 ≥2 处？
 - **blocker 判例**：交付物与确认门 C 选定的方向明显不符。
 - **warning 判例**：方向落地流于表面（playbook 判为"敷衍"侧：如 D3 只换了衬线标题、D8 只加粗了边框）；关键手法 <2 处或全部不在首屏；"零记忆点"的模板感；首屏构成是 layout-composition §1 之外的居中堆叠兜底且无理由。
 - **note 判例**：品牌手法只出现在首页、内页全丢。

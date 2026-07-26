@@ -6,13 +6,19 @@ description: 基于品牌、内容与情境提出 2-3 个真正不同的视觉�
 
 # 视觉系统 Skill
 
-## 知识库（生成前必读，按此构建而非临场发挥）
+## 知识库（两阶段按需加载，规范 27.7——按此构建而非临场发挥，但不通读 8 个方向）
 
-- `references/type-and-spacing.md`：字阶比率与档位、中文排版规则、字体栈、8pt 间距、网格/密度、圆角/阴影/动效令牌。
+**阶段一（方向选定前，提案用）必读：**
+
+- `references/direction-library.md`：8 个风格方向索引（人格/适用场景/令牌起点/关键手法）与方向提案的交付格式。
 - `references/color-system.md`：从品牌色展开 10 档色阶、语义令牌清单、60-30-10 用色纪律、对比度预检表、深色模式、廉价感自查。
-- `references/direction-library.md`：8 个风格方向（人格/适用场景/令牌起点/关键手法）与方向提案的交付格式。
-- `references/direction-playbooks.md`：每个方向的执行手册（首屏构成/关键手法配方/敷衍 vs 到位）——提案时确认自己提的方向做得到位。
-- `references/font-pairings.md`：开源中文字体搭配库（按方向给配方，含加载方式与许可）——默认系统栈之上的品牌表现力升级。
+- `references/type-and-spacing.md`：字阶比率与档位、中文排版规则、字体栈、8pt 间距、网格/密度、圆角/阴影/动效令牌。
+- `references/playbooks/_intro.md` + **仅候选方向**的 `references/playbooks/<Dn>.md`：提案哪 2–3 个方向就读哪几章（首屏构成/关键手法配方/敷衍 vs 到位），确认自己提的方向做得到位——不读全部 8 章。
+
+**阶段二（方向经确认门 C 选定后，深化令牌用）必读：**
+
+- 选定方向的 `references/playbooks/<Dn>.md`（如阶段一未读）。
+- `references/font-pairings.md` 中**选定方向的配方节**（§2 按方向搭配配方）+ §0 使用纪律——默认系统栈之上的品牌表现力升级。
 - `references/layout-composition.md`：版式构成知识（首屏构成模式/留白节奏/视觉记忆点菜单）——方向预览页按此构成，不许居中堆叠糊弄。
 
 产出的 `design-tokens.json` 必须含**原始层 + 语义层**两层；方向提案必须满足 direction-library.md 的交付格式（真正不同的方向 ≥ 2 项本质差异，同一关键页面真实内容对比渲染）。

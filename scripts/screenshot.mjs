@@ -70,7 +70,7 @@ if (candMode) {
   await browser.close();
   console.log(`✓ 候选截图：${c.cands.length} 个候选、${jobs.length} 页 × 2 视口`);
   for (const s of shots) console.log(`  ${s}`);
-  console.log(`下一步：Read 每个候选的截图并排对比（构成张力/记忆点落地/方向手法，见 direction-playbooks.md 与 layout-composition.md §7），`);
+  console.log(`下一步：Read 每个候选的截图并排对比（构成张力/记忆点落地/方向手法，见 playbooks/<选定方向>.md 与 layout-composition.md §7），`);
   console.log(`把逐候选评语与 \`chosen: cand-N\` 写入 ${join(c.dir, "selection.md")}（每个候选须以 cand-N/<截图名> 限定路径引用其截图）。`);
   process.exit(0);
 }

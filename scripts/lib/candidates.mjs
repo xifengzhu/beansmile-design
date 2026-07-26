@@ -1,5 +1,5 @@
 // 执行竞争门禁（规范 v1.3 生成上限层）：同一方向 ≥2 个候选执行版本、逐个截图对比、择优有记录。
-// 竞争的是构成层执行（direction-playbooks.md），不是重开方向——令牌一致由评审看，这里只机器判定
+// 竞争的是构成层执行（playbooks/<Dn>.md 分章手册），不是重开方向——令牌一致由评审看，这里只机器判定
 // "竞争确实发生、每个候选都被看过、选择被记录"。
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";

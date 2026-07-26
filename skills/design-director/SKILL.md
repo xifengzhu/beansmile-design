@@ -30,6 +30,8 @@ description: 设计 Agent 系统的唯一决策中心。识别任务、维护 co
 
 默认**专业模式**（规范 9.1），范围明确的简单页面可用**快速模式**（9.2）。模式写入 `context.project.mode`。
 
+**模式选择协议（规范 27.8）**：intake 收齐页面数/流程数/平台/是否品牌探索后，先跑 `node scripts/suggest-mode.mjs --platforms .. --pages .. --flows .. --brand-exploration ..` 得到建议模式与理由，把理由呈给用户确认（沿用一次一个问题的节奏）；用户答复后 `node scripts/director-advance.mjs --package <目录> --confirm mode --summary <建议与理由> --reply <用户答复原文>` 落盘，再初始化/继续。**不得未经确认静默进入快速模式**——验收「流程确认」维度对快速模式包核对 `confirmations.mode`。分类器保守（信息不全一律建议专业模式），建议 quick 不等于必须 quick，用户想要专业流程随时可选。
+
 ### 专业模式流程
 
 1. **intake / 澄清**：识别任务类型、目标平台、模式与**行业**（`project.industry`：有规则包的用对应 slug 如 `ecommerce`/`saas_b2b`，通用产品用 `general`——验收「行业依据」维度要求必填，行业包存在时其规则必须实际参与决策）；一次只问一个需要用户决定的问题。初始化 `context.yaml`。
@@ -49,7 +51,7 @@ description: 设计 Agent 系统的唯一决策中心。识别任务、维护 co
 
 ### 快速模式
 
-收集最小 Brief → 采用一个合理视觉方向直接生成原型 → 执行相同的硬性质量检查（不得跳过目标平台、关键状态、WCAG 2.2 AA、多视口截图、溢出检查、控制台错误、依据记录）。
+前提：`confirmations.mode` 已记录用户确认（见上"模式选择协议"）。收集最小 Brief → 采用一个合理视觉方向直接生成原型 → 执行相同的硬性质量检查（不得跳过目标平台、关键状态、WCAG 2.2 AA、多视口截图、溢出检查、控制台错误、依据记录）。
 
 ## 评审编排（强制只读，规范 5.3）
 
@@ -81,7 +83,8 @@ description: 设计 Agent 系统的唯一决策中心。识别任务、维护 co
 |---|---|
 | 初始化 | `node scripts/init-project.mjs --package <目录> --name .. --mode .. --task-type .. --platforms web,mobile_web --primary-user .. --industry ecommerce\|saas_b2b\|general` |
 | 自检 | `node scripts/env-check.mjs --out <目录>/audit/environment.md` |
-| 记录确认门（A/B/C，专业模式必需） | `node scripts/director-advance.mjs --package <目录> --confirm requirements\|flows\|direction --summary .. --reply .. [--candidates .. --chosen ..]` |
+| 模式建议（intake 时，规范 27.8） | `node scripts/suggest-mode.mjs --platforms web --pages 1 --flows 2 --brand-exploration false [--industry ..]` |
+| 记录确认门（A/B/C 专业模式必需；mode 快速模式必需） | `node scripts/director-advance.mjs --package <目录> --confirm requirements\|flows\|direction\|mode --summary .. --reply .. [--candidates .. --chosen ..]` |
 | 推进阶段 | `node scripts/director-advance.mjs --package <目录> --stage <阶段>` |
 | 生成派发用上下文投影（每次调度流程 Skill 前） | `node scripts/project-context.mjs --package <目录> --skill <canonical id> --out <临时文件>` |
 | 候选竞争截图（prototype 阶段、全量开发前） | `node scripts/screenshot.mjs --package <目录> --candidates` |

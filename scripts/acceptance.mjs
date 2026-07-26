@@ -229,10 +229,14 @@ const isV2Package = frozen.ok && (frozen.manifest.snapshot_version ?? 1) >= 2;
   }
 }
 
-// —— 5c. 流程确认（专业模式三道确认门已记录，规范 9.1）——
+// —— 5c. 流程确认（专业模式三道确认门，规范 9.1；快速模式的 mode 确认门，规范 27.8）——
 {
-  if (mode === "quick") add("流程确认", "pass", "快速模式，无确认门要求");
-  else {
+  if (mode === "quick") {
+    if (!isV2Package) add("流程确认", "pass", "快速模式（v1.7 流程包，mode 确认门不追溯；v1.8 起须记录用户确认）");
+    else if (!ctx?.confirmations?.mode?.user_reply) {
+      add("流程确认", "fail", "快速模式缺 confirmations.mode（v1.8 起不得未经用户确认进入快速模式，规范 27.8）：node scripts/director-advance.mjs --confirm mode --summary .. --reply <用户答复原文>");
+    } else add("流程确认", "pass", "快速模式，已记录用户模式确认（confirmations.mode）");
+  } else {
     const c = ctx?.confirmations ?? {};
     const missing = ["requirements", "flows", "direction"].filter((k) => !c[k]);
     const dirBad = c.direction && (!Array.isArray(c.direction.candidates) || c.direction.candidates.length < 2 || !c.direction.candidates.includes(c.direction.chosen));

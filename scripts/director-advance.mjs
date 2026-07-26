@@ -4,8 +4,9 @@
 // 专业模式下：research→ux 需 confirmations.requirements；ux→visual 需 flows；visual→prototype 需 direction。
 // 用法:
 //   node scripts/director-advance.mjs --package <目录> --stage <目标阶段>
-//   node scripts/director-advance.mjs --package <目录> --confirm requirements|flows --summary <摘要> --reply <用户答复原文>
+//   node scripts/director-advance.mjs --package <目录> --confirm requirements|flows|mode --summary <摘要> --reply <用户答复原文>
 //   node scripts/director-advance.mjs --package <目录> --confirm direction --summary .. --reply .. --candidates D1,D3,D5 --chosen D3
+// mode 门（规范 27.8）：快速模式必须先经用户确认落盘，验收对 v1.8 quick 包核对 confirmations.mode。
 import { writeFileSync } from "node:fs";
 import { resolve, join } from "node:path";
 import yaml from "js-yaml";
@@ -24,7 +25,7 @@ const mode = ctx.project?.mode || "professional";
 
 let next;
 if (confirm) {
-  if (!["requirements", "flows", "direction"].includes(confirm)) { console.error(`✗ 未知确认门: ${confirm}（可选 requirements|flows|direction）`); process.exit(2); }
+  if (!["requirements", "flows", "direction", "mode"].includes(confirm)) { console.error(`✗ 未知确认门: ${confirm}（可选 requirements|flows|direction|mode）`); process.exit(2); }
   const summary = arg("--summary"), reply = arg("--reply");
   if (!summary || !reply) { console.error("✗ --confirm 需要 --summary 与 --reply（用户答复原文，不得由 Agent 代拟）"); process.exit(2); }
   const rec = { summary, user_reply: reply, decided_at: new Date().toISOString() };

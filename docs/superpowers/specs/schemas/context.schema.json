@@ -125,11 +125,12 @@
     },
     "confirmations": {
       "type": "object",
-      "description": "专业模式三道用户确认门的记录 (规范 9.1)。缺失对应记录时，状态机拒绝推进：requirements 缺失不得 research→ux；flows 缺失不得 ux→visual；direction 缺失不得 visual→prototype。",
+      "description": "专业模式三道用户确认门的记录 (规范 9.1)。缺失对应记录时，状态机拒绝推进：requirements 缺失不得 research→ux；flows 缺失不得 ux→visual；direction 缺失不得 visual→prototype。v1.8 增补 mode 门（规范 27.8）：快速模式必须记录用户确认，验收「流程确认」维度对 quick 的 v1.8 包核对本记录。",
       "additionalProperties": false,
       "properties": {
         "requirements": { "$ref": "#/$defs/confirmation" },
         "flows": { "$ref": "#/$defs/confirmation" },
+        "mode": { "$ref": "#/$defs/confirmation" },
         "direction": {
           "type": "object",
           "additionalProperties": false,

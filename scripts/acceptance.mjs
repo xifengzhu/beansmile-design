@@ -12,6 +12,9 @@ import { loadRules } from "./lib/rules.mjs";
 import { loadManifests } from "./lib/manifests.mjs";
 import { loadYaml, validateContext } from "./lib/context.mjs";
 import { loadFindingsForVersion, countBlockers, semanticIssuesVisual, semanticIssuesStandards, industryPackFile } from "./lib/findings.mjs";
+import { loadRulePacks } from "./lib/rule-packs.mjs";
+import { loadFrozenRules, activationGateIssues, MIGRATION_HINT } from "./lib/frozen-rules.mjs";
+import { templateClosureIssues } from "./lib/coverage-template.mjs";
 import { hashPaths, manifestDigest, verifyManifest, diffHashMaps } from "./lib/hash.mjs";
 import { collectCandidates, candidateIssues } from "./lib/candidates.mjs";
 import { checkEnvironment } from "./env-check.mjs";
@@ -115,6 +118,9 @@ const referencedRules = new Set();
 // —— 4/7. 双评审（绑定当前版本）: 标准合规门 + 视觉质量门 ——
 // 视觉质量门不再只信 verdict：还要求八维 dimension_reviews 语义合法（截图哈希匹配、含实测值），
 // 且全部 warning 已在 decisions.md 以 [finding:id] 显式处理（修复或说明接受理由）。
+// 分层扩展 §8.4：standards 的适用集出自冻结快照 rules/（loadFrozenRules，与 record-findings
+// 同一实现），不读仓库当前 evidence/rules/——规则库升级不追溯漂移。
+const frozen = currentVersion ? loadFrozenRules(root, currentVersion) : { ok: false, errors: ["无当前 artifact_version"], cards: null, manifest: null, scope: null };
 {
   if (!currentVersion) {
     add("标准合规门", "fail", "无当前 artifact_version，无法绑定评审");
@@ -128,14 +134,17 @@ const referencedRules = new Set();
 
     if (!f.standards) {
       add("标准合规门", "fail", `缺/非法 standards findings: ${f.errors.join("; ")}`);
+    } else if (!frozen.ok) {
+      add("标准合规门", "fail", `冻结规则快照不可用: ${frozen.errors.slice(0, 3).join("; ")}`);
     } else {
       const unacked = unackedWarnings(f.standards);
-      const coverage = semanticIssuesStandards(f.standards, ctx?.project?.platforms ?? [], loadRules().rules, ctx?.project?.industry);
+      // 适用集 = 冻结快照 rules/ 的规则卡（§8.4），与 record-findings 完全同源。
+      const coverage = semanticIssuesStandards(f.standards, frozen.cards);
       const sOk = f.standards.verdict === "pass" && countBlockers(f.standards) === 0 && unacked.length === 0 && coverage.length === 0;
       add("标准合规门", sOk ? "pass" : "fail",
         [`standards(v${currentVersion}) verdict=${f.standards.verdict}, blocker=${countBlockers(f.standards)}`,
          coverage.length ? `覆盖矩阵不满足: ${coverage.slice(0, 4).join("; ")}${coverage.length > 4 ? ` 等 ${coverage.length} 项` : ""}`
-           : `覆盖矩阵完整（${(f.standards.rule_coverage ?? []).length} 条逐规则核查）`,
+           : `覆盖矩阵完整（${(f.standards.rule_coverage ?? []).length} 条逐冻结规则核查）`,
          unacked.length ? `未处理 warning（decisions.md 缺 [finding:id] 记录）: ${unacked.join(",")}` : null]
           .filter(Boolean).join(" | "));
     }
@@ -269,6 +278,82 @@ const referencedRules = new Set();
         used.length
           ? `行业包 ${packFile}（${packRules.length} 条）中 ${used.length} 条参与决策: ${used.slice(0, 5).map((r) => r.id).join(",")}${used.length > 5 ? " 等" : ""}`
           : `行业包 ${packFile} 存在（${packRules.length} 条）但 decisions 零引用——行业规则未参与设计决策`);
+    }
+  }
+}
+
+// —— 5f–5i. 规则快照四门（分层扩展 §8.5）——
+// 快照缺 rules/（未迁移历史包）时四门统一输出迁移提示（§9.1），状态 fail 但措辞不判历史交付非法。
+{
+  const gates = ["规则包激活", "主参考系统依据", "规范版本绑定", "覆盖模板闭合"];
+  if (!currentVersion || !frozen.ok) {
+    // 缺 rules/（未迁移历史包）→ 统一迁移提示（§9.1，不判历史交付非法）；
+    // 其它失败（哈希漂移/manifest 损坏）→ 展示实际错误。
+    const detail = !currentVersion
+      ? "无当前 artifact_version，无法定位冻结规则快照"
+      : (frozen.errors.some((e) => e.includes(MIGRATION_HINT)) ? MIGRATION_HINT : frozen.errors.slice(0, 2).join("; "));
+    for (const g of gates) add(g, "fail", detail);
+  } else {
+    const { manifest, scope } = frozen;
+    const manifestIds = new Set(manifest.rules.map((r) => r.rule_id));
+    const f = loadFindingsForVersion(root, currentVersion);
+
+    // a. 规则包激活：context、注册表、激活规则和快照 manifest 一致（spec §8.5，共享实现
+    // activationGateIssues——规则库在快照后升级 → fail，提示升版重新 snapshot 评审）。
+    {
+      const problems = activationGateIssues(ctx?.project ?? {}, manifest, scope, loadRules().rules, loadRulePacks().packs);
+      add("规则包激活", problems.length === 0 ? "pass" : "fail",
+        problems.length ? problems.slice(0, 3).join("; ") : `context/注册表/冻结 manifest 一致（激活 ${manifestIds.size} 条规则）`);
+    }
+
+    // b. 主参考系统依据：选定系统包至少一条规则实际参与设计决策（referencedRules 见块 2）。
+    {
+      const rs = ctx?.project?.reference_system;
+      if (!rs || rs === "none") {
+        add("主参考系统依据", "pass", "reference_system=none，无需主参考系统引用");
+      } else {
+        const rsPackIds = new Set(loadRulePacks().packs
+          .filter((p) => p.activation?.type === "reference_system" && (p.activation.values ?? []).includes(rs))
+          .map((p) => p.id));
+        const rsRuleIds = manifest.rules.filter((r) => rsPackIds.has(r.pack_id)).map((r) => r.rule_id);
+        const used = rsRuleIds.filter((id) => referencedRules.has(id));
+        add("主参考系统依据", used.length ? "pass" : "fail",
+          used.length
+            ? `主参考系统 ${rs} 包 ${used.length}/${rsRuleIds.length} 条规则参与决策: ${used.slice(0, 5).join(",")}${used.length > 5 ? " 等" : ""}`
+            : `主参考系统 ${rs} 冻结规则 ${rsRuleIds.length} 条但 decisions 零引用——选定系统未实际参与设计决策`);
+      }
+    }
+
+    // c. 规范版本绑定：findings 覆盖集合与冻结 manifest 完全一致，无缺失/额外/哈希漂移。
+    // （哈希漂移由 loadFrozenRules 拦截——走到这里说明冻结卡与 manifest sha 一致。）
+    {
+      const problems = [];
+      if (!f.standards) problems.push(`缺/非法 standards findings: ${f.errors.join("; ")}`);
+      else {
+        const covIds = new Set((f.standards.rule_coverage ?? []).map((c) => c.rule_id));
+        const missing = [...manifestIds].filter((id) => !covIds.has(id));
+        const extra = [...covIds].filter((id) => !manifestIds.has(id));
+        if (missing.length) problems.push(`coverage 缺冻结规则 ${missing.length} 条: ${missing.slice(0, 3).join(",")}${missing.length > 3 ? "…" : ""}`);
+        if (extra.length) problems.push(`coverage 含 manifest 外规则 ${extra.length} 条: ${extra.slice(0, 3).join(",")}${extra.length > 3 ? "…" : ""}`);
+      }
+      if (!f.visual) problems.push(`缺/非法 visual findings: ${f.errors.join("; ")}`);
+      else {
+        const bad = (f.visual.findings ?? []).filter((x) => x.rule_id && !manifestIds.has(x.rule_id)).map((x) => `${x.id}→${x.rule_id}`);
+        if (bad.length) problems.push(`visual findings 引用 manifest 外 rule_id: ${bad.slice(0, 3).join("; ")}`);
+      }
+      add("规范版本绑定", problems.length === 0 ? "pass" : "fail",
+        problems.length ? problems.slice(0, 3).join("; ") : `standards coverage 与冻结 manifest（${manifestIds.size} 条）逐条一致，visual rule_id 均可解析，无哈希漂移`);
+    }
+
+    // d. 覆盖模板闭合：全部模板行由可信自动证据或 reviewer 更新闭合。
+    {
+      const template = scope.rule_coverage_template ?? [];
+      if (!f.standards) add("覆盖模板闭合", "fail", `缺/非法 standards findings: ${f.errors.join("; ")}`);
+      else {
+        const issues = templateClosureIssues(f.standards.rule_coverage ?? [], template, f.standards.findings ?? []);
+        add("覆盖模板闭合", issues.length === 0 ? "pass" : "fail",
+          issues.length ? issues.slice(0, 4).join("; ") : `全部 ${template.length} 条模板行闭合（自动预填 ${template.filter((t) => t.state === "prefilled_automated").length} 条），无 null/锁定字段修改/单向阀违规`);
+      }
     }
   }
 }

@@ -7,9 +7,11 @@ export const REPO_ROOT = resolve(here, "..", "..");
 
 export const SCHEMA_DIR = resolve(REPO_ROOT, "docs/superpowers/specs/schemas");
 export const RULES_DIR = resolve(REPO_ROOT, "evidence/rules");
+export const RULE_PACKS_FILE = resolve(REPO_ROOT, "evidence/rule-packs.yaml");
 
 export const SCHEMAS = {
   ruleCard: resolve(SCHEMA_DIR, "rule-card.schema.json"),
+  rulePack: resolve(SCHEMA_DIR, "rule-pack.schema.json"),
   context: resolve(SCHEMA_DIR, "context.schema.json"),
   skillManifest: resolve(SCHEMA_DIR, "skill-manifest.schema.json"),
   findings: resolve(SCHEMA_DIR, "findings.schema.json"),

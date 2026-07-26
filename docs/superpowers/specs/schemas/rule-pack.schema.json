@@ -1,0 +1,110 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://beansmile-design/schemas/rule-pack.schema.json",
+  "title": "规则包注册表 (evidence/rule-packs.yaml)",
+  "description": "分层规则模型的规则包注册表（UI/UX 规范库分层扩展 §5）。evidence/rules/ 下每个规则文件必须恰好归属一个包；激活逻辑属于规则包而非规则卡。语义门（孤儿/幽灵文件、来源 host 白名单等）见 scripts/lib/rule-packs.mjs。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["packs"],
+  "properties": {
+    "packs": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/pack" }
+    }
+  },
+  "$defs": {
+    "pack": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "kind", "files", "activation", "allowed_source_hosts"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "规则包唯一标识（连字符小写）。",
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+        },
+        "kind": {
+          "enum": ["foundation", "platform", "industry", "craft", "reference_system"],
+          "description": "包类型：foundation/platform/craft 始终激活（规则卡 platforms 仍过滤）；industry 按 project.industry 激活；reference_system 按 project.reference_system 激活。"
+        },
+        "files": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "description": "该包包含的 evidence/rules/ 文件名（不含路径）。",
+          "items": { "type": "string", "pattern": "^[a-z0-9][a-z0-9._\\-]*\\.ya?ml$" }
+        },
+        "activation": { "$ref": "#/$defs/activation" },
+        "allowed_source_hosts": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "description": "包内规则卡 source_url 允许的 host 白名单，新增来源域名须逐项登记。",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "dimensions": { "$ref": "#/$defs/dimensions" }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "kind": { "const": "reference_system" } }, "required": ["kind"] },
+          "then": { "required": ["dimensions"] }
+        }
+      ]
+    },
+    "activation": {
+      "description": "激活条件：type=always 恒激活（禁止 values）；type=industry/reference_system 须列出非空 values（context 原始 slug，如 saas_b2b）。",
+      "type": "object",
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "required": ["type"],
+          "properties": { "type": { "const": "always" } }
+        },
+        {
+          "additionalProperties": false,
+          "required": ["type", "values"],
+          "properties": {
+            "type": { "enum": ["industry", "reference_system"] },
+            "values": {
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "items": { "type": "string", "minLength": 1 }
+            }
+          }
+        }
+      ]
+    },
+    "dimensions": {
+      "description": "主参考系统包必须逐项声明八个维度的覆盖状态：\"covered\" 或 { status: not_applicable, reason }。",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["layout", "typography", "color", "spacing", "components", "interaction", "content", "accessibility"],
+      "properties": {
+        "layout": { "$ref": "#/$defs/dimension" },
+        "typography": { "$ref": "#/$defs/dimension" },
+        "color": { "$ref": "#/$defs/dimension" },
+        "spacing": { "$ref": "#/$defs/dimension" },
+        "components": { "$ref": "#/$defs/dimension" },
+        "interaction": { "$ref": "#/$defs/dimension" },
+        "content": { "$ref": "#/$defs/dimension" },
+        "accessibility": { "$ref": "#/$defs/dimension" }
+      }
+    },
+    "dimension": {
+      "oneOf": [
+        { "const": "covered" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["status", "reason"],
+          "properties": {
+            "status": { "const": "not_applicable" },
+            "reason": { "type": "string", "minLength": 1 }
+          }
+        }
+      ]
+    }
+  }
+}

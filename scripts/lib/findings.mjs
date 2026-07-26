@@ -101,34 +101,28 @@ export function semanticIssuesVisual(doc, pkgRoot) {
 }
 
 // standards 评审的语义校验（覆盖矩阵纪律）："pass + 空 findings"不构成合规证明——
-// 目标平台的每条适用规则都必须在 rule_coverage 里逐条出现，带核查方式与证据；
+// 每条适用规则都必须在 rule_coverage 里逐条出现，带核查方式与证据；
 // fail 须有对应 finding；Web 规则不得用 intent_only（HTML 即目标载体，规范 6.3 的
-// 保真度边界只豁免原生平台项）。rules 由调用方传入（生产走 loadRules().rules，测试可注入）。
-// 行业规则包（_file 为 industry-*.yaml）只在项目 industry 匹配时进入适用集——
-// 电商规则不追着所有 Web 项目跑。返回问题清单，空数组=通过。
+// 保真度边界只豁免原生平台项）。
+// 适用集 applicable 由调用方经 rule-packs.mjs 的 applicableRules() 计算后传入（规则卡数组），
+// 本函数不再做平台/行业筛选——激活逻辑只有一份实现（分层扩展 §6）。
 const WEB_PLATFORMS = ["web", "mobile_web"];
 
 // 行业 slug → 规则包文件名（下划线归一为连字符：saas_b2b → industry-saas-b2b.yaml）。
+// 旧路径兼容保留；激活判断以 evidence/rule-packs.yaml 注册表为准。
 export function industryPackFile(industry) {
   return `industry-${String(industry).replaceAll("_", "-")}.yaml`;
 }
 
-export function semanticIssuesStandards(doc, platforms, rules, industry) {
+export function semanticIssuesStandards(doc, applicable) {
   const issues = [];
   const cov = doc.rule_coverage ?? [];
-  const byId = new Map(rules.map((r) => [r.id, r]));
-  const applicable = rules.filter((r) => {
-    const file = r._file ?? "";
-    if (file.startsWith("industry-")) {
-      if (!industry || file !== industryPackFile(industry)) return false;
-    }
-    return (r.platforms ?? []).some((p) => (platforms ?? []).includes(p));
-  });
+  const byId = new Map(applicable.map((r) => [r.id, r]));
 
   const seen = new Map();
   for (const c of cov) seen.set(c.rule_id, (seen.get(c.rule_id) ?? 0) + 1);
   for (const [id, n] of seen) {
-    if (!byId.has(id)) issues.push(`rule_coverage 引用不存在的规则: ${id}`);
+    if (!byId.has(id)) issues.push(`rule_coverage 引用适用规则集外的规则: ${id}`);
     if (n > 1) issues.push(`rule_coverage 重复条目: ${id} 出现 ${n} 次`);
   }
   const missing = applicable.filter((r) => !seen.has(r.id)).map((r) => r.id);

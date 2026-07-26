@@ -14,6 +14,13 @@ export function validateContext(ctx) {
   const validate = ajv.compile(schema);
   const ok = validate(ctx);
   const errors = ok ? [] : validate.errors.map((e) => `${e.instancePath || "(root)"} ${e.message}`);
+  // 存量迁移提示（分层扩展 §9.1）：schema 失败且其中含缺 reference_system 时，用迁移语气
+  // 说明——"不符合当前 schema"表示尚未迁移，不表示历史 delivered 结论被撤销。不做静默回填。
+  if (!ok && errors.some((e) => e.includes("reference_system") && e.includes("required"))) {
+    errors.push(
+      "历史包未迁移：请在 context.project 补写 reference_system: none（或明确的主参考系统）后按规范 §9.1 迁移重验；历史 delivered 结论不因此失效"
+    );
+  }
   return { ok, errors };
 }
 

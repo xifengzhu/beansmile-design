@@ -1,0 +1,59 @@
+# 规则包注册表（UI/UX 规范库分层扩展 §5）
+# 校验 schema: docs/superpowers/specs/schemas/rule-pack.schema.json
+# 机器门: scripts/lib/rule-packs.mjs（npm run check 执行）
+#
+# 约定：
+# - evidence/rules/ 下每个 YAML 文件必须恰好归属一个包（孤儿/幽灵/重复归属均失败）。
+# - activation.values 用 context 的原始 slug（下划线，如 saas_b2b）；激活判断以本注册表为准，
+#   不再依赖文件名归一（findings.mjs 的 industryPackFile 仅保留给旧路径兼容）。
+# - allowed_source_hosts 是包内规则卡 source_url 的 host 白名单；新增来源域名须逐项登记并核实。
+# - reference_system 包（后续批次加入 Ant/Carbon）不得含 strength: required，且必须声明八维覆盖。
+
+packs:
+  - id: foundation-wcag
+    kind: foundation
+    files: [wcag-2.2-aa.yaml]
+    activation: { type: always }
+    allowed_source_hosts: [www.w3.org]
+
+  - id: platform-web
+    kind: platform
+    files: [web-core.yaml]
+    activation: { type: always }
+    allowed_source_hosts: [www.w3.org, developer.mozilla.org]
+
+  - id: platform-ios
+    kind: platform
+    files: [ios-hig.yaml]
+    activation: { type: always }
+    allowed_source_hosts: [developer.apple.com]
+
+  - id: platform-android
+    kind: platform
+    files: [android-material3.yaml]
+    activation: { type: always }
+    allowed_source_hosts: [m3.material.io, developer.android.com]
+
+  - id: platform-weapp
+    kind: platform
+    files: [weapp-miniprogram.yaml]
+    activation: { type: always }
+    allowed_source_hosts: [developers.weixin.qq.com]
+
+  - id: craft-design
+    kind: craft
+    files: [design-craft.yaml]
+    activation: { type: always }
+    allowed_source_hosts: [www.nngroup.com, www.w3.org, developer.mozilla.org, m3.material.io]
+
+  - id: industry-ecommerce
+    kind: industry
+    files: [industry-ecommerce.yaml]
+    activation: { type: industry, values: [ecommerce] }
+    allowed_source_hosts: [baymard.com, www.nngroup.com]
+
+  - id: industry-saas-b2b
+    kind: industry
+    files: [industry-saas-b2b.yaml]
+    activation: { type: industry, values: [saas_b2b] }
+    allowed_source_hosts: [www.nngroup.com]

@@ -19,6 +19,7 @@
     "browser:check": "node scripts/browser-check.mjs",
     "shot": "node scripts/screenshot.mjs",
     "review:record": "node scripts/record-findings.mjs",
+    "review:merge-coverage": "node scripts/merge-coverage.mjs",
     "review:aggregate": "node scripts/aggregate-reviews.mjs",
     "accept": "node scripts/acceptance.mjs"
   },

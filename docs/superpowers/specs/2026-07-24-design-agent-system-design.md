@@ -785,3 +785,19 @@ standards 评审的 findings 必须附 `rule_coverage`（schema 强制 + `semant
 
 - 不做"最小页边距须等于 design-tokens 的 page-margin"强绑定——全出血（full-bleed）图片/色带是合法设计，只有**文本**贴边是缺陷；令牌一致性属评审判断。
 - 不在桌面视口重复此检查——桌面下 max-width 居中留白会掩盖同类问题产生噪声，移动视口是最敏感且用户可感知的暴露面。
+
+## 26. 规范库分层扩展·基础设施（v1.7 增补）
+
+本章为指针章节：完整规范见《UI/UX 规范库分层扩展设计》（`docs/superpowers/specs/2026-07-25-uiux-standards-expansion-design.md`，2026-07-26 修订版）。本次落地其实施顺序第 1–4 步（规则包基础设施），第 5–7 步（WCAG 完整性索引、APG、内容/认知/国际化、Ant Design 与 Carbon 主参考包）留待后续批次。
+
+### 26.1 已落地能力
+
+- **规则包注册表**：`evidence/rule-packs.yaml`（`rule-pack.schema.json` 校验），现有 8 个规则文件全部归包（foundation/platform/industry/craft 四类）；`npm run check` 校验孤儿/幽灵/重复归属/空包/来源 host 白名单/reference_system 包禁 required 与八维声明。
+- **共享激活函数**：`scripts/lib/rule-packs.mjs` 的 `applicableRules(project, rules, packs)` 为唯一适用集实现；`context.project.reference_system` 必填（首批枚举 none/ant_design/carbon），未知值抛错不回退。
+- **规则版本绑定**：`snapshot.mjs` 冻结激活规则副本至 `audit/snapshots/<v>/rules/`（`rules-manifest.json` 规范化哈希 + `review-scope.yaml`）；record-findings 与 acceptance 均以冻结集校验（`scripts/lib/frozen-rules.mjs` 单一实现），规则库升级不追溯污染历史结论。
+- **覆盖模板与成本控制**：机器预生成 `rule_coverage_template`（`prefilled_automated` 三重前提：检查映射登记表 `scripts/lib/check-mapping.mjs` + page_hashes 同源 + 版本一致；首批映射 3 条，keyboard 刻意不入表）；N/A 候选保守扫描（`na-scan.mjs`，2 条）；受控合并 `npm run review:merge-coverage` 实施**单向阀**（pass→fail 允许升级、fail→pass 一律拒绝）；成本四项统计入 review-scope 与最终报告。
+- **验收新增四门**：规则包激活、主参考系统依据、规范版本绑定、覆盖模板闭合；未迁移历史包统一输出「需要迁移后重验」（§9.1 语义：历史 delivered 结论不追溯失效）。
+
+### 26.2 测试
+
+正向 + 对抗共新增 50 用例（注册表 23、覆盖模板 18、冻结绑定 9），全库 108 测试。对抗面：幽灵/孤儿文件、私货卡（快照含 manifest 外卡）、哈希漂移、fail→pass 篡改、未确认 N/A、注册表升级后激活门报不一致等。

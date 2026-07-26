@@ -1,6 +1,8 @@
 #!/usr/bin/env node
-// 系统一致性总校验：依据库 + Skill 清单 + 注册表一致性。
-import { validateRules } from "./lib/rules.mjs";
+// 系统一致性总校验：依据库 + 规则包注册表 + 检查映射登记表 + Skill 清单 + 注册表一致性。
+import { validateRules, loadRules } from "./lib/rules.mjs";
+import { validateRulePacks } from "./lib/rule-packs.mjs";
+import { validateCheckMapping } from "./lib/check-mapping.mjs";
 import { validateManifests } from "./lib/manifests.mjs";
 import { validateRegistry } from "./lib/registry.mjs";
 
@@ -17,6 +19,10 @@ function report(name, r, summary) {
 
 const rules = validateRules();
 report("依据库", rules, `${rules.count} 条规则`);
+const rulePacks = validateRulePacks();
+report("规则包注册表", rulePacks, `${rulePacks.count} 个包，${loadRules().files.length} 文件全部归包`);
+const checkMapping = validateCheckMapping(loadRules().byId);
+report("检查映射登记表", checkMapping, `${checkMapping.count} 条，全部可解析`);
 const manifests = validateManifests();
 report("Skill 清单", manifests, `${manifests.count} 个 Skill`);
 const registry = validateRegistry();

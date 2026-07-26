@@ -10,11 +10,15 @@
     "project": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["name", "mode", "task_type", "platforms"],
+      "required": ["name", "mode", "task_type", "platforms", "reference_system"],
       "properties": {
         "name": { "type": "string", "minLength": 1 },
         "mode": { "enum": ["professional", "quick"] },
         "task_type": { "enum": ["new_design", "redesign"] },
+        "reference_system": {
+          "enum": ["none", "ant_design", "carbon"],
+          "description": "主参考系统（分层扩展 §6）。每个项目至多一个；无明确需要时用 none。新系统只有在对应规则包、来源、测试和文档齐备后才扩充枚举。存量包迁移语义见 §9.1：缺此字段表示尚未迁移，须补写后按规范迁移重验，历史 delivered 结论不因此失效。"
+        },
         "industry": {
           "type": "string",
           "minLength": 1,

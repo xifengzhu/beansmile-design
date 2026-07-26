@@ -14,7 +14,7 @@ This repository is a Node.js 18+ ESM runtime for design agents; it has no build 
 - `npm run env:check`: launch a real browser to verify Playwright and axe-core availability.
 - `npm run recall -- --out /tmp/recall.json`: measure blocker recall and false positives.
 
-See `README.md` for delivery-package commands such as `init`, `browser:check`, `snapshot`, and `accept`.
+See `docs/usage.md` for delivery-package commands such as `init`, `browser:check`, `snapshot`, and `accept`.
 
 ## Coding Style & Naming Conventions
 

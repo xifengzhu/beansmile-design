@@ -20,7 +20,7 @@ npm run recall -- --out /tmp/recall.json  # 对 fixtures/blockers 跑召回/误�
 npm run setup:agents                      # 把 skills/ 链接进 .claude/skills 与 .codex/skills（幂等）
 ```
 
-提交前至少跑 `npm run check && npm test && npm run validate:rules`。交付包相关命令（init/shot/browser:check/snapshot/review:record/accept 等）见 README「常用命令」表。
+提交前至少跑 `npm run check && npm test && npm run validate:rules`。交付包相关命令（init/shot/browser:check/snapshot/review:record/accept 等）见 `docs/usage.md`「常用命令」表。
 
 **退出码语义**（浏览器相关脚本统一）：`0` 通过、`1` 有失败项、`2` 参数错误、`3` 浏览器能力不可用（结论只能记「未验证」，不能记为通过）。浏览器环境在本机已修复可用，不要往降级路径上退。
 

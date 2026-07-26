@@ -1,0 +1,846 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="beansmile-design：运行在 Codex 或 Claude 中的设计 Agent 运行时——把产品需求转化为可点击的高保真 HTML 原型与可审计交付包。">
+<title>beansmile-design · 设计 Agent 运行时：把设计过程变成可验证的交付</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cpolygon points='58,32 45,54.5 19,54.5 6,32 19,9.5 45,9.5' fill='%23fff' stroke='%2318A05F' stroke-width='5' stroke-linejoin='round'/%3E%3Cg transform='translate(32.5 32) rotate(-14)'%3E%3Cpath d='M 2 -13.2 C 9.2 -12.6 13.2 -6.6 13.2 0.4 C 13.2 8.2 7.6 13.6 -0.4 13.6 C -8 13.6 -13.2 8.8 -13.2 2.8 C -13.2 -0.6 -11.4 -3.2 -8.6 -4.6 C -10 -7.4 -9.4 -10.6 -6.4 -12.3 C -3.8 -13.7 -0.8 -13.4 2 -13.2 Z' fill='%2318A05F'/%3E%3Ccircle cx='1.8' cy='-7.2' r='2.7' fill='%23fff'/%3E%3C/g%3E%3C/svg%3E">
+<style>
+/* ===== 语义令牌（design-tokens.json → :root，唯一取值来源） ===== */
+:root {
+  --bg: hsl(222 15% 10%);
+  --surface-1: hsl(222 14% 14%);
+  --surface-2: hsl(222 13% 19%);
+  --surface-3: hsl(222 12% 24%);
+  --line: rgb(255 255 255 / 0.08);
+  --line-strong: rgb(255 255 255 / 0.12);
+  --text: hsl(220 15% 92%);
+  --text-muted: hsl(220 10% 72%);
+  --text-faint: hsl(220 8% 58%);
+  --accent: hsl(160 62% 52%);
+  --accent-strong: hsl(160 70% 62%);
+  --accent-tint: rgb(56 211 159 / 0.12);
+  --on-accent: hsl(222 20% 8%);
+  --danger: hsl(0 85% 71%);
+  --danger-tint: rgb(255 107 107 / 0.12);
+  --focus-glow: rgb(56 211 159 / 0.25);
+  /* std-2 修复：表单控件边界专用线阶（对 surface-1 ≈4.1:1、对 surface-2 ≈3.5:1，满足 WCAG 1.4.11 ≥3:1）。
+     仅用于可交互表单控件边框，不改 --line/--line-strong 装饰线；属页面局部控件变量，不进 design-tokens.json。 */
+  --line-control: rgb(255 255 255 / 0.40);
+
+  --font-sans: system-ui, -apple-system, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace;
+  --size-xs: 13px; --size-sm: 14px; --size-base: 16px; --size-lg: 18px;
+  --size-h3: 20px; --size-h2: 28px; --size-h1-mobile: 34px; --size-h1: 48px;
+  --size-display: 96px; /* vis-3：对应 tokens typography.size-display，超大展示字号（.formula） */
+  --lh-body: 1.65; --lh-heading: 1.2;
+
+  --sp-2xs: 4px; --sp-xs: 8px; --sp-sm: 12px; --sp-md: 16px;
+  --sp-lg: 24px; --sp-xl: 40px; --sp-2xl: 64px; --sp-3xl: 96px;
+  --radius-sm: 6px; --radius-md: 10px; --radius-lg: 14px;
+  --min-target: 44px; --field-height: 44px;
+  --motion-duration: 160ms; --motion-easing: ease-out;
+  --max-width: 1120px; --gutter: 24px;
+  color-scheme: dark;
+}
+
+/* ===== 全局基线 ===== */
+*, *::before, *::after { box-sizing: border-box; }
+html { scroll-padding-top: calc(var(--sp-2xl) + var(--sp-md)); }
+@media (prefers-reduced-motion: no-preference) { html { scroll-behavior: smooth; } }
+body {
+  margin: 0; font-family: var(--font-sans); font-size: var(--size-base);
+  line-height: var(--lh-body); color: var(--text); background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+}
+:focus-visible {
+  outline: 2px solid var(--accent-strong); outline-offset: 2px;
+  box-shadow: 0 0 0 4px var(--focus-glow); border-radius: var(--radius-sm);
+}
+:focus:not(:focus-visible) { outline: none; }
+::selection { background: var(--accent); color: var(--on-accent); } /* vis-3：实色 accent + on-accent，选中态清晰可读 */
+img, svg { max-width: 100%; }
+[hidden] { display: none !important; }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+}
+h1, h2, h3 { line-height: var(--lh-heading); letter-spacing: 0.02em; margin: 0; }
+p { margin: 0; }
+a { color: var(--accent); text-decoration: underline; text-underline-offset: 3px; }
+a:hover { color: var(--accent-strong); }
+code, pre, kbd { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+
+.container { max-width: var(--max-width); margin-inline: auto; padding-inline: var(--gutter); }
+
+/* 跳到主内容 */
+.skip-link {
+  position: fixed; top: var(--sp-xs); left: var(--sp-md); z-index: 100;
+  background: var(--accent); color: var(--on-accent); text-decoration: none;
+  padding: var(--sp-sm) var(--sp-md); border-radius: var(--radius-sm);
+  font-weight: 600; font-size: var(--size-sm);
+  transform: translateY(-200%);
+}
+.skip-link:focus-visible { transform: translateY(0); }
+
+/* 仅供辅助技术播报的状态文本（std-1：状态消息） */
+.visually-hidden {
+  position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0;
+  overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0;
+}
+
+/* ===== 顶部导航（D4：surface-1 + 1px 亮边分层） ===== */
+.site-header {
+  position: sticky; top: 0; z-index: 50;
+  background: var(--surface-1); border-bottom: 1px solid var(--line);
+}
+.header-inner { display: flex; align-items: center; gap: var(--sp-lg); min-height: var(--sp-2xl); }
+.brand {
+  display: inline-flex; align-items: center; gap: var(--sp-xs);
+  color: var(--text); text-decoration: none; font-weight: 600; font-size: var(--size-base);
+  min-height: var(--min-target); white-space: nowrap;
+}
+.brand:hover { color: var(--text); }
+.brand-mark { flex: none; } /* 尺寸由 SVG width/height 属性给定（品牌资产原始比例，30/24px 两档） */
+.brand-name { font-family: var(--font-mono); font-size: var(--size-sm); }
+.site-nav { margin-left: auto; overflow-x: auto; }
+.site-nav ul { display: flex; gap: var(--sp-2xs); list-style: none; margin: 0; padding: 0; }
+.site-nav a {
+  display: inline-flex; align-items: center; min-height: var(--min-target);
+  padding: var(--sp-xs) var(--sp-sm); color: var(--text-muted); text-decoration: none;
+  font-size: var(--size-sm); border-bottom: 2px solid transparent; white-space: nowrap;
+  transition: color var(--motion-duration) var(--motion-easing), border-color var(--motion-duration) var(--motion-easing);
+}
+.site-nav a:hover { color: var(--text); }
+.site-nav a[aria-current="true"] { color: var(--accent); border-bottom-color: var(--accent); }
+.site-nav .nav-github { gap: var(--sp-2xs); }
+.site-nav .nav-github svg { flex: none; }
+
+/* ===== Hero（不对称分栏 7/5：文案 × 发光终端面板） ===== */
+.hero { padding-block: var(--sp-3xl); position: relative; overflow: hidden; }
+.hero::before {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: radial-gradient(at 78% 18%, var(--accent-tint) 0, transparent 45%);
+}
+.hero-grid {
+  position: relative; display: grid; grid-template-columns: 7fr 5fr;
+  gap: var(--sp-2xl); align-items: center;
+}
+.kicker {
+  font-family: var(--font-mono); font-size: var(--size-xs); color: var(--accent);
+  letter-spacing: 0.02em; display: inline-flex; align-items: center; gap: var(--sp-xs);
+  margin-bottom: var(--sp-lg);
+}
+.kicker::before { content: ""; width: var(--sp-lg); height: 2px; background: var(--accent); }
+.hero h1 { font-size: var(--size-h1); font-weight: 700; max-width: 22ch; text-wrap: balance; }
+.hero h1 em { font-style: normal; color: var(--accent); }
+.hero-lede {
+  margin-top: var(--sp-lg); font-size: var(--size-lg); color: var(--text-muted);
+  max-width: 34em;
+}
+.boundary-note {
+  margin-top: var(--sp-lg);
+  background: var(--surface-1); border: 1px solid var(--line); border-left: 2px solid var(--accent);
+  border-radius: var(--radius-md); padding: var(--sp-sm) var(--sp-md);
+  font-size: var(--size-sm); color: var(--text-muted); max-width: 36em;
+}
+.boundary-note strong { color: var(--text); font-weight: 600; }
+.hero-cta { margin-top: var(--sp-xl); display: flex; flex-wrap: wrap; gap: var(--sp-md); }
+
+/* 按钮 */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: var(--sp-xs);
+  min-height: var(--min-target); padding: 0 var(--sp-lg); border-radius: var(--radius-md);
+  font-size: var(--size-base); font-weight: 600; font-family: var(--font-sans);
+  text-decoration: none; cursor: pointer; border: 1px solid transparent;
+  transition: background-color var(--motion-duration) var(--motion-easing), border-color var(--motion-duration) var(--motion-easing), color var(--motion-duration) var(--motion-easing);
+}
+.btn-primary { background: var(--accent); color: var(--on-accent); }
+.btn-primary:hover { background: var(--accent-strong); color: var(--on-accent); }
+.btn-primary:active { background: var(--accent); }
+.btn-secondary { background: var(--surface-2); border-color: var(--line-strong); color: var(--text); }
+.btn-secondary:hover { background: var(--surface-3); color: var(--text); }
+.btn-secondary:active { background: var(--surface-2); border-color: var(--line-control); } /* vis-4：按压回落，与 btn-primary 对称 */
+
+/* 终端演示面板（D4 首屏营销位：深色舞台中央发光面板） */
+.terminal {
+  background: var(--surface-1); border: 1px solid var(--line-strong);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 0 var(--sp-3xl) var(--focus-glow);
+}
+.terminal-bar {
+  display: flex; align-items: center; gap: var(--sp-xs);
+  padding: var(--sp-sm) var(--sp-md); border-bottom: 1px solid var(--line);
+}
+.terminal-dot { width: var(--sp-xs); height: var(--sp-xs); border-radius: 50%; background: var(--surface-3); }
+.terminal-title { margin-left: var(--sp-xs); font-family: var(--font-mono); font-size: var(--size-xs); color: var(--text-faint); }
+.terminal-body {
+  padding: var(--sp-md) var(--sp-md) var(--sp-lg); font-family: var(--font-mono);
+  font-size: var(--size-xs); line-height: var(--lh-body); color: var(--text-muted);
+  overflow-x: auto; font-variant-numeric: tabular-nums;
+}
+.terminal-body .t-cmd { color: var(--text); }
+.terminal-body .t-cmd::before { content: "$ "; color: var(--accent); }
+.terminal-body .t-ok { color: var(--accent); }
+.terminal-body .t-dim { color: var(--text-faint); }
+.terminal-note {
+  padding: var(--sp-xs) var(--sp-md); border-top: 1px solid var(--line);
+  font-size: var(--size-xs); color: var(--text-faint);
+}
+
+/* ===== 通用 section 节奏 ===== */
+.section { padding-block: var(--sp-3xl); }
+.section-alt { background: var(--surface-1); border-block: 1px solid var(--line); }
+.section-head { max-width: 35em; margin-bottom: var(--sp-2xl); } /* vis-2：导语行长收窄至 ≈35 汉字/行 */
+.section-label {
+  font-family: var(--font-mono); font-size: var(--size-xs); color: var(--accent);
+  letter-spacing: 0.02em; display: block; margin-bottom: var(--sp-sm);
+}
+.section h2 { font-size: var(--size-h2); font-weight: 700; text-wrap: balance; }
+.section-lede { margin-top: var(--sp-md); color: var(--text-muted); }
+
+/* ===== 核心能力：超大公式 + 编号行 ===== */
+.formula {
+  font-family: var(--font-mono); font-variant-numeric: tabular-nums;
+  font-size: var(--size-display); font-weight: 700; line-height: var(--lh-heading);
+  color: var(--text); margin-bottom: var(--sp-2xl); letter-spacing: -0.01em;
+}
+.formula .f-num { color: var(--accent); }
+.formula .f-label { display: block; font-size: var(--size-sm); font-weight: 400; font-family: var(--font-sans); color: var(--text-faint); letter-spacing: 0.02em; margin-top: var(--sp-xs); }
+.capability-list { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--line-strong); }
+.capability-list li {
+  display: grid; grid-template-columns: var(--sp-2xl) 1fr 2fr; gap: var(--sp-lg);
+  padding-block: var(--sp-lg); border-bottom: 1px solid var(--line); align-items: baseline;
+}
+.cap-index { font-family: var(--font-mono); font-size: var(--size-sm); color: var(--accent); font-variant-numeric: tabular-nums; }
+.cap-name { font-size: var(--size-h3); font-weight: 600; }
+.cap-desc { color: var(--text-muted); font-size: var(--size-sm); }
+
+/* ===== 工作流：双模式面板 ===== */
+.workflow-grid { display: grid; grid-template-columns: 7fr 5fr; gap: var(--sp-lg); align-items: start; }
+.panel {
+  background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--radius-lg);
+  padding: var(--sp-lg);
+}
+.panel h3 { font-size: var(--size-h3); font-weight: 600; display: flex; align-items: center; gap: var(--sp-sm); }
+.panel-tag {
+  font-family: var(--font-mono); font-size: var(--size-xs); font-weight: 400;
+  color: var(--accent); background: var(--accent-tint); border: 1px solid var(--line);
+  border-radius: var(--radius-sm); padding: var(--sp-2xs) var(--sp-xs);
+}
+.panel > p { margin-top: var(--sp-sm); color: var(--text-muted); font-size: var(--size-sm); }
+.stage-chain { list-style: none; margin: var(--sp-lg) 0 0; padding: 0; }
+.stage-chain li {
+  position: relative; padding: var(--sp-2xs) 0 var(--sp-md) var(--sp-xl);
+  font-size: var(--size-sm); color: var(--text-muted);
+}
+.stage-chain li::before {
+  content: attr(data-step); position: absolute; left: 0; top: var(--sp-2xs);
+  font-family: var(--font-mono); font-size: var(--size-xs); color: var(--text-muted); /* std-1：surface-2 面板上 --text-faint 仅 4.29:1，改 --text-muted（6.63:1） */
+  font-variant-numeric: tabular-nums;
+}
+.stage-chain li::after {
+  content: ""; position: absolute; left: var(--sp-sm); top: var(--sp-lg); bottom: var(--sp-2xs);
+  width: 1px; background: var(--line-strong);
+}
+.stage-chain li:last-child::after { display: none; }
+.stage-chain strong { color: var(--text); font-weight: 600; }
+.stage-chain .gate { color: var(--accent); font-family: var(--font-mono); font-size: var(--size-xs); }
+.quick-points { list-style: none; margin: var(--sp-lg) 0 0; padding: 0; display: grid; gap: var(--sp-sm); }
+.quick-points li { display: flex; gap: var(--sp-xs); font-size: var(--size-sm); color: var(--text-muted); }
+.quick-points svg { flex: none; margin-top: var(--sp-2xs); color: var(--accent); }
+
+/* ===== 平台支持 ===== */
+.platform-table { width: 100%; border-collapse: collapse; }
+.platform-table th, .platform-table td {
+  text-align: left; padding: var(--sp-md) var(--sp-md) var(--sp-md) 0;
+  border-bottom: 1px solid var(--line); font-size: var(--size-sm); vertical-align: top;
+}
+.platform-table th { color: var(--text-faint); font-weight: 500; font-size: var(--size-xs); border-bottom-color: var(--line-strong); }
+.platform-table td:first-child { color: var(--text); font-weight: 600; white-space: nowrap; }
+.badge {
+  display: inline-flex; align-items: center; gap: var(--sp-2xs);
+  font-family: var(--font-mono); font-size: var(--size-xs);
+  padding: var(--sp-2xs) var(--sp-xs); border-radius: var(--radius-sm);
+  border: 1px solid var(--line-strong); color: var(--text-muted); white-space: nowrap;
+}
+.badge-verified { color: var(--accent); border-color: var(--line-strong); background: var(--accent-tint); }
+.honesty-callout {
+  margin-top: var(--sp-lg); background: var(--surface-1); border: 1px solid var(--line);
+  border-left: 2px solid var(--accent); border-radius: var(--radius-md);
+  padding: var(--sp-md) var(--sp-lg); color: var(--text-muted); font-size: var(--size-sm); max-width: 38em; /* vis-2：同步收窄 ≈38 汉字/行 */
+}
+.honesty-callout strong { color: var(--text); }
+
+/* ===== 快速开始 ===== */
+.steps { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--sp-lg); max-width: 45em; }
+.steps > li { display: grid; grid-template-columns: var(--sp-xl) 1fr; gap: var(--sp-md); }
+.steps > li > div { min-width: 0; }
+.step-num {
+  font-family: var(--font-mono); font-size: var(--size-sm); color: var(--accent);
+  border: 1px solid var(--line-strong); border-radius: 50%;
+  width: var(--sp-xl); height: var(--sp-xl); display: inline-flex; align-items: center; justify-content: center;
+  font-variant-numeric: tabular-nums;
+}
+.steps h3 { font-size: var(--size-base); font-weight: 600; padding-top: var(--sp-xs); }
+.steps p { margin-top: var(--sp-2xs); font-size: var(--size-sm); color: var(--text-muted); }
+pre.code {
+  margin: var(--sp-sm) 0 0; background: var(--bg); border: 1px solid var(--line);
+  border-radius: var(--radius-md); padding: var(--sp-md);
+  font-size: var(--size-sm); line-height: var(--lh-body); color: var(--text); overflow-x: auto;
+}
+pre.code .c-dim { color: var(--text-faint); }
+.exit-codes { margin: var(--sp-sm) 0 0; padding: 0; list-style: none; font-size: var(--size-sm); color: var(--text-muted); display: grid; gap: var(--sp-2xs); }
+.exit-codes code { color: var(--accent); font-size: var(--size-xs); }
+
+/* 命令生成器 */
+.generator {
+  margin-top: var(--sp-2xl); background: var(--surface-2); border: 1px solid var(--line-strong);
+  border-radius: var(--radius-lg); padding: var(--sp-lg);
+}
+.generator h3 { font-size: var(--size-h3); font-weight: 600; }
+.generator > p { margin-top: var(--sp-xs); font-size: var(--size-sm); color: var(--text-muted); }
+.gen-form { margin-top: var(--sp-lg); display: grid; gap: var(--sp-lg); }
+.field label, .field-legend {
+  display: block; font-size: var(--size-sm); font-weight: 600; color: var(--text);
+  margin-bottom: var(--sp-2xs); padding: 0;
+}
+.field-hint { font-size: var(--size-xs); color: var(--text-muted); margin-bottom: var(--sp-xs); }
+.field input[type="text"], .field select {
+  width: 100%; max-width: 32em; height: var(--field-height);
+  background: var(--surface-1); color: var(--text);
+  border: 1px solid var(--line-control); border-radius: var(--radius-md); /* std-2：控件边界 ≥3:1 */
+  padding: 0 var(--sp-sm); font-size: var(--size-base); font-family: var(--font-mono);
+  transition: border-color var(--motion-duration) var(--motion-easing), box-shadow var(--motion-duration) var(--motion-easing);
+}
+.field select { font-family: var(--font-sans); }
+.field input[type="text"]::placeholder { color: var(--text-faint); }
+.field input[type="text"]:focus, .field select:focus {
+  border-color: var(--accent); box-shadow: 0 0 0 3px var(--focus-glow);
+}
+.field input[aria-invalid="true"] { border-color: var(--danger); }
+.field-error {
+  display: flex; gap: var(--sp-xs); align-items: flex-start;
+  margin-top: var(--sp-xs); font-size: var(--size-sm); color: var(--danger);
+  background: var(--surface-1); border: 1px solid var(--line);
+  border-left: 2px solid var(--danger);
+  border-radius: var(--radius-sm); padding: var(--sp-xs) var(--sp-sm); max-width: 32em;
+}
+.field-error svg { flex: none; margin-top: var(--sp-2xs); }
+fieldset.field { border: 0; margin: 0; padding: 0; }
+.platform-options { display: flex; flex-wrap: wrap; gap: var(--sp-sm); }
+.platform-options label {
+  display: inline-flex; align-items: center; gap: var(--sp-xs);
+  min-height: var(--min-target); padding: 0 var(--sp-md);
+  background: var(--surface-1); border: 1px solid var(--line-control); /* vis-1：chip 边界与输入框统一用控件线阶 */
+  border-radius: var(--radius-md); font-size: var(--size-sm); color: var(--text-muted);
+  cursor: pointer; font-weight: 400; margin: 0;
+  transition: border-color var(--motion-duration) var(--motion-easing), color var(--motion-duration) var(--motion-easing);
+}
+.platform-options label:hover { border-color: var(--accent); color: var(--text); }
+.platform-options input[type="checkbox"] {
+  width: var(--sp-lg); height: var(--sp-lg); accent-color: var(--accent); margin: 0;
+}
+.platform-options label:has(input:checked) { border-color: var(--accent); color: var(--text); background: var(--accent-tint); }
+.gen-output { margin-top: var(--sp-lg); }
+.gen-output h4 { margin: 0 0 var(--sp-xs); font-size: var(--size-sm); font-weight: 600; color: var(--text); }
+.gen-output pre { margin-top: 0; }
+.copy-row { margin-top: var(--sp-sm); display: flex; align-items: center; gap: var(--sp-md); flex-wrap: wrap; }
+.copy-status { font-size: var(--size-sm); color: var(--accent); }
+.copy-status.is-error { color: var(--danger); }
+
+/* ===== 文档导航 ===== */
+.doc-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--sp-lg); }
+.doc-card {
+  display: block; background: var(--surface-2); border: 1px solid var(--line);
+  border-radius: var(--radius-lg); padding: var(--sp-lg);
+  text-decoration: none; color: var(--text);
+  transition: border-color var(--motion-duration) var(--motion-easing), background-color var(--motion-duration) var(--motion-easing);
+}
+.doc-card:hover { border-color: var(--accent); background: var(--surface-3); color: var(--text); }
+.doc-card h3 { font-size: var(--size-base); font-weight: 600; display: flex; align-items: center; gap: var(--sp-xs); }
+.doc-card h3 svg { color: var(--accent); flex: none; }
+.doc-card p { margin-top: var(--sp-xs); font-size: var(--size-sm); color: var(--text-muted); }
+.doc-card .doc-path { display: inline-block; margin-top: var(--sp-sm); font-family: var(--font-mono); font-size: var(--size-xs); color: var(--text-muted); }
+
+/* ===== 页脚 ===== */
+.site-footer { border-top: 1px solid var(--line); padding-block: var(--sp-xl); }
+.footer-inner { display: flex; flex-wrap: wrap; gap: var(--sp-md) var(--sp-xl); align-items: baseline; justify-content: space-between; }
+.site-footer p { font-size: var(--size-xs); color: var(--text-faint); max-width: 40em; }
+.site-footer .brand-name { color: var(--text-muted); }
+.footer-brand { display: inline-flex; align-items: center; gap: var(--sp-xs); vertical-align: middle; }
+
+/* ===== 响应式 ===== */
+@media (max-width: 960px) {
+  .hero-grid, .workflow-grid { grid-template-columns: 1fr; }
+  .doc-grid { grid-template-columns: 1fr; }
+  .capability-list li { grid-template-columns: var(--sp-xl) 1fr; }
+  .capability-list .cap-desc { grid-column: 2; }
+  .formula { font-size: var(--size-h1); }
+}
+@media (max-width: 640px) {
+  .section, .hero { padding-block: var(--sp-2xl); }
+  .hero h1 { font-size: var(--size-h1-mobile); }
+  .section h2 { font-size: var(--size-h3); }
+  .section-head { margin-bottom: var(--sp-xl); }
+  .site-header { position: static; }
+  .header-inner { flex-wrap: wrap; gap: 0 var(--sp-sm); padding-block: var(--sp-xs); }
+  .site-nav { margin-left: 0; width: 100%; overflow-x: visible; }
+  .site-nav ul { flex-wrap: wrap; }
+  .site-nav a { padding: var(--sp-xs); font-size: var(--size-xs); }
+  .capability-list li { grid-template-columns: var(--sp-xl) 1fr; gap: var(--sp-sm); }
+  .platform-table th:nth-child(3), .platform-table td:nth-child(3) { display: none; }
+  .platform-table td:first-child { white-space: normal; }
+  .badge { white-space: normal; }
+  .steps > li { grid-template-columns: 1fr; }
+  .step-num { width: var(--sp-lg); height: var(--sp-lg); font-size: var(--size-xs); }
+  pre.code { font-size: var(--size-xs); }
+}
+</style>
+</head>
+<body>
+<a class="skip-link" href="#main">跳到主内容</a>
+
+<header class="site-header">
+  <div class="container header-inner">
+    <a class="brand" href="#top" aria-label="beansmile-design 回到页首">
+      <!-- 品牌 logo（官方位图的内联 SVG 复刻）：#18A05F 为品牌资产原色，仅存在于 SVG 内部，不进布局 CSS -->
+      <svg class="brand-mark" width="30" height="30" viewBox="0 0 64 64" aria-hidden="true">
+        <polygon points="58,32 45,54.5 19,54.5 6,32 19,9.5 45,9.5" fill="#FFFFFF" stroke="#18A05F" stroke-width="5" stroke-linejoin="round"/>
+        <g transform="translate(32.5 32) rotate(-14)">
+          <path d="M 2 -13.2 C 9.2 -12.6 13.2 -6.6 13.2 0.4 C 13.2 8.2 7.6 13.6 -0.4 13.6 C -8 13.6 -13.2 8.8 -13.2 2.8 C -13.2 -0.6 -11.4 -3.2 -8.6 -4.6 C -10 -7.4 -9.4 -10.6 -6.4 -12.3 C -3.8 -13.7 -0.8 -13.4 2 -13.2 Z" fill="#18A05F"/>
+          <circle cx="1.8" cy="-7.2" r="2.7" fill="#FFFFFF"/>
+        </g>
+      </svg>
+      <span class="brand-name">beansmile-design</span>
+    </a>
+    <nav class="site-nav" aria-label="页面章节">
+      <ul>
+        <li><a href="#capabilities" data-section="capabilities">核心能力</a></li>
+        <li><a href="#workflow" data-section="workflow">工作流</a></li>
+        <li><a href="#platforms" data-section="platforms">平台支持</a></li>
+        <li><a href="#quickstart" data-section="quickstart">快速开始</a></li>
+        <li><a href="#docs" data-section="docs">文档</a></li>
+        <li><a class="nav-github" href="https://github.com/xifengzhu/beansmile-design"><svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>GitHub</a></li>
+      </ul>
+    </nav>
+  </div>
+</header>
+
+<main id="main" tabindex="-1">
+
+  <!-- ===== Hero ===== -->
+  <section class="hero" id="top" aria-labelledby="hero-title">
+    <div class="container hero-grid">
+      <div>
+        <p class="kicker">DESIGN AGENT RUNTIME · 运行在 Codex / Claude 中</p>
+        <h1 id="hero-title">把设计过程变成<em>可验证</em>的交付</h1>
+        <p class="hero-lede">beansmile-design 从业务目标、用户任务和目标平台出发，把产品需求转化为可点击、响应式、高保真的 HTML 原型，以及包含决策依据、截图、评审结果和验收报告的可审计交付包。</p>
+        <p class="boundary-note">
+          <strong>边界声明</strong>：它不是生产前端框架，也不直接生成生产级 Web、原生 App 或小程序代码。项目重点解决的是设计过程的一致性、可追溯性和质量验收。
+        </p>
+        <div class="hero-cta">
+          <a class="btn btn-primary" href="#quickstart">快速开始</a>
+          <a class="btn btn-secondary" href="#docs">阅读文档</a>
+        </div>
+      </div>
+      <div class="terminal" role="img" aria-label="验收命令输出示意：npm run accept 的各项质量门全部通过，结论行显示验收通过 6/6 维度全绿">
+        <div class="terminal-bar" aria-hidden="true">
+          <span class="terminal-dot"></span><span class="terminal-dot"></span><span class="terminal-dot"></span>
+          <span class="terminal-title">acceptance — outputs/demo</span>
+        </div>
+        <div class="terminal-body" aria-hidden="true">
+          <div class="t-cmd">npm run accept -- --package outputs/demo</div>
+          <div><span class="t-ok">✓</span> 上下文与字段权限 <span class="t-dim">context.yaml 合法</span></div>
+          <div><span class="t-ok">✓</span> 阶段转换与确认门 <span class="t-dim">记录完整</span></div>
+          <div><span class="t-ok">✓</span> 浏览器行为检查 <span class="t-dim">0 阻断信号</span></div>
+          <div><span class="t-ok">✓</span> 版本快照绑定 <span class="t-dim">artifact_version 一致</span></div>
+          <div><span class="t-ok">✓</span> 规范审计 + 视觉评审 <span class="t-dim">2/2 只读评审通过</span></div>
+          <div><span class="t-ok">✓</span> 最终交付完整性 <span class="t-dim">产物齐备</span></div>
+          <div class="t-ok">验收通过：6/6 维度全绿</div>
+        </div>
+        <p class="terminal-note">示意输出：实际维度与结论以本地运行 npm run accept 为准。</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== 核心能力 ===== -->
+  <section class="section" id="capabilities" aria-labelledby="capabilities-title">
+    <div class="container">
+      <div class="section-head">
+        <span class="section-label">01 · CORE</span>
+        <h2 id="capabilities-title">核心能力：五个组成，一条流水线</h2>
+        <p class="section-lede">Skill 提示层写下的每一条质量承诺，都有对应的机器门禁强制执行；创作与评审分离，避免创作方自行判定通过。</p>
+      </div>
+      <p class="formula"><span class="f-num">1</span> + <span class="f-num">5</span> + <span class="f-num">2</span><span class="f-label">1 个 Design Director · 5 个流程 Skills · 2 个只读评审</span></p>
+      <ul class="capability-list">
+        <li>
+          <span class="cap-index">01</span>
+          <span class="cap-name">Design Director</span>
+          <span class="cap-desc">维护任务状态、调度各阶段、记录用户确认并作出最终设计裁决。</span>
+        </li>
+        <li>
+          <span class="cap-index">02</span>
+          <span class="cap-name">5 个流程 Skills</span>
+          <span class="cap-desc">完成需求研究、UX 架构、视觉系统、HTML 原型和决策记录。</span>
+        </li>
+        <li>
+          <span class="cap-index">03</span>
+          <span class="cap-name">2 个只读评审</span>
+          <span class="cap-desc">分别执行规范审计和视觉评审，避免创作方自行判定通过。</span>
+        </li>
+        <li>
+          <span class="cap-index">04</span>
+          <span class="cap-name">版本化依据库</span>
+          <span class="cap-desc">管理 WCAG、平台规范、设计工艺和行业规则。</span>
+        </li>
+        <li>
+          <span class="cap-index">05</span>
+          <span class="cap-name">可执行质量门</span>
+          <span class="cap-desc">校验上下文、字段权限、阶段转换、浏览器行为、快照、评审和最终交付。</span>
+        </li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ===== 工作流 ===== -->
+  <section class="section section-alt" id="workflow" aria-labelledby="workflow-title">
+    <div class="container">
+      <div class="section-head">
+        <span class="section-label">02 · WORKFLOW</span>
+        <h2 id="workflow-title">工作流：专业模式与快速模式</h2>
+        <p class="section-lede">两种模式共享同一套质量门。快速模式缩短确认过程，但硬性质量要求一条不少。</p>
+      </div>
+      <div class="workflow-grid">
+        <div class="panel">
+          <h3>专业模式 <span class="panel-tag">--mode professional</span></h3>
+          <p>完整阶段链：三个用户确认门、执行候选竞争与双评审，适合范围复杂、需要逐步对齐的设计任务。</p>
+          <ol class="stage-chain">
+            <li data-step="1"><strong>需求研究</strong> → 产出 brief.md <span class="gate">确认门 A：需求与成功标准</span></li>
+            <li data-step="2"><strong>UX 架构</strong> → 产出 flows.md <span class="gate">确认门 B：任务流与页面范围</span></li>
+            <li data-step="3"><strong>视觉系统</strong> → 产出 design-tokens.json <span class="gate">确认门 C：视觉方向</span></li>
+            <li data-step="4"><strong>HTML 原型</strong> → 执行竞争选出赢家，再截图自评迭代</li>
+            <li data-step="5"><strong>双评审</strong> → 规范审计 + 视觉评审，只读冻结快照</li>
+            <li data-step="6"><strong>最终验收</strong> → npm run accept 逐维度机器判定</li>
+          </ol>
+        </div>
+        <div class="panel">
+          <h3>快速模式 <span class="panel-tag">--mode quick</span></h3>
+          <p>适用于范围明确的简单页面：缩短需求和视觉方向的确认过程，直达原型与评审。</p>
+          <ul class="quick-points">
+            <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 13l4 4L19 7"/></svg><span>不跳过目标平台与关键状态覆盖</span></li>
+            <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 13l4 4L19 7"/></svg><span>不跳过 WCAG 2.2 AA 与真实截图验证</span></li>
+            <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 13l4 4L19 7"/></svg><span>不跳过控制台错误与内容溢出检查</span></li>
+            <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 13l4 4L19 7"/></svg><span>不跳过决策依据记录与双评审</span></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== 平台支持 ===== -->
+  <section class="section" id="platforms" aria-labelledby="platforms-title">
+    <div class="container">
+      <div class="section-head">
+        <span class="section-label">03 · PLATFORMS</span>
+        <h2 id="platforms-title">平台支持与验证边界</h2>
+        <p class="section-lede">支持 5 类目标平台，验证能力如实分级——能被浏览器自动化验证的和只能近似表达的，界限写清楚。</p>
+      </div>
+      <table class="platform-table">
+        <caption class="field-hint" style="caption-side: bottom; text-align: left; padding-top: var(--sp-sm);">--platforms 取值：web、mobile_web、ios、android、mini_program，多个值用逗号分隔。</caption>
+        <thead>
+          <tr><th scope="col">平台</th><th scope="col">验证方式</th><th scope="col">说明</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Web</td>
+            <td><span class="badge badge-verified">完整浏览器自动化检查</span></td>
+            <td>axe 扫描、键盘可达、重排、截图与核心任务场景执行全链路。</td>
+          </tr>
+          <tr>
+            <td>响应式移动 Web</td>
+            <td><span class="badge badge-verified">完整浏览器自动化检查</span></td>
+            <td>与 Web 相同的自动化检查链路，覆盖移动视口。</td>
+          </tr>
+          <tr>
+            <td>iOS App</td>
+            <td><span class="badge">HTML 近似 + 人工清单</span></td>
+            <td>以 HTML 近似原型表达，系统控件与原生行为需人工清单或真机验证。</td>
+          </tr>
+          <tr>
+            <td>Android App</td>
+            <td><span class="badge">HTML 近似 + 人工清单</span></td>
+            <td>同上：无法由 HTML 忠实验证的部分显式标注，不假装通过。</td>
+          </tr>
+          <tr>
+            <td>微信小程序</td>
+            <td><span class="badge">HTML 近似 + 人工清单</span></td>
+            <td>原生手势、安全区和运行时行为需要人工清单或真机验证。</td>
+          </tr>
+        </tbody>
+      </table>
+      <p class="honesty-callout"><strong>诚实降级原则</strong>：任何无法真实验证的检查（浏览器不可用、原生平台行为）都会显式记为「未验证」，不允许静默记为通过——环境诚实本身就是验收维度之一。</p>
+    </div>
+  </section>
+
+  <!-- ===== 快速开始 ===== -->
+  <section class="section section-alt" id="quickstart" aria-labelledby="quickstart-title">
+    <div class="container">
+      <div class="section-head">
+        <span class="section-label">04 · QUICKSTART</span>
+        <h2 id="quickstart-title">快速开始</h2>
+        <p class="section-lede">环境要求：Node.js 18 或更高版本、npm，以及 Chrome 或由 Playwright 安装的 Chromium。以下命令都在仓库根目录执行。</p>
+      </div>
+      <ol class="steps">
+        <li>
+          <span class="step-num" aria-hidden="true">1</span>
+          <div>
+            <h3>安装依赖</h3>
+            <p>本机没有可用 Chrome/Chromium 时，再补装 Playwright 的浏览器。</p>
+            <pre class="code"><code>npm install
+<span class="c-dim"># 可选：npx playwright install chromium</span></code></pre>
+          </div>
+        </li>
+        <li>
+          <span class="step-num" aria-hidden="true">2</span>
+          <div>
+            <h3>验证运行环境</h3>
+            <p>env:check 会真实启动一次浏览器，而不只是检查依赖是否存在。</p>
+            <pre class="code"><code>npm run check
+npm test
+npm run env:check</code></pre>
+            <ul class="exit-codes">
+              <li><code>exit 0</code> — Node、Playwright、axe-core 和浏览器自动化均可用。</li>
+              <li><code>exit 3</code> — 降级状态：浏览器相关结论只能标「未验证」，任务不能标记完成。</li>
+              <li><code>exit ≠0</code> — 其他非零退出码：先修复环境或参数问题。</li>
+            </ul>
+          </div>
+        </li>
+        <li>
+          <span class="step-num" aria-hidden="true">3</span>
+          <div>
+            <h3>启用 Skills</h3>
+            <p>把 skills/ 下的 8 个 Skill 挂进 .claude/skills 与 .codex/skills，命令幂等。之后在仓库根目录开启会话：Claude Code 输入 /design-director，Codex CLI 输入 $design-director。</p>
+            <pre class="code"><code>npm run setup:agents</code></pre>
+          </div>
+        </li>
+        <li>
+          <span class="step-num" aria-hidden="true">4</span>
+          <div>
+            <h3>初始化交付包并启动设计任务</h3>
+            <p>用下方生成器拼出你的初始化命令；完整流程结束后运行 npm run accept 做最终验收。</p>
+          </div>
+        </li>
+      </ol>
+
+      <!-- 命令生成器（页面核心交互） -->
+      <div class="generator" id="generator">
+        <h3 id="generator-title">初始化命令生成器</h3>
+        <p>填写交付包目录、选择模式与目标平台，生成可直接粘贴到终端的 <code>npm run init</code> 命令。项目名、用户画像与行业为可编辑的默认值。</p>
+        <form class="gen-form" id="gen-form" novalidate aria-labelledby="generator-title">
+          <div class="field">
+            <label for="gen-dir">交付包目录（必填）</label>
+            <p class="field-hint" id="gen-dir-hint">相对仓库根目录的路径，例如 outputs/demo；outputs/ 已被 Git 忽略。</p>
+            <input type="text" id="gen-dir" name="dir" placeholder="outputs/demo" autocomplete="off" spellcheck="false" aria-describedby="gen-dir-hint">
+            <p class="field-error" id="gen-dir-error" role="alert" hidden>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8v4"/><path d="M12 16h.01"/></svg>
+              <span id="gen-dir-error-text"></span>
+            </p>
+          </div>
+          <div class="field">
+            <label for="gen-mode">模式</label>
+            <p class="field-hint" id="gen-mode-hint">professional：确认门 A/B/C、执行竞争、双评审；quick：缩短确认、单方向直出，质量门不缩水。</p>
+            <select id="gen-mode" name="mode" aria-describedby="gen-mode-hint">
+              <option value="professional">professional — 专业模式</option>
+              <option value="quick">quick — 快速模式</option>
+            </select>
+          </div>
+          <fieldset class="field" aria-describedby="gen-platforms-error">
+            <legend class="field-legend">目标平台（至少选一个）</legend>
+            <div class="platform-options">
+              <label><input type="checkbox" name="platforms" value="web" checked> web</label>
+              <label><input type="checkbox" name="platforms" value="mobile_web"> mobile_web</label>
+              <label><input type="checkbox" name="platforms" value="ios"> ios</label>
+              <label><input type="checkbox" name="platforms" value="android"> android</label>
+              <label><input type="checkbox" name="platforms" value="mini_program"> mini_program</label>
+            </div>
+            <p class="field-error" id="gen-platforms-error" role="alert" hidden>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8v4"/><path d="M12 16h.01"/></svg>
+              <span>请至少勾选一个目标平台：Web 项目通常选 web，或 web,mobile_web 组合。</span>
+            </p>
+          </fieldset>
+          <div>
+            <button type="submit" class="btn btn-primary" id="gen-submit">生成命令</button>
+          </div>
+        </form>
+        <div class="gen-output" id="gen-output" hidden>
+          <h4 id="gen-output-title">生成的初始化命令</h4>
+          <pre class="code" aria-labelledby="gen-output-title"><code id="gen-command"></code></pre>
+          <div class="copy-row">
+            <button type="button" class="btn btn-secondary" id="copy-btn">复制命令</button>
+            <span class="copy-status" id="copy-status" role="status"></span>
+          </div>
+        </div>
+        <p class="visually-hidden" role="status" id="gen-live"></p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== 文档导航 ===== -->
+  <section class="section" id="docs" aria-labelledby="docs-title">
+    <div class="container">
+      <div class="section-head">
+        <span class="section-label">05 · DOCS</span>
+        <h2 id="docs-title">文档导航</h2>
+        <p class="section-lede">按角色分入口：执行设计任务看使用指南，维护和扩展项目看开发指南。</p>
+      </div>
+      <div class="doc-grid">
+        <a class="doc-card" href="https://github.com/xifengzhu/beansmile-design/blob/main/docs/usage.md">
+          <h3><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>使用指南</h3>
+          <p>完整工作流（专业/快速模式与确认门）、常用命令、交付包结构、平台验证边界。</p>
+          <span class="doc-path">docs/usage.md</span>
+        </a>
+        <a class="doc-card" href="https://github.com/xifengzhu/beansmile-design/blob/main/docs/development.md">
+          <h3><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 18l6-6-6-6"/><path d="M8 6l-6 6 6 6"/></svg>开发指南</h3>
+          <p>项目结构、核心契约（单一事实源、门禁、版本绑定）、开发与扩展入口、测试与验收。</p>
+          <span class="doc-path">docs/development.md</span>
+        </a>
+        <a class="doc-card" href="https://github.com/xifengzhu/beansmile-design/blob/main/skills/registry.yaml">
+          <h3><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>Skill 注册表</h3>
+          <p>1 个 Director、5 个流程 Skill 与 2 个只读评审的唯一注册表，含 Schema 目录入口。</p>
+          <span class="doc-path">skills/registry.yaml</span>
+        </a>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="site-footer">
+  <div class="container footer-inner">
+    <p><span class="footer-brand"><svg width="24" height="24" viewBox="0 0 64 64" aria-hidden="true">
+        <polygon points="58,32 45,54.5 19,54.5 6,32 19,9.5 45,9.5" fill="#FFFFFF" stroke="#18A05F" stroke-width="5" stroke-linejoin="round"/>
+        <g transform="translate(32.5 32) rotate(-14)">
+          <path d="M 2 -13.2 C 9.2 -12.6 13.2 -6.6 13.2 0.4 C 13.2 8.2 7.6 13.6 -0.4 13.6 C -8 13.6 -13.2 8.8 -13.2 2.8 C -13.2 -0.6 -11.4 -3.2 -8.6 -4.6 C -10 -7.4 -9.4 -10.6 -6.4 -12.3 C -3.8 -13.7 -0.8 -13.4 2 -13.2 Z" fill="#18A05F"/>
+          <circle cx="1.8" cy="-7.2" r="2.7" fill="#FFFFFF"/>
+        </g>
+      </svg><span class="brand-name">beansmile-design</span></span> · 设计 Agent 运行时——解决设计过程的一致性、可追溯性和质量验收。</p>
+    <p>本页面为设计原型（高保真演示），功能表述以仓库 README.md 为准 · <a href="https://github.com/xifengzhu/beansmile-design">GitHub 仓库</a></p>
+  </div>
+</footer>
+
+<script>
+(function () {
+  "use strict";
+
+  /* ---- 锚点导航当前节高亮 ---- */
+  try {
+    var navLinks = document.querySelectorAll(".site-nav a[data-section]");
+    var byId = {};
+    navLinks.forEach(function (a) { byId[a.getAttribute("data-section")] = a; });
+    var sections = ["capabilities", "workflow", "platforms", "quickstart", "docs"]
+      .map(function (id) { return document.getElementById(id); })
+      .filter(Boolean);
+    if ("IntersectionObserver" in window) {
+      var io = new IntersectionObserver(function (entries) {
+        entries.forEach(function (entry) {
+          if (entry.isIntersecting) {
+            navLinks.forEach(function (a) { a.removeAttribute("aria-current"); });
+            var link = byId[entry.target.id];
+            if (link) link.setAttribute("aria-current", "true");
+          }
+        });
+      }, { rootMargin: "-40% 0px -55% 0px" });
+      sections.forEach(function (s) { io.observe(s); });
+    }
+  } catch (e) { /* 高亮是增强，不阻断 */ }
+
+  /* ---- 命令生成器 ---- */
+  var form = document.getElementById("gen-form");
+  var dirInput = document.getElementById("gen-dir");
+  var dirError = document.getElementById("gen-dir-error");
+  var dirErrorText = document.getElementById("gen-dir-error-text");
+  var platformsError = document.getElementById("gen-platforms-error");
+  var output = document.getElementById("gen-output");
+  var commandEl = document.getElementById("gen-command");
+  var copyBtn = document.getElementById("copy-btn");
+  var copyStatus = document.getElementById("copy-status");
+  var genLive = document.getElementById("gen-live");
+
+  function setDirError(message) {
+    if (message) {
+      dirErrorText.textContent = message;
+      dirError.hidden = false;
+      dirInput.setAttribute("aria-invalid", "true");
+      dirInput.setAttribute("aria-describedby", "gen-dir-hint gen-dir-error");
+    } else {
+      dirError.hidden = true;
+      dirInput.removeAttribute("aria-invalid");
+      dirInput.setAttribute("aria-describedby", "gen-dir-hint");
+    }
+  }
+
+  function validateDir(value) {
+    if (!value) return "交付包目录不能为空：请填写相对仓库根目录的路径，例如 outputs/demo。";
+    if (/\s/.test(value)) return "目录不能包含空格：请改用连字符或下划线，例如 outputs/design-demo。";
+    if (!/^[A-Za-z0-9._/-]+$/.test(value)) return "目录只能包含字母、数字、点、下划线、连字符与斜杠：请移除其他字符，例如改为 outputs/demo。";
+    return "";
+  }
+
+  function shellQuote(value) { return '"' + value.replace(/(["\\$`])/g, "\\$1") + '"'; }
+
+  form.addEventListener("submit", function (event) {
+    event.preventDefault();
+    var dir = dirInput.value.trim();
+    var dirMessage = validateDir(dir);
+    setDirError(dirMessage);
+
+    var checked = Array.prototype.slice.call(form.querySelectorAll('input[name="platforms"]:checked'))
+      .map(function (cb) { return cb.value; });
+    platformsError.hidden = checked.length > 0;
+
+    if (dirMessage || checked.length === 0) {
+      output.hidden = true;
+      copyStatus.textContent = "";
+      genLive.textContent = "";
+      if (dirMessage) dirInput.focus();
+      return;
+    }
+
+    var segments = dir.replace(/\/+$/, "").split("/");
+    var name = segments[segments.length - 1] || "demo";
+    var mode = document.getElementById("gen-mode").value;
+    var command = [
+      "npm run init -- \\",
+      "  --package " + dir + " \\",
+      "  --name " + shellQuote(name) + " \\",
+      "  --mode " + mode + " \\",
+      "  --task-type new_design \\",
+      "  --platforms " + checked.join(",") + " \\",
+      "  --primary-user " + shellQuote("需要完成核心任务的目标用户") + " \\",
+      "  --industry general"
+    ].join("\n");
+    commandEl.textContent = command;
+    copyStatus.textContent = "";
+    copyStatus.classList.remove("is-error");
+    output.hidden = false;
+    genLive.textContent = "初始化命令已生成，可在下方输出区复制。"; /* std-1：成功状态经 role=status 播报 */
+  });
+
+  dirInput.addEventListener("input", function () {
+    if (!dirError.hidden) setDirError(validateDir(dirInput.value.trim()));
+  });
+
+  copyBtn.addEventListener("click", function () {
+    var text = commandEl.textContent;
+    function ok() { copyStatus.classList.remove("is-error"); copyStatus.textContent = "已复制到剪贴板。"; }
+    function fail() { copyStatus.classList.add("is-error"); copyStatus.textContent = "复制失败：请手动选中上方命令文本后复制。"; }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(ok, fail);
+    } else {
+      fail();
+    }
+  });
+})();
+</script>
+</body>
+</html>

@@ -1,5 +1,5 @@
 # WCAG 2.2 AA 核心规则卡
-# 校验 schema: docs/superpowers/specs/schemas/rule-card.schema.json
+# 校验 schema: schemas/rule-card.schema.json
 # 对应设计规范第 10.1（来源分层第 1 层：硬性无障碍）、10.2（规则卡结构）。
 # 全部 strength=required：WCAG AA 是硬性要求，仅法律/安全（10.1 更高层）可豁免。
 # source_url 均为 w3.org 稳定锚点；last_verified 为实际核实日期，不得伪造。

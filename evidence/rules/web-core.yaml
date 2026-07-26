@@ -1,5 +1,5 @@
 # Web 平台核心规则卡
-# 校验 schema: docs/superpowers/specs/schemas/rule-card.schema.json
+# 校验 schema: schemas/rule-card.schema.json
 # 对应设计规范第 10.1 第 2 层（平台官方规范）与第 11 章（平台适配：Web）。
 # 这些是 Web 平台的实现习惯/官方实践，与 wcag-2.2-aa.yaml 的硬性判据互补而非重复。
 

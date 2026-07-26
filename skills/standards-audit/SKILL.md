@@ -36,10 +36,10 @@ description: 只读规范审计 Agent。对冻结快照检查 WCAG 2.2 AA、平�
 Director 派发中间修订版评审时会给你 delta 包（快照 `delta/`：`changed-files.json`、`files.diff`、`open-findings.yaml`、`changed-pages.json`）而非全量输入。此模式下：
 
 - 职责三件事：① **核销**——`open-findings.yaml` 中你名下的每条遗留 blocker/warning，逐条给出核销证据（`resolved_findings`，改了什么、在哪确认）或再断言（`findings` 沿用同 id）——**缺一条即被拒收**；② 对变更文件/页面复查受影响规则（`rule_coverage_delta`，只写变更相关行，不做全量矩阵）；③ 变更引入的新问题照常报。
-- 返回结构按 `docs/superpowers/specs/schemas/findings-delta.schema.json`（多 `baseline_version` 与 `resolved_findings` 字段）。
+- 返回结构按 `schemas/findings-delta.schema.json`（多 `baseline_version` 与 `resolved_findings` 字段）。
 - 你的 delta 结论**不进验收**——拟交付版本仍会对你做全量派发，全量矩阵在那时闭合。
 
-## 返回结构（交回 Director，勿自行写盘；schema: docs/superpowers/specs/schemas/findings.schema.json）
+## 返回结构（交回 Director，勿自行写盘；schema: schemas/findings.schema.json）
 
 ```yaml
 reviewer: standards

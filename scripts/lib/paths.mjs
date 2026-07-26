@@ -1,11 +1,11 @@
-// 运行时共享路径常量。所有 schema 以 docs/superpowers/specs/schemas 为单一来源。
+// 运行时共享路径常量。所有 schema 以仓库根目录 schemas/ 为单一来源。
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 
 const here = dirname(fileURLToPath(import.meta.url));
 export const REPO_ROOT = resolve(here, "..", "..");
 
-export const SCHEMA_DIR = resolve(REPO_ROOT, "docs/superpowers/specs/schemas");
+export const SCHEMA_DIR = resolve(REPO_ROOT, "schemas");
 export const RULES_DIR = resolve(REPO_ROOT, "evidence/rules");
 export const RULE_PACKS_FILE = resolve(REPO_ROOT, "evidence/rule-packs.yaml");
 

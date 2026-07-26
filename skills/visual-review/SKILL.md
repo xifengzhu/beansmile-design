@@ -40,7 +40,7 @@ Director 派发中间修订版评审时给你 delta 包（`changed-files.json`/`
 - ① **核销**你名下的每条遗留 blocker/warning（`resolved_findings` 给证据：在哪张变更截图确认已修复）或再断言（`findings` 沿用同 id）——缺一条即被拒收；② 只对受变更影响的维度补 `dimension_reviews_delta`（0–8 条，截图哈希纪律与全量相同）；③ 变更引入的新问题照常报。
 - 返回结构按 `findings-delta.schema.json`。你的 delta 结论**不进验收**——拟交付版本仍会做全量八维派发。
 
-## 返回结构（交回 Director，勿自行写盘；schema: docs/superpowers/specs/schemas/findings.schema.json）
+## 返回结构（交回 Director，勿自行写盘；schema: schemas/findings.schema.json）
 
 `dimension_reviews` **必填且机器校验**（record-findings 落盘前逐条核）：八维各恰好一条；`screenshot` 必须是真实存在的截图路径且 `screenshot_sha256` 与盘上文件一致（先 Read 截图、再算哈希，引用不存在或过期的图会被拒收）；`observed` 必须含实测值（px/hex/比值/数量）；`judgment` 非 pass 时必须有同维度、相称严重度的 finding 对应；warning/blocker 的 `evidence` 也必须含实测值。
 

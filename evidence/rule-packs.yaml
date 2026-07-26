@@ -1,5 +1,5 @@
 # 规则包注册表（UI/UX 规范库分层扩展 §5）
-# 校验 schema: docs/superpowers/specs/schemas/rule-pack.schema.json
+# 校验 schema: schemas/rule-pack.schema.json
 # 机器门: scripts/lib/rule-packs.mjs（npm run check 执行）
 #
 # 约定：

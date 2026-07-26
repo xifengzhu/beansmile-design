@@ -1,5 +1,5 @@
 # 微信小程序核心规则卡
-# 校验 schema: docs/superpowers/specs/schemas/rule-card.schema.json
+# 校验 schema: schemas/rule-card.schema.json
 # 对应设计规范第 10.1 第 2 层、第 11 章（小程序适配）、第 6.3 章（HTML 保真度边界）。
 # 小程序原生行为（胶囊、tabBar、授权弹窗、下拉刷新等）HTML 无法忠实表达，均 manual + 人工清单。
 

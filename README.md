@@ -130,7 +130,6 @@ npm run accept -- --package outputs/demo
 
 ## 延伸文档
 
-- [设计 Agent 系统设计规范](docs/superpowers/specs/2026-07-24-design-agent-system-design.md)
-- [README 内容设计规范](docs/superpowers/specs/2026-07-25-readme-design.md)
 - [Design Director 使用说明](skills/design-director/SKILL.md)
 - [Skill 注册表](skills/registry.yaml)
+- [Schema 目录](schemas/)（上下文、Skill manifest、findings 与规则卡）

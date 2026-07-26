@@ -1,5 +1,5 @@
 # 电商行业规则卡（industry profile: ecommerce）
-# 校验 schema: docs/superpowers/specs/schemas/rule-card.schema.json
+# 校验 schema: schemas/rule-card.schema.json
 # 对应设计规范第 10.1 第 5 层（成熟可用性原则与领域研究）、第 23 章（行业规则层）。
 # 来源全部于 last_verified 日期 curl 核实可达（Baymard 为大样本电商可用性研究，评 B；
 # NN/g 文章评 B/C）。行业规则不覆盖 WCAG/平台规范，只在其上叠加领域纪律。

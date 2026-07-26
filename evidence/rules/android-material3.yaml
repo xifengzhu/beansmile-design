@@ -1,5 +1,5 @@
 # Material Design 3 核心规则卡（Android）
-# 校验 schema: docs/superpowers/specs/schemas/rule-card.schema.json
+# 校验 schema: schemas/rule-card.schema.json
 # 对应设计规范第 10.1 第 2 层、第 11 章（Android 适配）、第 6.3 章（HTML 保真度边界）。
 
 rules:

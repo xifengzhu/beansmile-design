@@ -1,5 +1,5 @@
 # 设计工艺启发规则卡（排版 / 层级 / 留白 / 反馈）
-# 校验 schema: docs/superpowers/specs/schemas/rule-card.schema.json
+# 校验 schema: schemas/rule-card.schema.json
 # 对应设计规范第 10.1 第 5 层（成熟可用性原则与领域研究）。全部 strength=heuristic：
 # 可被更高等级证据或明确品牌/项目要求覆盖（10.2 合成表），但覆盖须记录。
 # 这些规则支撑 skills/*/references/ 知识库中的工艺基准，为其提供可追溯来源。

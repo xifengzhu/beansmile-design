@@ -1,5 +1,5 @@
 # Apple Human Interface Guidelines 核心规则卡（iOS）
-# 校验 schema: docs/superpowers/specs/schemas/rule-card.schema.json
+# 校验 schema: schemas/rule-card.schema.json
 # 对应设计规范第 10.1 第 2 层（平台官方规范）、第 11 章（iOS 适配）、第 6.3 章（HTML 保真度边界）。
 # 多数为 manual：HTML 原型无法忠实表达原生手势/系统行为，只作"设计意图一致性"判定 + 人工清单。
 

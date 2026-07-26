@@ -2,7 +2,7 @@
 
 ## Project Structure & Module Organization
 
-This repository is a Node.js 18+ ESM runtime for design agents; it has no build step. Agent instructions live in `skills/<name>/SKILL.md`, with canonical roles registered in `skills/registry.yaml`. Executable enforcement is under `scripts/`: shared logic belongs in `scripts/lib/`, and tests in `scripts/test/`. Versioned standards and industry rules live in `evidence/rules/`; adversarial detector samples are in `fixtures/blockers/`. Schemas are under `docs/superpowers/specs/schemas/`, and native-platform checklists are in `templates/native-checklists/`. Generated delivery packages belong in ignored `outputs/`.
+This repository is a Node.js 18+ ESM runtime for design agents; it has no build step. Agent instructions live in `skills/<name>/SKILL.md`, with canonical roles registered in `skills/registry.yaml`. Executable enforcement is under `scripts/`: shared logic belongs in `scripts/lib/`, and tests in `scripts/test/`. Versioned standards and industry rules live in `evidence/rules/`; adversarial detector samples are in `fixtures/blockers/`. Schemas are under `schemas/`, and native-platform checklists are in `templates/native-checklists/`. Generated delivery packages belong in ignored `outputs/`.
 
 ## Build, Test, and Development Commands
 

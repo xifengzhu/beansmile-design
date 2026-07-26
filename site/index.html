@@ -7,42 +7,53 @@
 <title>beansmile-design · 设计 Agent 运行时：把设计过程变成可验证的交付</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cpolygon points='58,32 45,54.5 19,54.5 6,32 19,9.5 45,9.5' fill='%23fff' stroke='%2318A05F' stroke-width='5' stroke-linejoin='round'/%3E%3Cg transform='translate(32.5 32) rotate(-14)'%3E%3Cpath d='M 2 -13.2 C 9.2 -12.6 13.2 -6.6 13.2 0.4 C 13.2 8.2 7.6 13.6 -0.4 13.6 C -8 13.6 -13.2 8.8 -13.2 2.8 C -13.2 -0.6 -11.4 -3.2 -8.6 -4.6 C -10 -7.4 -9.4 -10.6 -6.4 -12.3 C -3.8 -13.7 -0.8 -13.4 2 -13.2 Z' fill='%2318A05F'/%3E%3Ccircle cx='1.8' cy='-7.2' r='2.7' fill='%23fff'/%3E%3C/g%3E%3C/svg%3E">
 <style>
-/* ===== 语义令牌（design-tokens.json → :root，唯一取值来源） ===== */
+/* ===== 语义令牌（design-tokens.json v4 · D7 玻璃景深浅色 → :root，唯一取值来源） ===== */
 :root {
-  --bg: hsl(222 15% 10%);
-  --surface-1: hsl(222 14% 14%);
-  --surface-2: hsl(222 13% 19%);
-  --surface-3: hsl(222 12% 24%);
-  --line: rgb(255 255 255 / 0.08);
-  --line-strong: rgb(255 255 255 / 0.12);
-  --text: hsl(220 15% 92%);
-  --text-muted: hsl(220 10% 72%);
-  --text-faint: hsl(220 8% 58%);
-  --accent: hsl(160 62% 52%);
-  --accent-strong: hsl(160 70% 62%);
-  --accent-tint: rgb(56 211 159 / 0.12);
-  --on-accent: hsl(222 20% 8%);
-  --danger: hsl(0 85% 71%);
-  --danger-tint: rgb(255 107 107 / 0.12);
-  --focus-glow: rgb(56 211 159 / 0.25);
-  /* std-2 修复：表单控件边界专用线阶（对 surface-1 ≈4.1:1、对 surface-2 ≈3.5:1，满足 WCAG 1.4.11 ≥3:1）。
-     仅用于可交互表单控件边框，不改 --line/--line-strong 装饰线；属页面局部控件变量，不进 design-tokens.json。 */
-  --line-control: rgb(255 255 255 / 0.40);
+  --atmosphere-a: hsl(160 55% 95%);
+  --atmosphere-b: hsl(205 65% 94%);
+  --blob-brand: hsl(152 65% 72%);
+  --blob-cool: hsl(200 80% 78%);
+  --bg: hsl(180 25% 98%);
+  --surface-solid: #ffffff;
+  --glass-fill: rgb(255 255 255 / 0.5);
+  --glass-border: rgb(255 255 255 / 0.65);
+  --glass-fallback: hsl(165 30% 96%);
+  --ink: hsl(220 35% 13%);
+  --text-muted: hsl(219 20% 34%);
+  --text-faint: hsl(219 15% 42%);
+  --line: rgb(15 35 30 / 0.10);
+  --line-strong: rgb(15 35 30 / 0.16);
+  --line-control: hsl(219 15% 42%); /* tokens v4：全部表单控件（输入/select/chip）统一边界色，对白 5.78:1（WCAG 1.4.11 ≥3:1） */
+  --accent-brand: #18A05F;   /* 仅大字（≥24px/19px bold）与图形/边框；正文级强调用 --accent-text（d-visual-5） */
+  --accent-text: hsl(153 78% 26%);
+  --accent-deep: hsl(153 80% 22%);
+  --accent-tint: rgb(24 160 95 / 0.10);
+  --on-accent: #ffffff;
+  --danger: hsl(2 65% 41%);
+  --danger-tint: rgb(179 38 30 / 0.08);
+  --focus-ring: hsl(153 78% 26%);
+  --focus-glow: rgb(24 160 95 / 0.28);
+  --shadow-ambient: 0 8px 32px rgb(10 45 35 / 0.10);
+  --glow-brand: 0 12px 48px rgb(24 160 95 / 0.22);
+
+  /* D7 手册配方值（playbooks/D7.md：玻璃 blur(20px)、光斑 blur(100px)）——tokens 无模糊档位，
+     作页面局部组件变量，不进 design-tokens.json。 */
+  --glass-blur: 20px;
+  --blob-blur: 100px;
 
   --font-sans: system-ui, -apple-system, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
   --font-mono: ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace;
   --size-xs: 13px; --size-sm: 14px; --size-base: 16px; --size-lg: 18px;
-  --size-h3: 20px; --size-h2: 28px; --size-h1-mobile: 34px; --size-h1: 48px;
-  --size-display: 96px; /* vis-3：对应 tokens typography.size-display，超大展示字号（.formula） */
-  --lh-body: 1.65; --lh-heading: 1.2;
+  --size-h3: 20px; --size-h2: 28px; --size-h1-mobile: 36px; --size-h1: 52px;
+  --lh-body: 1.65; --lh-heading: 1.15;
 
   --sp-2xs: 4px; --sp-xs: 8px; --sp-sm: 12px; --sp-md: 16px;
-  --sp-lg: 24px; --sp-xl: 40px; --sp-2xl: 64px; --sp-3xl: 96px;
-  --radius-sm: 6px; --radius-md: 10px; --radius-lg: 14px;
-  --min-target: 44px; --field-height: 44px;
-  --motion-duration: 160ms; --motion-easing: ease-out;
+  --sp-lg: 24px; --sp-xl: 40px; --sp-2xl: 64px; --sp-3xl: 112px;
+  --radius-sm: 8px; --radius-md: 14px; --radius-lg: 20px; --radius-xl: 28px;
+  --min-target: 44px; --field-height: 46px;
+  --motion-duration: 180ms; --motion-easing: cubic-bezier(0.22, 1, 0.36, 1);
   --max-width: 1120px; --gutter: 24px;
-  color-scheme: dark;
+  color-scheme: light;
 }
 
 /* ===== 全局基线 ===== */
@@ -51,15 +62,17 @@ html { scroll-padding-top: calc(var(--sp-2xl) + var(--sp-md)); }
 @media (prefers-reduced-motion: no-preference) { html { scroll-behavior: smooth; } }
 body {
   margin: 0; font-family: var(--font-sans); font-size: var(--size-base);
-  line-height: var(--lh-body); color: var(--text); background: var(--bg);
+  line-height: var(--lh-body); color: var(--ink);
+  /* 景深第一层：氛围双色渐变（fixed 使玻璃层在任意滚动位置都有可透的颜色变化） */
+  background: linear-gradient(135deg, var(--atmosphere-a), var(--atmosphere-b)) fixed var(--bg);
   -webkit-font-smoothing: antialiased;
 }
 :focus-visible {
-  outline: 2px solid var(--accent-strong); outline-offset: 2px;
+  outline: 2px solid var(--focus-ring); outline-offset: 2px;
   box-shadow: 0 0 0 4px var(--focus-glow); border-radius: var(--radius-sm);
 }
 :focus:not(:focus-visible) { outline: none; }
-::selection { background: var(--accent); color: var(--on-accent); } /* vis-3：实色 accent + on-accent，选中态清晰可读 */
+::selection { background: var(--accent-deep); color: var(--on-accent); }
 img, svg { max-width: 100%; }
 [hidden] { display: none !important; }
 @media (prefers-reduced-motion: reduce) {
@@ -67,8 +80,8 @@ img, svg { max-width: 100%; }
 }
 h1, h2, h3 { line-height: var(--lh-heading); letter-spacing: 0.02em; margin: 0; }
 p { margin: 0; }
-a { color: var(--accent); text-decoration: underline; text-underline-offset: 3px; }
-a:hover { color: var(--accent-strong); }
+a { color: var(--accent-text); text-decoration: underline; text-underline-offset: 3px; }
+a:hover { color: var(--accent-deep); }
 code, pre, kbd { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
 
 .container { max-width: var(--max-width); margin-inline: auto; padding-inline: var(--gutter); }
@@ -76,7 +89,7 @@ code, pre, kbd { font-family: var(--font-mono); font-variant-numeric: tabular-nu
 /* 跳到主内容 */
 .skip-link {
   position: fixed; top: var(--sp-xs); left: var(--sp-md); z-index: 100;
-  background: var(--accent); color: var(--on-accent); text-decoration: none;
+  background: var(--accent-deep); color: var(--on-accent); text-decoration: none;
   padding: var(--sp-sm) var(--sp-md); border-radius: var(--radius-sm);
   font-weight: 600; font-size: var(--size-sm);
   transform: translateY(-200%);
@@ -89,18 +102,37 @@ code, pre, kbd { font-family: var(--font-mono); font-variant-numeric: tabular-nu
   overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0;
 }
 
-/* ===== 顶部导航（D4：surface-1 + 1px 亮边分层） ===== */
+/* ===== 玻璃层（D7 四件套：glass-fill + backdrop blur + 1px glass-border + shadow-ambient）
+       默认实色兜底，@supports 升级——不支持 backdrop-filter 时永不透底。 ===== */
+.site-header { background: var(--glass-fallback); }
+.terminal, .float-chip {
+  background: var(--glass-fallback);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-ambient);
+}
+@supports ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
+  .site-header {
+    background: var(--glass-fill);
+    -webkit-backdrop-filter: blur(var(--glass-blur)); backdrop-filter: blur(var(--glass-blur));
+  }
+  .terminal, .float-chip, pre.code {
+    background: var(--glass-fill); border-color: var(--glass-border);
+    -webkit-backdrop-filter: blur(var(--glass-blur)); backdrop-filter: blur(var(--glass-blur));
+  }
+}
+
+/* ===== 顶部导航（首屏玻璃条：透出氛围层与光斑） ===== */
 .site-header {
   position: sticky; top: 0; z-index: 50;
-  background: var(--surface-1); border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
 }
 .header-inner { display: flex; align-items: center; gap: var(--sp-lg); min-height: var(--sp-2xl); }
 .brand {
   display: inline-flex; align-items: center; gap: var(--sp-xs);
-  color: var(--text); text-decoration: none; font-weight: 600; font-size: var(--size-base);
+  color: var(--ink); text-decoration: none; font-weight: 600; font-size: var(--size-base);
   min-height: var(--min-target); white-space: nowrap;
 }
-.brand:hover { color: var(--text); }
+.brand:hover { color: var(--ink); }
 .brand-mark { flex: none; } /* 尺寸由 SVG width/height 属性给定（品牌资产原始比例，30/24px 两档） */
 .brand-name { font-family: var(--font-mono); font-size: var(--size-sm); }
 .site-nav { margin-left: auto; overflow-x: auto; }
@@ -111,43 +143,64 @@ code, pre, kbd { font-family: var(--font-mono); font-variant-numeric: tabular-nu
   font-size: var(--size-sm); border-bottom: 2px solid transparent; white-space: nowrap;
   transition: color var(--motion-duration) var(--motion-easing), border-color var(--motion-duration) var(--motion-easing);
 }
-.site-nav a:hover { color: var(--text); }
-.site-nav a[aria-current="true"] { color: var(--accent); border-bottom-color: var(--accent); }
+.site-nav a:hover { color: var(--ink); }
+.site-nav a[aria-current="true"] { color: var(--accent-text); border-bottom-color: var(--accent-brand); }
 .site-nav .nav-github { gap: var(--sp-2xs); }
 .site-nav .nav-github svg { flex: none; }
 
-/* ===== Hero（不对称分栏 7/5：文案 × 发光终端面板） ===== */
-.hero { padding-block: var(--sp-3xl); position: relative; overflow: hidden; }
-.hero::before {
-  content: ""; position: absolute; inset: 0; pointer-events: none;
-  background: radial-gradient(at 78% 18%, var(--accent-tint) 0, transparent 45%);
+/* ===== Hero（D7 三层景深舞台：光斑背景 → 玻璃卡群中景 → 实心文案/控件前景；居中舞台构成） ===== */
+.hero {
+  position: relative;
+  padding-block: var(--sp-2xl) var(--sp-3xl);
 }
-.hero-grid {
-  position: relative; display: grid; grid-template-columns: 7fr 5fr;
-  gap: var(--sp-2xl); align-items: center;
+/* 光斑收纳层：无文本的裁切容器（负偏移光斑不外溢、不产生滚动溢出） */
+.hero-backdrop { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+/* 景深第一层·光斑：blur(100px) 级、opacity ≤.35、光源一致（左上偏亮，主卡 glow 向下同源） */
+.hero-blob {
+  position: absolute; border-radius: 50%; aspect-ratio: 1;
+  filter: blur(var(--blob-blur)); pointer-events: none;
 }
+.blob-a { width: 40vw; background: var(--blob-brand); top: -18%; left: -10%; opacity: .35; }
+.blob-b { width: 34vw; background: var(--blob-cool); top: -10%; right: -8%; opacity: .30; }
+.blob-c { width: 28vw; background: var(--blob-brand); bottom: -18%; left: 38%; opacity: .25; }
+.hero-inner { position: relative; }
+.hero-copy { text-align: center; }
 .kicker {
-  font-family: var(--font-mono); font-size: var(--size-xs); color: var(--accent);
-  letter-spacing: 0.02em; display: inline-flex; align-items: center; gap: var(--sp-xs);
+  font-family: var(--font-mono); font-size: var(--size-xs); color: var(--accent-text);
+  letter-spacing: 0.02em; display: inline-flex; align-items: center; gap: var(--sp-sm);
   margin-bottom: var(--sp-lg);
 }
-.kicker::before { content: ""; width: var(--sp-lg); height: 2px; background: var(--accent); }
-.hero h1 { font-size: var(--size-h1); font-weight: 700; max-width: 22ch; text-wrap: balance; }
-.hero h1 em { font-style: normal; color: var(--accent); }
+.kicker::before, .kicker::after { content: ""; width: var(--sp-lg); height: 2px; background: var(--accent-brand); }
+.hero h1 {
+  font-size: var(--size-h1); font-weight: 700; max-width: 18ch;
+  margin-inline: auto; text-wrap: balance;
+}
+.hero h1 em { font-style: normal; color: var(--accent-text); }
+/* 渐变文字：全页仅此 1 处；v7（std-1）：亮端 accent-brand(对氛围+光斑实底最不利仅 2.50:1) 降档为
+   hsl(153 70% 30%)（≈rgb(23 130 82)，对纯白 4.83:1、对最不利氛围光斑底 ≥3:1，52px bold 大字达标）；
+   暗端 accent-deep 不变，渐变观感保留但整体更深。实测值见 round-12 notes（像素取样）。
+   文本仍在 DOM，可访问名称不受影响；不支持 background-clip:text 时回退上面的实色。 */
+@supports ((-webkit-background-clip: text) or (background-clip: text)) {
+  .hero h1 em {
+    background: linear-gradient(115deg, var(--accent-deep), hsl(153 70% 30%));
+    -webkit-background-clip: text; background-clip: text;
+    -webkit-text-fill-color: transparent; color: transparent;
+  }
+}
 .hero-lede {
-  margin-top: var(--sp-lg); font-size: var(--size-lg); color: var(--text-muted);
+  margin: var(--sp-lg) auto 0; font-size: var(--size-lg); color: var(--text-muted);
   max-width: 34em;
 }
 .boundary-note {
-  margin-top: var(--sp-lg);
-  background: var(--surface-1); border: 1px solid var(--line); border-left: 2px solid var(--accent);
+  margin: var(--sp-lg) auto 0; text-align: left;
+  background: var(--surface-solid); border: 1px solid var(--line); border-left: 2px solid var(--accent-brand);
   border-radius: var(--radius-md); padding: var(--sp-sm) var(--sp-md);
   font-size: var(--size-sm); color: var(--text-muted); max-width: 36em;
 }
-.boundary-note strong { color: var(--text); font-weight: 600; }
-.hero-cta { margin-top: var(--sp-xl); display: flex; flex-wrap: wrap; gap: var(--sp-md); }
+.boundary-note strong { color: var(--ink); font-weight: 600; }
+.hero-cta { margin-top: var(--sp-xl); display: flex; flex-wrap: wrap; gap: var(--sp-md); justify-content: center; }
 
-/* 按钮 */
+/* 按钮（前景实心纪律：主按钮 accent-deep 实底 + 白字 ≥5:1） */
 .btn {
   display: inline-flex; align-items: center; justify-content: center; gap: var(--sp-xs);
   min-height: var(--min-target); padding: 0 var(--sp-lg); border-radius: var(--radius-md);
@@ -155,77 +208,89 @@ code, pre, kbd { font-family: var(--font-mono); font-variant-numeric: tabular-nu
   text-decoration: none; cursor: pointer; border: 1px solid transparent;
   transition: background-color var(--motion-duration) var(--motion-easing), border-color var(--motion-duration) var(--motion-easing), color var(--motion-duration) var(--motion-easing);
 }
-.btn-primary { background: var(--accent); color: var(--on-accent); }
-.btn-primary:hover { background: var(--accent-strong); color: var(--on-accent); }
-.btn-primary:active { background: var(--accent); }
-.btn-secondary { background: var(--surface-2); border-color: var(--line-strong); color: var(--text); }
-.btn-secondary:hover { background: var(--surface-3); color: var(--text); }
-.btn-secondary:active { background: var(--surface-2); border-color: var(--line-control); } /* vis-4：按压回落，与 btn-primary 对称 */
+.btn-primary { background: var(--accent-deep); color: var(--on-accent); }
+.btn-primary:hover { background: var(--accent-text); color: var(--on-accent); }
+.btn-primary:active { background: var(--accent-deep); }
+.btn-secondary { background: var(--surface-solid); border-color: var(--line-strong); color: var(--ink); }
+.btn-secondary:hover { background: var(--glass-fallback); border-color: var(--line-control); color: var(--ink); }
+.btn-secondary:active { background: var(--surface-solid); }
 
-/* 终端演示面板（D4 首屏营销位：深色舞台中央发光面板） */
+/* ===== 首屏玻璃卡群（中景层） ===== */
+.hero-stage { position: relative; max-width: 720px; margin: var(--sp-2xl) auto 0; }
+/* 终端演示面板：首屏玻璃卡主角，全页唯一 glow（光源同 blob，向下投射） */
 .terminal {
-  background: var(--surface-1); border: 1px solid var(--line-strong);
-  border-radius: var(--radius-lg);
-  box-shadow: 0 0 var(--sp-3xl) var(--focus-glow);
+  position: relative; z-index: 1;
+  border-radius: var(--radius-xl);
+  box-shadow: var(--glow-brand), var(--shadow-ambient);
 }
 .terminal-bar {
   display: flex; align-items: center; gap: var(--sp-xs);
   padding: var(--sp-sm) var(--sp-md); border-bottom: 1px solid var(--line);
 }
-.terminal-dot { width: var(--sp-xs); height: var(--sp-xs); border-radius: 50%; background: var(--surface-3); }
-.terminal-title { margin-left: var(--sp-xs); font-family: var(--font-mono); font-size: var(--size-xs); color: var(--text-faint); }
+.terminal-dot { width: var(--sp-xs); height: var(--sp-xs); border-radius: 50%; background: var(--line-strong); }
+.terminal-title { margin-left: var(--sp-xs); font-family: var(--font-mono); font-size: var(--size-xs); color: var(--text-muted); }
 .terminal-body {
   padding: var(--sp-md) var(--sp-md) var(--sp-lg); font-family: var(--font-mono);
   font-size: var(--size-xs); line-height: var(--lh-body); color: var(--text-muted);
   overflow-x: auto; font-variant-numeric: tabular-nums;
 }
-.terminal-body .t-cmd { color: var(--text); }
-.terminal-body .t-cmd::before { content: "$ "; color: var(--accent); }
-.terminal-body .t-ok { color: var(--accent); }
+.terminal-body .t-cmd { color: var(--ink); }
+.terminal-body .t-cmd::before { content: "$ "; color: var(--accent-text); }
+.terminal-body .t-ok { color: var(--accent-text); }
 .terminal-body .t-dim { color: var(--text-faint); }
 .terminal-note {
   padding: var(--sp-xs) var(--sp-md); border-top: 1px solid var(--line);
-  font-size: var(--size-xs); color: var(--text-faint);
+  font-size: var(--size-xs); color: var(--text-muted);
 }
+/* 环绕浮动玻璃小卡（纯装饰图形，aria-hidden，不新增文案内容） */
+.float-chip {
+  position: absolute; z-index: 2; display: flex; align-items: center; gap: var(--sp-sm);
+  padding: var(--sp-md) var(--sp-lg); border-radius: var(--radius-lg);
+  color: var(--accent-brand);
+}
+.float-chip svg { flex: none; }
+.chip-a { top: calc(-1 * var(--sp-xl) - var(--sp-xs)); left: calc(-1 * var(--sp-2xl) - var(--sp-xl)); transform: rotate(-4deg); } /* v6（vis-2）：上/左外移，只压终端卡圆角外缘，不遮 terminal-bar 窗点 */
+.chip-b { bottom: calc(-1 * var(--sp-lg)); right: calc(-1 * var(--sp-2xl)); transform: rotate(3deg); }
+.chip-bars { display: grid; gap: var(--sp-xs); }
+.chip-bars i { display: block; width: var(--sp-2xl); height: var(--sp-2xs); border-radius: var(--radius-sm); background: var(--line-strong); }
+.chip-bars i:last-child { width: var(--sp-xl); }
+.chip-cols { display: flex; align-items: flex-end; gap: var(--sp-xs); }
+.chip-cols i { display: block; width: var(--sp-xs); border-radius: var(--radius-sm) var(--radius-sm) 0 0; }
+.chip-cols i:nth-child(1) { height: var(--sp-md); background: var(--blob-cool); }
+.chip-cols i:nth-child(2) { height: var(--sp-xl); background: var(--accent-brand); }
+.chip-cols i:nth-child(3) { height: var(--sp-lg); background: var(--blob-brand); }
 
-/* ===== 通用 section 节奏 ===== */
+/* ===== 通用 section 节奏（透明氛围段 ↔ 实心白段交替，景深贯穿全页） ===== */
 .section { padding-block: var(--sp-3xl); }
-.section-alt { background: var(--surface-1); border-block: 1px solid var(--line); }
+.section-alt { background: var(--surface-solid); border-block: 1px solid var(--line); }
 .section-head { max-width: 35em; margin-bottom: var(--sp-2xl); } /* vis-2：导语行长收窄至 ≈35 汉字/行 */
 .section-label {
-  font-family: var(--font-mono); font-size: var(--size-xs); color: var(--accent);
+  font-family: var(--font-mono); font-size: var(--size-xs); color: var(--accent-text);
   letter-spacing: 0.02em; display: block; margin-bottom: var(--sp-sm);
 }
 .section h2 { font-size: var(--size-h2); font-weight: 700; text-wrap: balance; }
 .section-lede { margin-top: var(--sp-md); color: var(--text-muted); }
 
-/* ===== 核心能力：超大公式 + 编号行 ===== */
-.formula {
-  font-family: var(--font-mono); font-variant-numeric: tabular-nums;
-  font-size: var(--size-display); font-weight: 700; line-height: var(--lh-heading);
-  color: var(--text); margin-bottom: var(--sp-2xl); letter-spacing: -0.01em;
-}
-.formula .f-num { color: var(--accent); }
-.formula .f-label { display: block; font-size: var(--size-sm); font-weight: 400; font-family: var(--font-sans); color: var(--text-faint); letter-spacing: 0.02em; margin-top: var(--sp-xs); }
+/* ===== 核心能力：编号行（图下文字清单，读屏/no-JS 信息不缺失） ===== */
 .capability-list { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--line-strong); }
 .capability-list li {
   display: grid; grid-template-columns: var(--sp-2xl) 1fr 2fr; gap: var(--sp-lg);
   padding-block: var(--sp-lg); border-bottom: 1px solid var(--line); align-items: baseline;
 }
-.cap-index { font-family: var(--font-mono); font-size: var(--size-sm); color: var(--accent); font-variant-numeric: tabular-nums; }
+.cap-index { font-family: var(--font-mono); font-size: var(--size-sm); color: var(--accent-text); font-variant-numeric: tabular-nums; }
 .cap-name { font-size: var(--size-h3); font-weight: 600; }
 .cap-desc { color: var(--text-muted); font-size: var(--size-sm); }
 
-/* ===== 工作流：双模式面板 ===== */
+/* ===== 工作流：双模式面板（正文密集 → 前景实心白卡） ===== */
 .workflow-grid { display: grid; grid-template-columns: 7fr 5fr; gap: var(--sp-lg); align-items: start; }
 .panel {
-  background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--radius-lg);
-  padding: var(--sp-lg);
+  background: var(--surface-solid); border: 1px solid var(--line); border-radius: var(--radius-lg);
+  padding: var(--sp-lg); box-shadow: var(--shadow-ambient);
 }
-.panel h3 { font-size: var(--size-h3); font-weight: 600; display: flex; align-items: center; gap: var(--sp-sm); }
+.panel h3 { font-size: var(--size-h3); font-weight: 600; display: flex; align-items: center; gap: var(--sp-sm); flex-wrap: wrap; }
 .panel-tag {
   font-family: var(--font-mono); font-size: var(--size-xs); font-weight: 400;
-  color: var(--accent); background: var(--accent-tint); border: 1px solid var(--line);
+  color: var(--accent-text); background: var(--accent-tint); border: 1px solid var(--line);
   border-radius: var(--radius-sm); padding: var(--sp-2xs) var(--sp-xs);
 }
 .panel > p { margin-top: var(--sp-sm); color: var(--text-muted); font-size: var(--size-sm); }
@@ -236,7 +301,7 @@ code, pre, kbd { font-family: var(--font-mono); font-variant-numeric: tabular-nu
 }
 .stage-chain li::before {
   content: attr(data-step); position: absolute; left: 0; top: var(--sp-2xs);
-  font-family: var(--font-mono); font-size: var(--size-xs); color: var(--text-muted); /* std-1：surface-2 面板上 --text-faint 仅 4.29:1，改 --text-muted（6.63:1） */
+  font-family: var(--font-mono); font-size: var(--size-xs); color: var(--text-faint);
   font-variant-numeric: tabular-nums;
 }
 .stage-chain li::after {
@@ -244,11 +309,11 @@ code, pre, kbd { font-family: var(--font-mono); font-variant-numeric: tabular-nu
   width: 1px; background: var(--line-strong);
 }
 .stage-chain li:last-child::after { display: none; }
-.stage-chain strong { color: var(--text); font-weight: 600; }
-.stage-chain .gate { color: var(--accent); font-family: var(--font-mono); font-size: var(--size-xs); }
+.stage-chain strong { color: var(--ink); font-weight: 600; }
+.stage-chain .gate { color: var(--accent-text); font-family: var(--font-mono); font-size: var(--size-xs); }
 .quick-points { list-style: none; margin: var(--sp-lg) 0 0; padding: 0; display: grid; gap: var(--sp-sm); }
 .quick-points li { display: flex; gap: var(--sp-xs); font-size: var(--size-sm); color: var(--text-muted); }
-.quick-points svg { flex: none; margin-top: var(--sp-2xs); color: var(--accent); }
+.quick-points svg { flex: none; margin-top: var(--sp-2xs); color: var(--accent-brand); } /* 图形 ≥3:1 达标档 */
 
 /* ===== 平台支持 ===== */
 .platform-table { width: 100%; border-collapse: collapse; }
@@ -257,72 +322,95 @@ code, pre, kbd { font-family: var(--font-mono); font-variant-numeric: tabular-nu
   border-bottom: 1px solid var(--line); font-size: var(--size-sm); vertical-align: top;
 }
 .platform-table th { color: var(--text-faint); font-weight: 500; font-size: var(--size-xs); border-bottom-color: var(--line-strong); }
-.platform-table td:first-child { color: var(--text); font-weight: 600; white-space: nowrap; }
+.platform-table td:first-child { color: var(--ink); font-weight: 600; white-space: nowrap; }
 .badge {
   display: inline-flex; align-items: center; gap: var(--sp-2xs);
   font-family: var(--font-mono); font-size: var(--size-xs);
   padding: var(--sp-2xs) var(--sp-xs); border-radius: var(--radius-sm);
   border: 1px solid var(--line-strong); color: var(--text-muted); white-space: nowrap;
+  background: var(--surface-solid);
 }
-.badge-verified { color: var(--accent); border-color: var(--line-strong); background: var(--accent-tint); }
+.badge-verified { color: var(--accent-text); border-color: var(--line-strong); background: var(--accent-tint); }
+/* v6（vis-5）：≤640px 第三列隐藏时，说明文字折入第二列下方小字（td 内 span.mobile-desc），
+   读屏与视觉都不丢内容；桌面/平板保持三列，此 span 不渲染。 */
+.mobile-desc { display: none; }
 .honesty-callout {
-  margin-top: var(--sp-lg); background: var(--surface-1); border: 1px solid var(--line);
-  border-left: 2px solid var(--accent); border-radius: var(--radius-md);
+  margin-top: var(--sp-lg); background: var(--surface-solid); border: 1px solid var(--line);
+  border-left: 2px solid var(--accent-brand); border-radius: var(--radius-md);
   padding: var(--sp-md) var(--sp-lg); color: var(--text-muted); font-size: var(--size-sm); max-width: 38em; /* vis-2：同步收窄 ≈38 汉字/行 */
 }
-.honesty-callout strong { color: var(--text); }
+.honesty-callout strong { color: var(--ink); }
+
+/* v6（vis-3）：中后页景深回声——快速开始与平台表两处低成本光斑（静止、无动画；
+   光源方向与首屏一致：左上偏亮；opacity ≤.2 级，正文对比复测不受影响）。 */
+.depth-backdrop { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+.has-depth { position: relative; }
+.has-depth > .container { position: relative; }
+.blob-platforms { width: 70vw; background: var(--blob-brand); top: -12%; left: -18%; opacity: .18; }
+.blob-quickstart { width: 44vw; background: var(--blob-cool); top: 0; left: -8%; opacity: .22; }
+/* v7（vis-2）：玻璃回声增强——step-2 代码块正后方一枚小半径高不透明度光斑（blob-brand 16vw、opacity .35、
+   静止无 keyframes、光源同左上），让 backdrop blur 有可见边界可模糊。小半径光斑按比例收小模糊半径
+   （64px，仍柔和无硬边），否则 100px 模糊会把 ≈230px 的光斑完全摊平。z-index:-1 + 锚点 z-index:0
+   限定在锚点栈内垫底：玻璃/实色兜底两种渲染路径下都在代码块之下、白色段落底之上。 */
+.step-glow-anchor { position: relative; z-index: 0; }
+.code-echo {
+  position: absolute; z-index: -1; top: 24px; left: -48px;
+  width: 16vw; min-width: 180px; max-width: 240px; aspect-ratio: 1; border-radius: 50%;
+  background: var(--blob-brand); opacity: .35; filter: blur(64px); pointer-events: none;
+}
 
 /* ===== 快速开始 ===== */
-.steps { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--sp-lg); max-width: 45em; }
+.steps { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--sp-lg); max-width: 38em; } /* v7（vis-3）：45em→38em，与 section-head 行长语言统一 */
 .steps > li { display: grid; grid-template-columns: var(--sp-xl) 1fr; gap: var(--sp-md); }
 .steps > li > div { min-width: 0; }
 .step-num {
-  font-family: var(--font-mono); font-size: var(--size-sm); color: var(--accent);
+  font-family: var(--font-mono); font-size: var(--size-sm); color: var(--accent-text);
   border: 1px solid var(--line-strong); border-radius: 50%;
   width: var(--sp-xl); height: var(--sp-xl); display: inline-flex; align-items: center; justify-content: center;
-  font-variant-numeric: tabular-nums;
+  font-variant-numeric: tabular-nums; background: var(--surface-solid);
 }
 .steps h3 { font-size: var(--size-base); font-weight: 600; padding-top: var(--sp-xs); }
 .steps p { margin-top: var(--sp-2xs); font-size: var(--size-sm); color: var(--text-muted); }
 pre.code {
-  margin: var(--sp-sm) 0 0; background: var(--bg); border: 1px solid var(--line);
+  margin: var(--sp-sm) 0 0; background: var(--glass-fallback); border: 1px solid var(--line);
   border-radius: var(--radius-md); padding: var(--sp-md);
-  font-size: var(--size-sm); line-height: var(--lh-body); color: var(--text); overflow-x: auto;
+  font-size: var(--size-sm); line-height: var(--lh-body); color: var(--ink); overflow-x: auto;
+  box-shadow: var(--shadow-ambient); /* v6（vis-3）：升级玻璃四件套（fill/blur 见 @supports 玻璃层），实色兜底不变 */
 }
 pre.code .c-dim { color: var(--text-faint); }
 .exit-codes { margin: var(--sp-sm) 0 0; padding: 0; list-style: none; font-size: var(--size-sm); color: var(--text-muted); display: grid; gap: var(--sp-2xs); }
-.exit-codes code { color: var(--accent); font-size: var(--size-xs); }
+.exit-codes code { color: var(--accent-text); font-size: var(--size-xs); }
 
-/* 命令生成器 */
+/* 命令生成器（页面核心表单 → 前景实心白卡，D7 前景纪律） */
 .generator {
-  margin-top: var(--sp-2xl); background: var(--surface-2); border: 1px solid var(--line-strong);
-  border-radius: var(--radius-lg); padding: var(--sp-lg);
+  margin-top: var(--sp-2xl); background: var(--surface-solid); border: 1px solid var(--line);
+  border-radius: var(--radius-lg); padding: var(--sp-lg); box-shadow: var(--shadow-ambient);
 }
 .generator h3 { font-size: var(--size-h3); font-weight: 600; }
 .generator > p { margin-top: var(--sp-xs); font-size: var(--size-sm); color: var(--text-muted); }
 .gen-form { margin-top: var(--sp-lg); display: grid; gap: var(--sp-lg); }
 .field label, .field-legend {
-  display: block; font-size: var(--size-sm); font-weight: 600; color: var(--text);
+  display: block; font-size: var(--size-sm); font-weight: 600; color: var(--ink);
   margin-bottom: var(--sp-2xs); padding: 0;
 }
 .field-hint { font-size: var(--size-xs); color: var(--text-muted); margin-bottom: var(--sp-xs); }
 .field input[type="text"], .field select {
   width: 100%; max-width: 32em; height: var(--field-height);
-  background: var(--surface-1); color: var(--text);
-  border: 1px solid var(--line-control); border-radius: var(--radius-md); /* std-2：控件边界 ≥3:1 */
+  background: var(--surface-solid); color: var(--ink);
+  border: 1px solid var(--line-control); border-radius: var(--radius-md); /* tokens v4 统一控件边界，对白 5.78:1（≥3:1） */
   padding: 0 var(--sp-sm); font-size: var(--size-base); font-family: var(--font-mono);
   transition: border-color var(--motion-duration) var(--motion-easing), box-shadow var(--motion-duration) var(--motion-easing);
 }
 .field select { font-family: var(--font-sans); }
 .field input[type="text"]::placeholder { color: var(--text-faint); }
 .field input[type="text"]:focus, .field select:focus {
-  border-color: var(--accent); box-shadow: 0 0 0 3px var(--focus-glow);
+  border-color: var(--focus-ring); box-shadow: 0 0 0 3px var(--focus-glow);
 }
 .field input[aria-invalid="true"] { border-color: var(--danger); }
 .field-error {
   display: flex; gap: var(--sp-xs); align-items: flex-start;
   margin-top: var(--sp-xs); font-size: var(--size-sm); color: var(--danger);
-  background: var(--surface-1); border: 1px solid var(--line);
+  background: var(--danger-tint); border: 1px solid var(--line);
   border-left: 2px solid var(--danger);
   border-radius: var(--radius-sm); padding: var(--sp-xs) var(--sp-sm); max-width: 32em;
 }
@@ -332,51 +420,172 @@ fieldset.field { border: 0; margin: 0; padding: 0; }
 .platform-options label {
   display: inline-flex; align-items: center; gap: var(--sp-xs);
   min-height: var(--min-target); padding: 0 var(--sp-md);
-  background: var(--surface-1); border: 1px solid var(--line-control); /* vis-1：chip 边界与输入框统一用控件线阶 */
+  background: var(--surface-solid); border: 1px solid var(--line-control);
   border-radius: var(--radius-md); font-size: var(--size-sm); color: var(--text-muted);
   cursor: pointer; font-weight: 400; margin: 0;
-  transition: border-color var(--motion-duration) var(--motion-easing), color var(--motion-duration) var(--motion-easing);
+  transition: border-color var(--motion-duration) var(--motion-easing), color var(--motion-duration) var(--motion-easing), background-color var(--motion-duration) var(--motion-easing);
 }
-.platform-options label:hover { border-color: var(--accent); color: var(--text); }
+.platform-options label:hover { border-color: var(--accent-text); color: var(--ink); }
 .platform-options input[type="checkbox"] {
-  width: var(--sp-lg); height: var(--sp-lg); accent-color: var(--accent); margin: 0;
+  width: var(--sp-lg); height: var(--sp-lg); accent-color: var(--accent-deep); margin: 0;
 }
-.platform-options label:has(input:checked) { border-color: var(--accent); color: var(--text); background: var(--accent-tint); }
+.platform-options label:has(input:checked) { border-color: var(--accent-text); color: var(--accent-deep); background: var(--accent-tint); }
 .gen-output { margin-top: var(--sp-lg); }
-.gen-output h4 { margin: 0 0 var(--sp-xs); font-size: var(--size-sm); font-weight: 600; color: var(--text); }
+.gen-output h4 { margin: 0 0 var(--sp-xs); font-size: var(--size-sm); font-weight: 600; color: var(--ink); }
 .gen-output pre { margin-top: 0; }
 .copy-row { margin-top: var(--sp-sm); display: flex; align-items: center; gap: var(--sp-md); flex-wrap: wrap; }
-.copy-status { font-size: var(--size-sm); color: var(--accent); }
+.copy-status { font-size: var(--size-sm); color: var(--accent-text); }
 .copy-status.is-error { color: var(--danger); }
 
 /* ===== 文档导航 ===== */
 .doc-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--sp-lg); }
 .doc-card {
-  display: block; background: var(--surface-2); border: 1px solid var(--line);
-  border-radius: var(--radius-lg); padding: var(--sp-lg);
-  text-decoration: none; color: var(--text);
+  display: block; background: var(--surface-solid); border: 1px solid var(--line);
+  border-radius: var(--radius-lg); padding: var(--sp-lg); box-shadow: var(--shadow-ambient);
+  text-decoration: none; color: var(--ink);
   transition: border-color var(--motion-duration) var(--motion-easing), background-color var(--motion-duration) var(--motion-easing);
 }
-.doc-card:hover { border-color: var(--accent); background: var(--surface-3); color: var(--text); }
+.doc-card:hover { border-color: var(--accent-brand); background: var(--surface-solid); color: var(--ink); }
 .doc-card h3 { font-size: var(--size-base); font-weight: 600; display: flex; align-items: center; gap: var(--sp-xs); }
-.doc-card h3 svg { color: var(--accent); flex: none; }
+.doc-card h3 svg { color: var(--accent-brand); flex: none; } /* 图形档 */
 .doc-card p { margin-top: var(--sp-xs); font-size: var(--size-sm); color: var(--text-muted); }
 .doc-card .doc-path { display: inline-block; margin-top: var(--sp-sm); font-family: var(--font-mono); font-size: var(--size-xs); color: var(--text-muted); }
+
+/* ===== 核心能力流水线图（内联 SVG，与 D7 玻璃语言同源：浅玻璃节点 + accent 描边） =====
+   静态完成态是默认态；动效见下方动效层（html.fx-on 门控）。桌面横向管线 >960px，
+   ≤960px 换纵向重排的独立 SVG（display 切换，隐藏侧不进可访问性树）。 */
+.pipeline { margin: 0 0 var(--sp-2xl); }
+.pipeline svg { display: block; width: 100%; height: auto; }
+.pipeline svg.pipeline-mobile { display: none; max-width: 440px; }
+.pl-pipe { fill: none; stroke: var(--accent-brand); stroke-width: 2; stroke-linecap: round; } /* 图形描边 ≥3:1 档 */
+.pl-dash { fill: none; stroke: var(--accent-text); stroke-width: 2; stroke-dasharray: 5 5; opacity: .8; } /* v6（std-1）：.55→.8；v7（std-2/vis-4）：stroke-width 1.5→2，抗锯齿摊薄后渲染值仍 ≥3:1（round-12 像素复测） */
+/* v6（vis-1）：节点底 .55→.92 不透明白，主管线不再从节点文字底下透过；玻璃语言由 accent 描边与浅色保留 */
+.pl-node rect { fill: rgb(255 255 255 / .92); stroke: var(--accent-brand); stroke-width: 1.5; }
+.pl-node.pl-strong rect { fill: hsl(153 37% 94%); stroke: var(--accent-deep); stroke-width: 2; } /* accent-tint 复合白底的实色等值（管线穿行节点，不透底） */
+.pl-node.pl-solid rect { fill: var(--surface-solid); stroke: var(--line-strong); stroke-width: 1.5; }
+.pl-node.pl-lib rect { fill: rgb(255 255 255 / .4); stroke: var(--accent-text); stroke-width: 1.5; stroke-dasharray: 6 4; }
+.pl-t { fill: var(--ink); font-family: var(--font-sans); font-size: var(--size-sm); font-weight: 600; }
+.pl-sub { fill: var(--text-muted); font-family: var(--font-sans); font-size: var(--size-xs); font-weight: 400; }
+.pl-idx { fill: var(--accent-text); font-family: var(--font-mono); font-size: var(--size-xs); letter-spacing: .08em; paint-order: stroke; stroke: var(--bg); stroke-width: 4px; stroke-linejoin: round; }
+.pl-idx-bg { fill: rgb(255 255 255 / .92); } /* v7（vis-1）：窄视口标注骑 x=170 主管线处垫与节点同语言的白底小 rect，消除 halo 毛边 */
+.pl-mono { font-family: var(--font-mono); }
+.pl-arrow { fill: var(--accent-brand); }
+.pl-badge { transform-box: fill-box; transform-origin: center; }
+.pl-badge circle { fill: var(--accent-deep); }
+.pl-badge path { fill: none; stroke: var(--on-accent); stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+.p-dot { fill: var(--accent-deep); opacity: 0; } /* 工件点：仅动效播放期可见，静态帧以质量门 ✓ 表达终态 */
+
+/* ===== 动效层（v5）：只用 transform/opacity，全部效果以静态完成态为默认。
+   html.fx-on 由脚本仅在「非自动化(navigator.webdriver)且 prefers-reduced-motion:
+   no-preference 且支持 IntersectionObserver」时添加——无 JS、减少动效、
+   截图/检查环境一律直接呈现完整内容（CLS=0，动画纯增强不承载信息）。 ===== */
+.site-header { transition: box-shadow 200ms var(--motion-easing); }
+.site-header.scrolled { box-shadow: var(--shadow-ambient); }
+@media (prefers-reduced-motion: no-preference) {
+  /* 1) 背景光斑极慢漂移（幅度 ≤6vw；will-change 仅给光斑；光源方向不变） */
+  @keyframes blob-drift-a { to { transform: translate3d(5vw, 3vw, 0); } }
+  @keyframes blob-drift-b { to { transform: translate3d(-4vw, 4vw, 0); } }
+  @keyframes blob-drift-c { to { transform: translate3d(4vw, -3vw, 0); } }
+  .blob-a { will-change: transform; animation: blob-drift-a 48s ease-in-out infinite alternate; }
+  .blob-b { will-change: transform; animation: blob-drift-b 56s ease-in-out infinite alternate; }
+  .blob-c { will-change: transform; animation: blob-drift-c 42s ease-in-out infinite alternate; }
+  /* 浮动玻璃小卡轻微悬浮（装饰） */
+  @keyframes chip-bob-a { from { transform: rotate(-4deg) translateY(0); } to { transform: rotate(-4deg) translateY(-8px); } }
+  @keyframes chip-bob-b { from { transform: rotate(3deg) translateY(0); } to { transform: rotate(3deg) translateY(-8px); } }
+  .chip-a { animation: chip-bob-a 7s ease-in-out infinite alternate; }
+  .chip-b { animation: chip-bob-b 8.5s ease-in-out infinite alternate; }
+
+  /* 2) 入场/滚动进场（一次性 fade-up ≤12px，480ms，stagger 经 --fx-delay） */
+  html.fx-on .fx { opacity: 0; transform: translateY(12px); }
+  html.fx-on .fx.fx-in {
+    opacity: 1; transform: none;
+    transition: opacity 480ms var(--motion-easing), transform 480ms var(--motion-easing);
+    transition-delay: var(--fx-delay, 0ms);
+  }
+
+  /* 3) 终端验收演示逐行播放（延时接力 ≤4s，播完停住；面板 role=img 语义不变） */
+  html.fx-on .terminal-body > div { opacity: 0; transform: translateY(6px); }
+  html.fx-on .terminal.play .terminal-body > div {
+    animation: fx-line-in 300ms var(--motion-easing) forwards;
+    animation-delay: var(--d, 0ms);
+  }
+  @keyframes fx-line-in { to { opacity: 1; transform: none; } }
+
+  /* 4) 流水线：管线描线生长（pathLength=1 归一）→ 节点依次点亮 → 工件点沿管线
+        流至质量门 → ✓ 弹出；总时长 ≤5s，播完即完整态。 */
+  html.fx-on .pipeline .pl-pipe { stroke-dasharray: 1; stroke-dashoffset: 1; }
+  html.fx-on .pipeline.play .pl-pipe { animation: fx-draw 700ms var(--motion-easing) forwards; animation-delay: var(--d, 0ms); }
+  @keyframes fx-draw { to { stroke-dashoffset: 0; } }
+  html.fx-on .pipeline .pl-node { opacity: 0; transform: translateY(8px); }
+  html.fx-on .pipeline.play .pl-node { animation: fx-node-in 420ms var(--motion-easing) forwards; animation-delay: var(--d, 0ms); }
+  @keyframes fx-node-in { to { opacity: 1; transform: none; } }
+  html.fx-on .pipeline .pl-dash, html.fx-on .pipeline .pl-idx, html.fx-on .pipeline .pl-idx-bg, html.fx-on .pipeline .pl-arrow { opacity: 0; }
+  html.fx-on .pipeline.play .pl-dash, html.fx-on .pipeline.play .pl-idx, html.fx-on .pipeline.play .pl-idx-bg, html.fx-on .pipeline.play .pl-arrow {
+    animation: fx-fade-in 500ms var(--motion-easing) forwards; animation-delay: var(--d, 0ms);
+  }
+  @keyframes fx-fade-in { to { opacity: 1; } }
+  html.fx-on .pipeline.play .pl-dash { animation-name: fx-dash-in; }
+  @keyframes fx-dash-in { to { opacity: .8; } }
+  html.fx-on .pipeline .pl-badge { opacity: 0; transform: scale(.4); }
+  html.fx-on .pipeline.play .pl-badge { animation: fx-pop 320ms var(--motion-easing) forwards; animation-delay: var(--d, 0ms); }
+  @keyframes fx-pop { to { opacity: 1; transform: scale(1); } }
+  /* 工件点沿管线流动：offset-path 不支持时点保持透明，静态完整图不受影响 */
+  @supports (offset-path: path("M 0 0 H 1")) {
+    html.fx-on .pipeline-desktop .p-dot { offset-path: path("M 12 62 H 1030 V 216 H 610"); offset-rotate: 0deg; }
+    html.fx-on .pipeline-mobile .p-dot { offset-path: path("M 170 20 V 576"); offset-rotate: 0deg; }
+    html.fx-on .pipeline.play .p-dot { animation: fx-flow 2400ms ease-in-out forwards; animation-delay: 2000ms; }
+  }
+  @keyframes fx-flow {
+    0% { offset-distance: 0%; opacity: 0; }
+    6% { opacity: 1; }
+    92% { opacity: 1; }
+    100% { offset-distance: 100%; opacity: 0; }
+  }
+
+  /* 5) 交互微反馈（100–300ms）：卡片微抬+阴影增强、按钮按压、输出区展开 */
+  .doc-card {
+    transition: border-color var(--motion-duration) var(--motion-easing),
+      box-shadow var(--motion-duration) var(--motion-easing),
+      transform var(--motion-duration) var(--motion-easing);
+  }
+  .doc-card:hover { transform: translateY(-3px); box-shadow: 0 14px 40px rgb(10 45 35 / 0.14); }
+  .btn {
+    transition: background-color var(--motion-duration) var(--motion-easing),
+      border-color var(--motion-duration) var(--motion-easing),
+      color var(--motion-duration) var(--motion-easing),
+      transform 120ms var(--motion-easing);
+  }
+  .btn:hover { transform: translateY(-1px); }
+  .btn:active { transform: translateY(0) scale(.985); }
+  .platform-options label:hover { transform: translateY(-1px); }
+  .platform-options label {
+    transition: border-color var(--motion-duration) var(--motion-easing),
+      color var(--motion-duration) var(--motion-easing),
+      background-color var(--motion-duration) var(--motion-easing),
+      transform 120ms var(--motion-easing);
+  }
+  .gen-output:not([hidden]) { animation: fx-rise 240ms var(--motion-easing); }
+  @keyframes fx-rise { from { opacity: 0; transform: translateY(8px); } }
+}
 
 /* ===== 页脚 ===== */
 .site-footer { border-top: 1px solid var(--line); padding-block: var(--sp-xl); }
 .footer-inner { display: flex; flex-wrap: wrap; gap: var(--sp-md) var(--sp-xl); align-items: baseline; justify-content: space-between; }
-.site-footer p { font-size: var(--size-xs); color: var(--text-faint); max-width: 40em; }
-.site-footer .brand-name { color: var(--text-muted); }
+.site-footer p { font-size: var(--size-xs); color: var(--text-muted); max-width: 40em; }
+.site-footer .brand-name { color: var(--ink); }
 .footer-brand { display: inline-flex; align-items: center; gap: var(--sp-xs); vertical-align: middle; }
 
 /* ===== 响应式 ===== */
 @media (max-width: 960px) {
-  .hero-grid, .workflow-grid { grid-template-columns: 1fr; }
+  .workflow-grid { grid-template-columns: 1fr; }
   .doc-grid { grid-template-columns: 1fr; }
   .capability-list li { grid-template-columns: var(--sp-xl) 1fr; }
   .capability-list .cap-desc { grid-column: 2; }
-  .formula { font-size: var(--size-h1); }
+  .pipeline svg.pipeline-desktop { display: none; }
+  .pipeline svg.pipeline-mobile { display: block; margin-inline: auto; }
+  .float-chip { display: none; } /* 窄视口收起环绕装饰卡，玻璃主角保留 */
+  .blob-a, .blob-b, .blob-c { width: 70vw; }
+  .blob-quickstart { width: 80vw; }
 }
 @media (max-width: 640px) {
   .section, .hero { padding-block: var(--sp-2xl); }
@@ -390,6 +599,7 @@ fieldset.field { border: 0; margin: 0; padding: 0; }
   .site-nav a { padding: var(--sp-xs); font-size: var(--size-xs); }
   .capability-list li { grid-template-columns: var(--sp-xl) 1fr; gap: var(--sp-sm); }
   .platform-table th:nth-child(3), .platform-table td:nth-child(3) { display: none; }
+  .mobile-desc { display: block; margin-top: var(--sp-xs); font-size: var(--size-xs); color: var(--text-muted); font-family: var(--font-sans); white-space: normal; }
   .platform-table td:first-child { white-space: normal; }
   .badge { white-space: normal; }
   .steps > li { grid-template-columns: 1fr; }
@@ -414,7 +624,7 @@ fieldset.field { border: 0; margin: 0; padding: 0; }
       </svg>
       <span class="brand-name">beansmile-design</span>
     </a>
-    <nav class="site-nav" aria-label="页面章节">
+    <nav class="site-nav" aria-label="主导航">
       <ul>
         <li><a href="#capabilities" data-section="capabilities">核心能力</a></li>
         <li><a href="#workflow" data-section="workflow">工作流</a></li>
@@ -429,37 +639,51 @@ fieldset.field { border: 0; margin: 0; padding: 0; }
 
 <main id="main" tabindex="-1">
 
-  <!-- ===== Hero ===== -->
+  <!-- ===== Hero（D7 三层景深舞台：氛围光斑 → 玻璃卡群 → 实心文案与控件；居中舞台构成） ===== -->
   <section class="hero" id="top" aria-labelledby="hero-title">
-    <div class="container hero-grid">
-      <div>
-        <p class="kicker">DESIGN AGENT RUNTIME · 运行在 Codex / Claude 中</p>
-        <h1 id="hero-title">把设计过程变成<em>可验证</em>的交付</h1>
-        <p class="hero-lede">beansmile-design 从业务目标、用户任务和目标平台出发，把产品需求转化为可点击、响应式、高保真的 HTML 原型，以及包含决策依据、截图、评审结果和验收报告的可审计交付包。</p>
-        <p class="boundary-note">
+    <div class="hero-backdrop" aria-hidden="true">
+      <div class="hero-blob blob-a"></div>
+      <div class="hero-blob blob-b"></div>
+      <div class="hero-blob blob-c"></div>
+    </div>
+    <div class="container hero-inner">
+      <div class="hero-copy">
+        <p class="kicker fx" style="--fx-delay:0ms">DESIGN AGENT RUNTIME · 运行在 Codex / Claude 中</p>
+        <h1 id="hero-title" class="fx" style="--fx-delay:90ms">把设计过程变成<em>可验证</em>的交付</h1>
+        <p class="hero-lede fx" style="--fx-delay:180ms">beansmile-design 从业务目标、用户任务和目标平台出发，把产品需求转化为可点击、响应式、高保真的 HTML 原型，以及包含决策依据、截图、评审结果和验收报告的可审计交付包。</p>
+        <p class="boundary-note fx" style="--fx-delay:270ms">
           <strong>边界声明</strong>：它不是生产前端框架，也不直接生成生产级 Web、原生 App 或小程序代码。项目重点解决的是设计过程的一致性、可追溯性和质量验收。
         </p>
-        <div class="hero-cta">
+        <div class="hero-cta fx" style="--fx-delay:360ms">
           <a class="btn btn-primary" href="#quickstart">快速开始</a>
           <a class="btn btn-secondary" href="#docs">阅读文档</a>
         </div>
       </div>
-      <div class="terminal" role="img" aria-label="验收命令输出示意：npm run accept 的各项质量门全部通过，结论行显示验收通过 6/6 维度全绿">
-        <div class="terminal-bar" aria-hidden="true">
-          <span class="terminal-dot"></span><span class="terminal-dot"></span><span class="terminal-dot"></span>
-          <span class="terminal-title">acceptance — outputs/demo</span>
+      <div class="hero-stage fx" style="--fx-delay:460ms">
+        <div class="float-chip chip-a" aria-hidden="true">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg>
+          <span class="chip-bars"><i></i><i></i></span>
         </div>
-        <div class="terminal-body" aria-hidden="true">
-          <div class="t-cmd">npm run accept -- --package outputs/demo</div>
-          <div><span class="t-ok">✓</span> 上下文与字段权限 <span class="t-dim">context.yaml 合法</span></div>
-          <div><span class="t-ok">✓</span> 阶段转换与确认门 <span class="t-dim">记录完整</span></div>
-          <div><span class="t-ok">✓</span> 浏览器行为检查 <span class="t-dim">0 阻断信号</span></div>
-          <div><span class="t-ok">✓</span> 版本快照绑定 <span class="t-dim">artifact_version 一致</span></div>
-          <div><span class="t-ok">✓</span> 规范审计 + 视觉评审 <span class="t-dim">2/2 只读评审通过</span></div>
-          <div><span class="t-ok">✓</span> 最终交付完整性 <span class="t-dim">产物齐备</span></div>
-          <div class="t-ok">验收通过：6/6 维度全绿</div>
+        <div class="terminal" role="img" aria-label="验收命令输出示意：npm run accept 的各项质量门全部通过，结论行显示验收通过 6/6 维度全绿">
+          <div class="terminal-bar" aria-hidden="true">
+            <span class="terminal-dot"></span><span class="terminal-dot"></span><span class="terminal-dot"></span>
+            <span class="terminal-title">acceptance — outputs/demo</span>
+          </div>
+          <div class="terminal-body" aria-hidden="true">
+            <div class="t-cmd" style="--d:400ms">npm run accept -- --package outputs/demo</div>
+            <div style="--d:850ms"><span class="t-ok">✓</span> 上下文与字段权限 <span class="t-dim">context.yaml 合法</span></div>
+            <div style="--d:1300ms"><span class="t-ok">✓</span> 阶段转换与确认门 <span class="t-dim">记录完整</span></div>
+            <div style="--d:1750ms"><span class="t-ok">✓</span> 浏览器行为检查 <span class="t-dim">0 阻断信号</span></div>
+            <div style="--d:2200ms"><span class="t-ok">✓</span> 版本快照绑定 <span class="t-dim">artifact_version 一致</span></div>
+            <div style="--d:2650ms"><span class="t-ok">✓</span> 规范审计 + 视觉评审 <span class="t-dim">2/2 只读评审通过</span></div>
+            <div style="--d:3100ms"><span class="t-ok">✓</span> 最终交付完整性 <span class="t-dim">产物齐备</span></div>
+            <div class="t-ok" style="--d:3600ms">验收通过：6/6 维度全绿</div>
+          </div>
+          <p class="terminal-note">示意输出：实际维度与结论以本地运行 npm run accept 为准。</p>
         </div>
-        <p class="terminal-note">示意输出：实际维度与结论以本地运行 npm run accept 为准。</p>
+        <div class="float-chip chip-b" aria-hidden="true">
+          <span class="chip-cols"><i></i><i></i><i></i></span>
+        </div>
       </div>
     </div>
   </section>
@@ -467,12 +691,183 @@ fieldset.field { border: 0; margin: 0; padding: 0; }
   <!-- ===== 核心能力 ===== -->
   <section class="section" id="capabilities" aria-labelledby="capabilities-title">
     <div class="container">
-      <div class="section-head">
+      <div class="section-head fx">
         <span class="section-label">01 · CORE</span>
         <h2 id="capabilities-title">核心能力：五个组成，一条流水线</h2>
         <p class="section-lede">Skill 提示层写下的每一条质量承诺，都有对应的机器门禁强制执行；创作与评审分离，避免创作方自行判定通过。</p>
       </div>
-      <p class="formula"><span class="f-num">1</span> + <span class="f-num">5</span> + <span class="f-num">2</span><span class="f-label">1 个 Design Director · 5 个流程 Skills · 2 个只读评审</span></p>
+      <!-- 流水线可视化：桌面横向 SVG + 窄视口纵向 SVG（display 切换）。整图 role=img 携带完整
+           顺序描述；五组成的文字清单保留在下方 capability-list（读屏 / no-JS 信息不缺失）。
+           动效（描线生长/节点接力点亮/工件点流动）由 html.fx-on + .play 门控，静态即完整态。 -->
+      <figure class="pipeline" id="pipeline">
+        <svg class="pipeline-desktop" viewBox="0 0 1072 470" role="img" aria-label="核心能力流水线示意：需求进入后由 Design Director 调度并把守确认门，依次经过需求研究、UX 架构、视觉系统、HTML 原型、决策记录五个流程 Skill 工位，产物冻结为版本快照，交由 standards 与 visual 两个互不可见的只读评审并行评审，汇合到可执行质量门 acceptance，验收通过后产出可审计交付包；版本化依据库作为下方支撑层，为评审与决策记录提供 WCAG、平台规范、设计工艺与行业规则依据。">
+          <!-- 主管线：需求 → Director → 5 工位 → 下行 → 快照 -->
+          <path class="pl-pipe" pathLength="1" style="--d:0ms" d="M 12 62 H 1014 Q 1030 62 1030 78 V 200 Q 1030 216 1014 216 H 884"/>
+          <!-- 双评审并行分叉与汇合 -->
+          <path class="pl-pipe" pathLength="1" style="--d:900ms" d="M 884 216 C 860 216 862 164 838 164 H 832"/>
+          <path class="pl-pipe" pathLength="1" style="--d:900ms" d="M 884 216 C 860 216 862 276 838 276 H 832"/>
+          <path class="pl-pipe" pathLength="1" style="--d:1050ms" d="M 660 164 C 636 164 638 216 614 216 H 610"/>
+          <path class="pl-pipe" pathLength="1" style="--d:1050ms" d="M 660 276 C 636 276 638 216 614 216 H 610"/>
+          <!-- 质量门 → 交付包 -->
+          <path class="pl-pipe" pathLength="1" style="--d:1500ms" d="M 470 216 H 436"/>
+          <polygon class="pl-arrow" style="--d:1650ms" points="436,209 436,223 423,216"/>
+          <!-- 依据库支撑层连线（虚线）：上连双评审；沿右缘上连决策记录 -->
+          <path class="pl-dash" style="--d:2100ms" d="M 745 372 V 304"/>
+          <path class="pl-dash" style="--d:2100ms" d="M 990 404 H 1048 V 84 H 984"/>
+          <!-- 分组标注（1 + 5 + 2 记忆点融入图内） -->
+          <text class="pl-idx" style="--d:150ms" x="148" y="12">1 × DIRECTOR</text>
+          <text class="pl-idx" style="--d:320ms" x="338" y="12">5 × 流程 SKILL 工位</text>
+          <text class="pl-idx" style="--d:1150ms" x="746" y="226" text-anchor="middle">2 × 只读评审 · 互不可见</text>
+          <!-- 节点 -->
+          <g class="pl-node pl-solid" style="--d:0ms">
+            <rect x="12" y="22" width="96" height="80" rx="12"/>
+            <text class="pl-t" x="60" y="58" text-anchor="middle">需求进入</text>
+            <text class="pl-sub" x="60" y="78" text-anchor="middle">任务与目标</text>
+          </g>
+          <g class="pl-node pl-strong" style="--d:150ms">
+            <rect x="148" y="22" width="150" height="80" rx="12"/>
+            <text class="pl-t" x="223" y="58" text-anchor="middle">Design Director</text>
+            <text class="pl-sub" x="223" y="78" text-anchor="middle">调度 · 确认门 · 裁决</text>
+          </g>
+          <g class="pl-node" style="--d:320ms">
+            <rect x="338" y="22" width="118" height="80" rx="12"/>
+            <text class="pl-t" x="397" y="58" text-anchor="middle">需求研究</text>
+            <text class="pl-sub pl-mono" x="397" y="78" text-anchor="middle">brief.md</text>
+          </g>
+          <g class="pl-node" style="--d:440ms">
+            <rect x="470" y="22" width="118" height="80" rx="12"/>
+            <text class="pl-t" x="529" y="58" text-anchor="middle">UX 架构</text>
+            <text class="pl-sub pl-mono" x="529" y="78" text-anchor="middle">flows.md</text>
+          </g>
+          <g class="pl-node" style="--d:560ms">
+            <rect x="602" y="22" width="118" height="80" rx="12"/>
+            <text class="pl-t" x="661" y="58" text-anchor="middle">视觉系统</text>
+            <text class="pl-sub pl-mono" x="661" y="78" text-anchor="middle">tokens.json</text>
+          </g>
+          <g class="pl-node" style="--d:680ms">
+            <rect x="734" y="22" width="118" height="80" rx="12"/>
+            <text class="pl-t" x="793" y="58" text-anchor="middle">HTML 原型</text>
+            <text class="pl-sub pl-mono" x="793" y="78" text-anchor="middle">prototype/</text>
+          </g>
+          <g class="pl-node" style="--d:800ms">
+            <rect x="866" y="22" width="118" height="80" rx="12"/>
+            <text class="pl-t" x="925" y="58" text-anchor="middle">决策记录</text>
+            <text class="pl-sub pl-mono" x="925" y="78" text-anchor="middle">decisions.md</text>
+          </g>
+          <g class="pl-node" style="--d:950ms">
+            <rect x="880" y="176" width="110" height="80" rx="12"/>
+            <text class="pl-t" x="935" y="212" text-anchor="middle">快照冻结</text>
+            <text class="pl-sub pl-mono" x="935" y="230" text-anchor="middle">snapshots/5</text>
+          </g>
+          <g class="pl-node" style="--d:1150ms">
+            <rect x="660" y="136" width="172" height="56" rx="10"/>
+            <text class="pl-t" x="746" y="160" text-anchor="middle">standards 评审</text>
+            <text class="pl-sub" x="746" y="180" text-anchor="middle">规范审计 · 只读快照</text>
+          </g>
+          <g class="pl-node" style="--d:1270ms">
+            <rect x="660" y="248" width="172" height="56" rx="10"/>
+            <text class="pl-t" x="746" y="272" text-anchor="middle">visual 评审</text>
+            <text class="pl-sub" x="746" y="292" text-anchor="middle">视觉评审 · 只读快照</text>
+          </g>
+          <g class="pl-node pl-strong" style="--d:1400ms">
+            <rect x="470" y="176" width="140" height="80" rx="12"/>
+            <text class="pl-t" x="540" y="212" text-anchor="middle">可执行质量门</text>
+            <text class="pl-sub pl-mono" x="540" y="230" text-anchor="middle">npm run accept</text>
+          </g>
+          <g class="pl-node pl-solid" style="--d:1650ms">
+            <rect x="250" y="176" width="170" height="80" rx="12"/>
+            <text class="pl-t" x="335" y="212" text-anchor="middle">可审计交付包</text>
+            <text class="pl-sub" x="335" y="230" text-anchor="middle">验收通过 · 出厂</text>
+          </g>
+          <g class="pl-node pl-lib" style="--d:1900ms">
+            <rect x="560" y="372" width="430" height="64" rx="12"/>
+            <text class="pl-t" x="775" y="398" text-anchor="middle">版本化依据库</text>
+            <text class="pl-sub" x="775" y="418" text-anchor="middle">WCAG · 平台规范 · 设计工艺 · 行业规则包</text>
+          </g>
+          <!-- 质量门 ✓ 徽章（工件点抵达后弹出） -->
+          <g class="pl-badge" style="--d:4350ms">
+            <circle cx="604" cy="182" r="13"/>
+            <path d="M 598 182 l 4 4 l 8 -8"/>
+          </g>
+          <!-- 工件点（沿管线流动，播放期可见） -->
+          <circle class="p-dot" r="7"/>
+        </svg>
+        <svg class="pipeline-mobile" viewBox="0 0 340 744" role="img" aria-label="核心能力流水线示意：需求进入后由 Design Director 调度并把守确认门，依次经过需求研究、UX 架构、视觉系统、HTML 原型、决策记录五个流程 Skill 工位，产物冻结为版本快照，交由 standards 与 visual 两个互不可见的只读评审并行评审，汇合到可执行质量门 acceptance，验收通过后产出可审计交付包；版本化依据库作为支撑层，为评审与决策记录提供 WCAG、平台规范、设计工艺与行业规则依据。">
+          <path class="pl-pipe" pathLength="1" style="--d:0ms" d="M 170 20 V 638"/>
+          <!-- 支撑层虚线：左缘连通决策记录、双评审与依据库 -->
+          <path class="pl-dash" style="--d:2100ms" d="M 40 388 H 24 V 708 H 40"/>
+          <path class="pl-dash" style="--d:2100ms" d="M 40 512 H 24"/>
+          <text class="pl-idx" style="--d:150ms" x="40" y="74">1 × DIRECTOR</text>
+          <!-- v7（vis-1）：两条骑 x=170 主竖管线的标注垫白底小 rect（与节点 .92 白同语言），管线在标注区间被遮蔽，无 halo 毛边 -->
+          <rect class="pl-idx-bg" style="--d:320ms" x="36" y="136" width="162" height="19" rx="4"/>
+          <text class="pl-idx" style="--d:320ms" x="40" y="150">5 × 流程 SKILL 工位</text>
+          <rect class="pl-idx-bg" style="--d:1150ms" x="36" y="464" width="183" height="19" rx="4"/>
+          <text class="pl-idx" style="--d:1150ms" x="40" y="478">2 × 只读评审 · 互不可见</text>
+          <g class="pl-node pl-solid" style="--d:0ms">
+            <rect x="40" y="16" width="260" height="40" rx="10"/>
+            <text class="pl-t" x="170" y="41" text-anchor="middle">需求进入</text>
+          </g>
+          <g class="pl-node pl-strong" style="--d:150ms">
+            <rect x="40" y="84" width="260" height="48" rx="10"/>
+            <text class="pl-t" x="170" y="104" text-anchor="middle">Design Director</text>
+            <text class="pl-sub" x="170" y="124" text-anchor="middle">调度 · 确认门 · 裁决</text>
+          </g>
+          <g class="pl-node" style="--d:320ms">
+            <rect x="40" y="160" width="260" height="40" rx="10"/>
+            <text class="pl-t" x="170" y="185" text-anchor="middle">需求研究</text>
+          </g>
+          <g class="pl-node" style="--d:440ms">
+            <rect x="40" y="212" width="260" height="40" rx="10"/>
+            <text class="pl-t" x="170" y="237" text-anchor="middle">UX 架构</text>
+          </g>
+          <g class="pl-node" style="--d:560ms">
+            <rect x="40" y="264" width="260" height="40" rx="10"/>
+            <text class="pl-t" x="170" y="289" text-anchor="middle">视觉系统</text>
+          </g>
+          <g class="pl-node" style="--d:680ms">
+            <rect x="40" y="316" width="260" height="40" rx="10"/>
+            <text class="pl-t" x="170" y="341" text-anchor="middle">HTML 原型</text>
+          </g>
+          <g class="pl-node" style="--d:800ms">
+            <rect x="40" y="368" width="260" height="40" rx="10"/>
+            <text class="pl-t" x="170" y="393" text-anchor="middle">决策记录</text>
+          </g>
+          <g class="pl-node" style="--d:950ms">
+            <rect x="40" y="420" width="260" height="40" rx="10"/>
+            <text class="pl-t" x="170" y="445" text-anchor="middle">快照冻结</text>
+          </g>
+          <g class="pl-node" style="--d:1150ms">
+            <rect x="40" y="488" width="124" height="48" rx="10"/>
+            <text class="pl-t" x="102" y="508" text-anchor="middle">standards</text>
+            <text class="pl-sub" x="102" y="527" text-anchor="middle">规范审计</text>
+          </g>
+          <g class="pl-node" style="--d:1270ms">
+            <rect x="176" y="488" width="124" height="48" rx="10"/>
+            <text class="pl-t" x="238" y="508" text-anchor="middle">visual</text>
+            <text class="pl-sub" x="238" y="527" text-anchor="middle">视觉评审</text>
+          </g>
+          <g class="pl-node pl-strong" style="--d:1400ms">
+            <rect x="40" y="552" width="260" height="48" rx="10"/>
+            <text class="pl-t" x="170" y="572" text-anchor="middle">可执行质量门</text>
+            <text class="pl-sub pl-mono" x="170" y="592" text-anchor="middle">npm run accept</text>
+          </g>
+          <g class="pl-node pl-solid" style="--d:1650ms">
+            <rect x="40" y="616" width="260" height="44" rx="10"/>
+            <text class="pl-t" x="170" y="634" text-anchor="middle">可审计交付包</text>
+            <text class="pl-sub" x="170" y="653" text-anchor="middle">验收通过 · 出厂</text>
+          </g>
+          <g class="pl-node pl-lib" style="--d:1900ms">
+            <rect x="40" y="684" width="260" height="48" rx="10"/>
+            <text class="pl-t" x="170" y="704" text-anchor="middle">版本化依据库</text>
+            <text class="pl-sub" x="170" y="724" text-anchor="middle">WCAG · 平台规范 · 工艺 · 行业</text>
+          </g>
+          <g class="pl-badge" style="--d:4350ms">
+            <circle cx="288" cy="556" r="11"/>
+            <path d="M 283 556 l 3.5 3.5 l 7 -7"/>
+          </g>
+          <circle class="p-dot" r="6"/>
+        </svg>
+      </figure>
       <ul class="capability-list">
         <li>
           <span class="cap-index">01</span>
@@ -506,13 +901,13 @@ fieldset.field { border: 0; margin: 0; padding: 0; }
   <!-- ===== 工作流 ===== -->
   <section class="section section-alt" id="workflow" aria-labelledby="workflow-title">
     <div class="container">
-      <div class="section-head">
+      <div class="section-head fx">
         <span class="section-label">02 · WORKFLOW</span>
         <h2 id="workflow-title">工作流：专业模式与快速模式</h2>
         <p class="section-lede">两种模式共享同一套质量门。快速模式缩短确认过程，但硬性质量要求一条不少。</p>
       </div>
       <div class="workflow-grid">
-        <div class="panel">
+        <div class="panel fx" style="--fx-delay:0ms">
           <h3>专业模式 <span class="panel-tag">--mode professional</span></h3>
           <p>完整阶段链：三个用户确认门、执行候选竞争与双评审，适合范围复杂、需要逐步对齐的设计任务。</p>
           <ol class="stage-chain">
@@ -524,7 +919,7 @@ fieldset.field { border: 0; margin: 0; padding: 0; }
             <li data-step="6"><strong>最终验收</strong> → npm run accept 逐维度机器判定</li>
           </ol>
         </div>
-        <div class="panel">
+        <div class="panel fx" style="--fx-delay:100ms">
           <h3>快速模式 <span class="panel-tag">--mode quick</span></h3>
           <p>适用于范围明确的简单页面：缩短需求和视觉方向的确认过程，直达原型与评审。</p>
           <ul class="quick-points">
@@ -539,9 +934,10 @@ fieldset.field { border: 0; margin: 0; padding: 0; }
   </section>
 
   <!-- ===== 平台支持 ===== -->
-  <section class="section" id="platforms" aria-labelledby="platforms-title">
+  <section class="section has-depth" id="platforms" aria-labelledby="platforms-title">
+    <div class="depth-backdrop" aria-hidden="true"><div class="hero-blob blob-platforms"></div></div>
     <div class="container">
-      <div class="section-head">
+      <div class="section-head fx">
         <span class="section-label">03 · PLATFORMS</span>
         <h2 id="platforms-title">平台支持与验证边界</h2>
         <p class="section-lede">支持 5 类目标平台，验证能力如实分级——能被浏览器自动化验证的和只能近似表达的，界限写清楚。</p>
@@ -554,27 +950,27 @@ fieldset.field { border: 0; margin: 0; padding: 0; }
         <tbody>
           <tr>
             <td>Web</td>
-            <td><span class="badge badge-verified">完整浏览器自动化检查</span></td>
+            <td><span class="badge badge-verified">完整浏览器自动化检查</span><span class="mobile-desc">axe 扫描、键盘可达、重排、截图与核心任务场景执行全链路。</span></td>
             <td>axe 扫描、键盘可达、重排、截图与核心任务场景执行全链路。</td>
           </tr>
           <tr>
             <td>响应式移动 Web</td>
-            <td><span class="badge badge-verified">完整浏览器自动化检查</span></td>
+            <td><span class="badge badge-verified">完整浏览器自动化检查</span><span class="mobile-desc">与 Web 相同的自动化检查链路，覆盖移动视口。</span></td>
             <td>与 Web 相同的自动化检查链路，覆盖移动视口。</td>
           </tr>
           <tr>
             <td>iOS App</td>
-            <td><span class="badge">HTML 近似 + 人工清单</span></td>
+            <td><span class="badge">HTML 近似 + 人工清单</span><span class="mobile-desc">以 HTML 近似原型表达，系统控件与原生行为需人工清单或真机验证。</span></td>
             <td>以 HTML 近似原型表达，系统控件与原生行为需人工清单或真机验证。</td>
           </tr>
           <tr>
             <td>Android App</td>
-            <td><span class="badge">HTML 近似 + 人工清单</span></td>
+            <td><span class="badge">HTML 近似 + 人工清单</span><span class="mobile-desc">同上：无法由 HTML 忠实验证的部分显式标注，不假装通过。</span></td>
             <td>同上：无法由 HTML 忠实验证的部分显式标注，不假装通过。</td>
           </tr>
           <tr>
             <td>微信小程序</td>
-            <td><span class="badge">HTML 近似 + 人工清单</span></td>
+            <td><span class="badge">HTML 近似 + 人工清单</span><span class="mobile-desc">原生手势、安全区和运行时行为需要人工清单或真机验证。</span></td>
             <td>原生手势、安全区和运行时行为需要人工清单或真机验证。</td>
           </tr>
         </tbody>
@@ -584,9 +980,10 @@ fieldset.field { border: 0; margin: 0; padding: 0; }
   </section>
 
   <!-- ===== 快速开始 ===== -->
-  <section class="section section-alt" id="quickstart" aria-labelledby="quickstart-title">
+  <section class="section section-alt has-depth" id="quickstart" aria-labelledby="quickstart-title">
+    <div class="depth-backdrop" aria-hidden="true"><div class="hero-blob blob-quickstart"></div></div>
     <div class="container">
-      <div class="section-head">
+      <div class="section-head fx">
         <span class="section-label">04 · QUICKSTART</span>
         <h2 id="quickstart-title">快速开始</h2>
         <p class="section-lede">环境要求：Node.js 18 或更高版本、npm，以及 Chrome 或由 Playwright 安装的 Chromium。以下命令都在仓库根目录执行。</p>
@@ -603,7 +1000,8 @@ fieldset.field { border: 0; margin: 0; padding: 0; }
         </li>
         <li>
           <span class="step-num" aria-hidden="true">2</span>
-          <div>
+          <div class="step-glow-anchor">
+            <span class="code-echo" aria-hidden="true"></span>
             <h3>验证运行环境</h3>
             <p>env:check 会真实启动一次浏览器，而不只是检查依赖是否存在。</p>
             <pre class="code"><code>npm run check
@@ -689,23 +1087,23 @@ npm run env:check</code></pre>
   <!-- ===== 文档导航 ===== -->
   <section class="section" id="docs" aria-labelledby="docs-title">
     <div class="container">
-      <div class="section-head">
+      <div class="section-head fx">
         <span class="section-label">05 · DOCS</span>
         <h2 id="docs-title">文档导航</h2>
         <p class="section-lede">按角色分入口：执行设计任务看使用指南，维护和扩展项目看开发指南。</p>
       </div>
       <div class="doc-grid">
-        <a class="doc-card" href="https://github.com/xifengzhu/beansmile-design/blob/main/docs/usage.md">
+        <a class="doc-card fx" style="--fx-delay:0ms" href="https://github.com/xifengzhu/beansmile-design/blob/main/docs/usage.md">
           <h3><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>使用指南</h3>
           <p>完整工作流（专业/快速模式与确认门）、常用命令、交付包结构、平台验证边界。</p>
           <span class="doc-path">docs/usage.md</span>
         </a>
-        <a class="doc-card" href="https://github.com/xifengzhu/beansmile-design/blob/main/docs/development.md">
+        <a class="doc-card fx" style="--fx-delay:90ms" href="https://github.com/xifengzhu/beansmile-design/blob/main/docs/development.md">
           <h3><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 18l6-6-6-6"/><path d="M8 6l-6 6 6 6"/></svg>开发指南</h3>
           <p>项目结构、核心契约（单一事实源、门禁、版本绑定）、开发与扩展入口、测试与验收。</p>
           <span class="doc-path">docs/development.md</span>
         </a>
-        <a class="doc-card" href="https://github.com/xifengzhu/beansmile-design/blob/main/skills/registry.yaml">
+        <a class="doc-card fx" style="--fx-delay:180ms" href="https://github.com/xifengzhu/beansmile-design/blob/main/skills/registry.yaml">
           <h3><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>Skill 注册表</h3>
           <p>1 个 Director、5 个流程 Skill 与 2 个只读评审的唯一注册表，含 Schema 目录入口。</p>
           <span class="doc-path">skills/registry.yaml</span>
@@ -731,6 +1129,42 @@ npm run env:check</code></pre>
 <script>
 (function () {
   "use strict";
+
+  /* ---- 动效门控（v5）：仅「真实用户 + 允许动效 + 支持 IntersectionObserver」才启用。
+     navigator.webdriver（截图/浏览器检查等自动化）、prefers-reduced-motion: reduce、
+     无 JS 三种情形一律不加 fx-on——页面直接呈现静态完成态，动画纯增强不承载信息。
+     本段在首帧渲染前同步执行（脚本在 body 末尾阻塞解析），无闪烁；只动 transform/opacity，CLS 为 0。 ---- */
+  try {
+    var reduceMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (!navigator.webdriver && !reduceMotion && "IntersectionObserver" in window) {
+      document.documentElement.classList.add("fx-on");
+      var fxIO = new IntersectionObserver(function (entries) {
+        entries.forEach(function (entry) {
+          if (!entry.isIntersecting) return;
+          var el = entry.target;
+          if (el.classList.contains("terminal") || el.classList.contains("pipeline")) el.classList.add("play");
+          else el.classList.add("fx-in");
+          fxIO.unobserve(el); /* 一次性：滚动往返不再触发 */
+        });
+      }, { rootMargin: "0px 0px -8% 0px", threshold: 0.1 });
+      document.querySelectorAll(".fx").forEach(function (el) { fxIO.observe(el); });
+      var term = document.querySelector(".terminal");
+      if (term) fxIO.observe(term);
+      var pipe = document.getElementById("pipeline");
+      if (pipe) fxIO.observe(pipe);
+      /* sticky 导航滚动后加投影强化玻璃底：观察页首 1px 哨兵，不挂 scroll 监听 */
+      var header = document.querySelector(".site-header");
+      if (header) {
+        var sentinel = document.createElement("div");
+        sentinel.setAttribute("aria-hidden", "true");
+        sentinel.style.cssText = "position:absolute;top:0;left:0;width:1px;height:1px;pointer-events:none;";
+        document.body.prepend(sentinel);
+        new IntersectionObserver(function (entries) {
+          header.classList.toggle("scrolled", !entries[0].isIntersecting);
+        }).observe(sentinel);
+      }
+    }
+  } catch (e) { /* 动效是增强，不阻断 */ }
 
   /* ---- 锚点导航当前节高亮 ---- */
   try {

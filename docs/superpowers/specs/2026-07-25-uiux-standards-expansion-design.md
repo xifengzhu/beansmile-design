@@ -1,7 +1,8 @@
 # UI/UX 规范库分层扩展设计
 
 日期：2026-07-25
-状态：已完成对话确认，待书面复核
+评审修订：2026-07-26
+状态：已按首轮书面复核修订，待用户确认
 
 ## 1. 背景
 
@@ -146,7 +147,8 @@ project:
 
 `init-project.mjs` 新增 `--reference-system`，默认 `none`。现有 context 需要补写
 `reference_system: none` 后才能通过新版 schema；本项目已有门禁升级后拒绝旧产物的
-惯例，因此不保留静默兼容分支。
+惯例，因此不保留静默兼容分支。这里的“拒绝旧产物”只约束主动使用新版运行时重验，
+不追溯撤销已经 delivered 的历史验收结论；完整迁移语义见第 9.1 节。
 
 激活顺序由共享函数 `applicableRules(project, rules, packs)` 统一计算：
 
@@ -155,7 +157,7 @@ project:
 3. 返回规则 ID、来源文件、规则包 ID 和规则卡规范化哈希。
 
 `record-findings.mjs`、`acceptance.mjs` 和测试不得各自重新实现筛选逻辑。未激活的
-参考系统规则不进入覆盖矩阵，也不得在专业模式的 `decisions.md` 中冒充当前设计依据。
+参考系统规则不进入覆盖矩阵，也不得在任何模式的 `decisions.md` 中冒充当前设计依据。
 
 ## 7. 首批规则内容
 
@@ -245,33 +247,104 @@ Carbon 的具体 token 同样只在该包激活时作为推荐值，不覆盖品
 
 ### 8.2 决策记录
 
-专业模式选择非 `none` 主参考系统时，`decisions.md` 至少有一条 `[rule:<id>]` 引用该
-系统包，并说明选择理由。规则包已激活但零引用，验收失败。引用未激活系统的规则也
-失败，除非该条仅出现在显式比较记录且不进入 `context.decisions[].rule_ids`。
+任何模式选择非 `none` 主参考系统时，`decisions.md` 都至少有一条 `[rule:<id>]` 引用
+该系统包，并说明选择理由。规则包已激活但零引用，验收失败。引用未激活系统的规则
+也失败，除非该条仅出现在显式比较记录且不进入 `context.decisions[].rule_ids`。
 
-### 8.3 冻结规则快照
+快速模式与专业模式使用同一套规则激活、规则快照和 standards `rule_coverage`，不得
+因为省略研究报告、候选竞争或阶段确认而跳过规范审计。快速模式只保留主规范已声明
+的流程豁免，不豁免主参考系统的决策引用门；未选择主参考系统时使用
+`reference_system: none`，自然没有系统包引用要求。
+
+### 8.3 机器生成覆盖模板与评审成本控制
+
+当前 Web/移动 Web 基础适用集已有 48 条规则。补全 WCAG、APG 和内容/国际化后，要求
+reviewer 从空白手写完整 `rule_coverage` 会造成高 token 成本和漏列返工。因此
+`applicableRules()` 的结果必须在评审前生成确定性的覆盖模板，而不是只把规则文件交给
+reviewer 自行枚举。
+
+`review-scope.yaml` 新增 `rule_coverage_template`，每条包含：
+
+```yaml
+- rule_id: wcag-1.4.3-contrast-minimum
+  pack_id: foundation-wcag
+  rule_sha256: string
+  expected_check_method: mixed
+  state: prefilled_automated | review_required
+  result: pass | fail | null
+  checked_via: automated | screenshot | code | manual_checklist | null
+  evidence: string | null
+  not_applicable_candidate:
+    value: false
+    reason: null
+```
+
+- 模板按规则 ID 稳定排序，完整列出当前快照全部适用规则；reviewer 无权增加、删除、
+  重排或改写 `rule_id`、`pack_id` 和规则哈希。
+- 只有存在明确“规则 ID → 浏览器检查项”映射、`results.json` 与当前页面哈希一致且检查
+  已实际执行时，机器才可生成 `prefilled_automated` 的 result、checked_via 和实测证据。
+  纯人工或混合规则不得用静态声明冒充自动通过。
+- 机器可以根据冻结原型的结构化清单标记 `not_applicable_candidate`，例如原型没有音频、
+  视频、表格或复合控件；候选只是提示，不能直接成为最终 `not_applicable`。reviewer
+  必须确认范围并填写证据，或改回实际核查。
+- standards reviewer 不再从空白构造覆盖矩阵，只对 `review_required` 行返回 result、
+  checked_via 和 evidence，并为所有 fail 行返回对应 finding。Director 用受控脚本把
+  reviewer 更新合并进模板，再按现有 findings schema 落盘完整 `rule_coverage`。
+- 合并脚本拒绝缺行、额外行、重复行、修改锁定字段、覆盖自动证据来源或遗留 null。
+- `review-scope.yaml` 记录 `total_rules`、`automated_prefilled`、`review_required` 和
+  `not_applicable_candidates`，最终报告同步显示这四项，让规则库扩张的实际人工成本
+  可观测。首批不增加多 reviewer 分片；模板落地后的实测人工行数再决定是否需要分片。
+
+这套模板只减少枚举和重复转录成本，不降低人工规则的证据要求，也不把“机器猜测不
+适用”当作审计结论。
+
+### 8.4 冻结规则与评审输入
 
 `snapshot.mjs` 在 `audit/snapshots/<artifact_version>/rules/` 写入：
 
 - 激活规则卡的只读副本。
 - `rules-manifest.json`：规则包 ID、规则 ID、来源文件、规范化 sha256、生成时间。
-- `review-scope.yaml`：目标平台、行业、主参考系统和激活规则 ID。
+- `review-scope.yaml`：目标平台、行业、主参考系统、激活规则 ID、覆盖模板和成本统计。
 
-Standards Audit 只读取冻结快照中的原型和规则，不读取仓库当前规则。`record-findings`
-和 acceptance 必须以 `rules-manifest.json` 的规则集合校验 `rule_coverage`。规则库升级
-不会追溯改变旧快照的适用规则集；原型修改或主动升级规则集都必须创建新
-`artifact_version` 并重新评审。
+Standards Audit 和 Visual Review 都只读取冻结快照中的原型、规则和 review scope，
+不得读取仓库当前 `evidence/rules/`。Standards Audit 的 coverage 必须逐条绑定冻结规则；
+Visual Review 不提交 coverage，但其 finding 中非空 `rule_id` 必须在冻结规则 manifest
+中解析，主参考系统的视觉一致性也以冻结规则为准。这样两个 reviewer 都不会因仓库
+规则升级产生漂移。
 
-### 8.4 验收
+`record-findings` 和 acceptance 必须以 `rules-manifest.json` 的规则集合校验
+`rule_coverage` 与 visual findings 的规则引用。规则库升级不会追溯改变旧快照的适用
+规则集；原型修改或主动升级规则集都必须创建新 `artifact_version` 并重新评审。
 
-最终验收新增三项：
+### 8.5 验收
+
+最终验收新增四项：
 
 - `规则包激活`：context、注册表、激活规则和快照 manifest 一致。
 - `主参考系统依据`：选定系统包至少一条规则实际参与设计决策。
 - `规范版本绑定`：findings 的覆盖集合与冻结规则 manifest 完全一致，无缺失、额外
   或哈希漂移。
+- `覆盖模板闭合`：所有 template 行已由可信自动证据或 reviewer 更新闭合，无 null、
+  锁定字段修改或未经确认的 `not_applicable_candidate`。
 
-## 9. 失败与降级处理
+## 9. 存量迁移、失败与降级
+
+### 9.1 已 delivered 历史包的迁移语义
+
+- 新 schema 和新规则门只约束采用本次扩展版本创建或主动重验的交付包，不追溯改变
+  已 delivered 包在原运行时、原规则集和原 acceptance report 下形成的历史结论。
+- 历史包留在磁盘且不执行新版命令时无需修改；“不符合当前 schema”表示尚未迁移，
+  不表示历史报告被撤销或当时的结论自动失效。
+- 历史包主动使用新版运行时重新验收时必须显式迁移：先在 context 补写
+  `reference_system: none` 或重新确认的主参考系统，再提升 `artifact_version`、重新生成
+  规则快照和覆盖模板，并完成双评审。只补 context 字段可以通过新 schema，但不足以
+  通过新版完整 acceptance。
+- 例如 `outputs/personal-homepage` 不迁移时保留原历史结论；要用新版重跑时，至少先补
+  `reference_system: none`，随后按上一条重新 snapshot、review 和 accept。
+- 新版校验遇到未迁移历史包时输出“需要迁移后重验”，不得写成“历史交付非法”或
+  静默替它填入 `none`。
+
+### 9.2 失败与降级处理
 
 - context 引用未知主参考系统：schema 失败，不自动回退。
 - 注册表引用缺失文件、空包、重复文件或非法来源 host：`npm run check` 失败。
@@ -298,6 +371,8 @@ Standards Audit 只读取冻结快照中的原型和规则，不读取仓库当�
 - 平台、行业与主参考系统同时过滤正确，行业下划线归一逻辑保持兼容。
 - 未激活规则不要求进入 coverage；已激活规则缺一条即失败。
 - 引用未激活系统规则、激活系统零决策引用均失败。
+- 快速模式和专业模式激活相同规则、生成相同 coverage；快速模式选择非 `none` 系统
+  但 decisions 零引用时同样失败。
 
 ### 10.3 WCAG 完整性
 
@@ -307,12 +382,22 @@ Standards Audit 只读取冻结快照中的原型和规则，不读取仓库当�
 
 ### 10.4 快照绑定
 
-- 快照包含激活规则副本、manifest 和 review scope，哈希可复算。
+- 快照包含激活规则副本、manifest、review scope 和完整 coverage template，哈希可复算。
 - 快照后修改仓库规则不会改变旧快照的适用集。
 - 篡改快照规则、额外 coverage、遗漏 coverage 和跨版本 findings 全部被拒绝。
+- Standards 和 Visual reviewer 引用当前仓库规则而非冻结规则时被拒绝；visual finding
+  引用 manifest 外 rule ID 时被拒绝。
+- 自动预填仅接受与当前页面哈希绑定的明确检查映射；伪造映射、遗留 null、漏行、增行、
+  重复行、改锁定字段和未确认的 N/A 候选全部被拒绝。
 - 修改原型或升级规则集后必须提升 `artifact_version`。
 
-### 10.5 完整验证
+### 10.5 存量迁移
+
+- 已 delivered 历史包不运行新版命令时不被追溯重验。
+- 未迁移历史包运行新版校验时得到明确迁移提示，不自动写入 `reference_system`。
+- 补字段但沿用旧快照/findings 仍失败；补字段、升版、重做快照和双评审后才能通过。
+
+### 10.6 完整验证
 
 提交前运行：
 
@@ -329,12 +414,13 @@ npm run validate:rules
 1. 增加规则包 schema、注册表、共享激活函数和 context 字段。
 2. 把现有 8 个规则文件登记到规则包注册表，保证现有选择行为不变。
 3. 增加规则快照 manifest 与评审绑定，消除规则库升级造成的历史漂移。
-4. 建立 WCAG 2.2 A/AA 完整性索引并补齐缺失规则。
-5. 增加 WAI-ARIA APG 与内容/认知/国际化基础规则。
-6. 增加 Ant Design 和 Carbon 两个可选主参考包。
-7. 同步 Director、Research、Visual、Prototype、Decision、Standards Skill 文案。
-8. 更新 README 和主设计规范，以新门禁版本记录此次扩展。
-9. 跑完整测试和至少一个 `reference_system=ant_design`、一个 `carbon`、一个 `none`
+4. 增加 coverage template、可信自动证据预填、N/A 候选和受控合并脚本。
+5. 建立 WCAG 2.2 A/AA 完整性索引并补齐缺失规则。
+6. 增加 WAI-ARIA APG 与内容/认知/国际化基础规则。
+7. 增加 Ant Design 和 Carbon 两个可选主参考包。
+8. 同步 Director、Research、Visual、Prototype、Decision、Standards Skill 文案。
+9. 更新 README、主设计规范和存量包迁移说明，以新门禁版本记录此次扩展。
+10. 跑完整测试和至少一个 `reference_system=ant_design`、一个 `carbon`、一个 `none`
    的交付包激活冒烟验证。
 
 ## 12. 完成标准
@@ -345,6 +431,11 @@ npm run validate:rules
 - Ant 与 Carbon 规则只在各自被选中时进入生成、快照、评审和验收。
 - 内容、认知和国际化规则成为 Web/移动 Web 基础适用集。
 - 规则快照和 findings 绑定当前 `artifact_version`，规则库后续升级不污染历史结论。
+- 机器预生成完整 coverage template，可信自动检查直接带入实测证据，人工 reviewer 不再
+  从空白枚举规则；N/A 候选必须人工确认，成本统计进入最终报告。
+- 快速模式与专业模式使用同一规则集合和主参考系统引用门。
+- Standards 与 Visual 两个 reviewer 的所有规则引用都绑定冻结规则 manifest。
+- 已 delivered 历史包不追溯失效，主动用新版重验时必须显式迁移并重做版本化证据。
 - 规则包选中但未参与决策、来源不可信、覆盖缺失和冲突未裁决均会被机器门拒绝。
 - `npm run check`、`npm test`、`npm run validate:rules` 全部通过。
 - 文档明确声明：规则覆盖和自动检查提高设计下限，但不单独证明视觉水准或真实原生

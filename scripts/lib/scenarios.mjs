@@ -17,6 +17,9 @@ export const STEP_ACTIONS = {
 // 断言目标黑名单（规范 24.3）："页面存在"不构成任务完成证明。
 const TRIVIAL_TARGETS = new Set(["body", "html", "*", ":root"]);
 const INTERACTIONS = new Set(["fill", "click", "press"]);
+// 断言目标必须带具体定位标记（#id/.class/[attr]，规范 27.11）：裸标签选择器
+// （main/header/section…）在任何静态页上恒真，等于把任务证明退化成页面加载检查。
+const SPECIFIC_SELECTOR = /[#.\[]/;
 
 // 返回 { scenarios, errors }；errors 非空即定义不合法（验收按 fail 处理）。
 export function loadScenarios(pkgRoot) {
@@ -43,7 +46,11 @@ export function loadScenarios(pkgRoot) {
     if (!s?.name) errors.push(`${where} 缺 name`);
     if (!["success", "error"].includes(s?.kind)) errors.push(`${where} kind 须为 success|error`);
     if (!s?.flow) errors.push(`${where} 缺 flow（须逐字引用 flows.md 中的核心任务名，规范 24.3）`);
-    else if (flowsText !== null && !flowsText.includes(s.flow)) {
+    // flow 引用必须实质（规范 27.11）："#"、单字符等碎片能匹配任何 Markdown，
+    // 子串命中就失去"绑定 IA 文档里真实任务"的意义。
+    else if (String(s.flow).trim().length < 4 || !/[\p{L}\p{N}]/u.test(s.flow)) {
+      errors.push(`${where} flow "${s.flow}" 过短或无实义字符——须逐字引用 flows.md 中的核心任务名（≥4 字符，规范 27.11）`);
+    } else if (flowsText !== null && !flowsText.includes(s.flow)) {
       errors.push(`${where} flow "${s.flow}" 未出现在 flows.md 中——场景必须证明 IA 文档里真实存在的任务`);
     }
     if (!s?.page) errors.push(`${where} 缺 page（相对 prototype/ 的路径）`);
@@ -53,8 +60,13 @@ export function loadScenarios(pkgRoot) {
       const req = STEP_ACTIONS[st?.action];
       if (!req) { errors.push(`${where}.steps[${j}] 未知 action: ${st?.action}`); continue; }
       for (const k of req) if (st[k] === undefined || st[k] === "") errors.push(`${where}.steps[${j}] (${st.action}) 缺 ${k}`);
-      if (String(st?.action).startsWith("expect_") && TRIVIAL_TARGETS.has(String(st?.selector ?? "").trim().toLowerCase())) {
-        errors.push(`${where}.steps[${j}] 断言目标 "${st.selector}" 只证明页面存在，不证明任务完成（规范 24.3）`);
+      if (String(st?.action).startsWith("expect_")) {
+        const sel = String(st?.selector ?? "").trim();
+        if (TRIVIAL_TARGETS.has(sel.toLowerCase())) {
+          errors.push(`${where}.steps[${j}] 断言目标 "${st.selector}" 只证明页面存在，不证明任务完成（规范 24.3）`);
+        } else if (sel && !SPECIFIC_SELECTOR.test(sel)) {
+          errors.push(`${where}.steps[${j}] 断言目标 "${st.selector}" 是裸标签选择器——须带 #id/.class/[attr] 定位到具体组件，地标/裸标签在静态页恒真（规范 27.11）`);
+        }
       }
     }
     if (!s.steps.some((st) => String(st?.action).startsWith("expect_"))) {

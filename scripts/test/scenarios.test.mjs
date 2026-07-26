@@ -78,6 +78,27 @@ test("断言目标为 body/html → 拒绝（页面存在不证明任务完成�
   rmSync(dir, { recursive: true, force: true });
 });
 
+test("对抗：flow 为 '#' 等碎片子串 → 拒绝（任何 Markdown 都含 #，不构成任务绑定，规范 27.11）", () => {
+  const dir = makePkg([
+    { ...GOOD[0], flow: "#" },
+    { ...GOOD[1], flow: "。，！" }, // 无实义字符
+  ]);
+  const { errors } = loadScenarios(dir);
+  assert.equal(errors.filter((s) => s.includes("过短或无实义字符")).length, 2);
+  rmSync(dir, { recursive: true, force: true });
+});
+
+test("对抗：断言目标为裸标签/地标选择器（main/section）→ 拒绝（静态页恒真，规范 27.11）", () => {
+  const dir = makePkg([
+    { ...GOOD[0], steps: [{ action: "click", selector: "main" }, { action: "expect_visible", selector: "main" }] },
+    { ...GOOD[1], steps: [{ action: "click", selector: "button" }, { action: "expect_text", selector: "section", text: "x" }] },
+  ]);
+  const { errors } = loadScenarios(dir);
+  assert.equal(errors.filter((s) => s.includes("裸标签选择器")).length, 2);
+  // 带 #id/.class/[attr] 的具体定位不受影响（GOOD 用例已在正向测试覆盖）
+  rmSync(dir, { recursive: true, force: true });
+});
+
 test("零交互场景（纯 expect）→ 拒绝（加载检查不是任务场景）", () => {
   const dir = makePkg([
     { ...GOOD[0], steps: [{ action: "expect_visible", selector: "[role=status]" }] },

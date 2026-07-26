@@ -21,6 +21,8 @@ import { sharedCssIssues } from "./lib/css-dup.mjs";
 import { collectPrototypePages } from "./lib/pages.mjs";
 import { iterationChainIssues } from "./lib/iterations.mjs";
 import { loadReviewerFindings, semanticIssuesDelta, deltaIssues } from "./lib/delta-review.mjs";
+import { resultsIssues } from "./lib/results-check.mjs";
+import { loadScenarios } from "./lib/scenarios.mjs";
 import { checkEnvironment } from "./env-check.mjs";
 
 function arg(name) { const i = process.argv.indexOf(name); return i >= 0 ? process.argv[i + 1] : undefined; }
@@ -426,37 +428,27 @@ const isV2Package = frozen.ok && (frozen.manifest.snapshot_version ?? 1) >= 2;
 }
 
 // —— 8. 无障碍与渲染信号（浏览器依赖，消费 browser-check 的全部阻断信号 + 同源校验）——
+// fail-closed（规范 27.11）：结构校验在 lib/results-check.mjs——每个证据字段都必须
+// 在场且与交付物对账（页面清单/场景数/逐页记录），缺失即 fail，不再默认通过。
 {
   const axePath = P("audit/results.json");
   if (env.degraded) add("无障碍与渲染", "unverified", "浏览器自动化不可用（6.2 降级）");
   else if (!existsSync(axePath)) add("无障碍与渲染", "unverified", "缺 audit/results.json");
   else {
-    const r = JSON.parse(readFileSync(axePath, "utf8"));
-    const problems = [];
-    if ((r.checks_version ?? 1) < 6) problems.push("results.json 为旧版检查产物（缺审计截图目标视口初始化（v1.8/27.9）或更早能力：页边距渲染检查/核心任务场景/200% 缩放/可见焦点/裁切/CLS/同源指纹/截图默认态复位），请重跑 browser-check");
-    if (r.artifact_version !== undefined && r.artifact_version !== currentVersion) problems.push(`版本不符: results=${r.artifact_version}, 当前=${currentVersion}`);
-    // 同源：检查时的原型指纹必须与当前交付原型一致（拒绝陈旧/异次运行的审计产物冒充）
-    if (r.page_hashes) {
-      const drift = diffHashMaps(r.page_hashes, activeHashes, ["prototype"]);
-      if (drift.length) problems.push(`results.json 与当前原型不同源: ${drift.slice(0, 3).join("; ")}`);
-    } else if ((r.checks_version ?? 1) >= 2) problems.push("results.json 缺 page_hashes");
-    const severe = (r.violations ?? []).filter((v) => ["critical", "serious"].includes(v.impact)).length;
-    if (severe > 0) problems.push(`axe/检查严重违规 ${severe}`);
-    if ((r.keyboard_reachable_ratio ?? 0) !== 1) problems.push(`键盘可达 ${((r.keyboard_reachable_ratio ?? 0) * 100).toFixed(0)}%`);
-    if (r.focus_visible_ratio !== undefined && r.focus_visible_ratio !== 1) problems.push(`可见焦点 ${(r.focus_visible_ratio * 100).toFixed(0)}%`);
-    if ((r.console_errors ?? []).length) problems.push(`控制台错误 ${r.console_errors.length} 条`);
-    if (r.reflow_ok === false) problems.push("320px 重排失败");
-    if (r.zoom_ok === false) problems.push("200% 缩放重排失败");
-    if ((r.clipped_text ?? []).length) problems.push(`文本裁切 ${r.clipped_text.length} 处`);
-    const maxCls = Math.max(0, ...Object.values(r.cls ?? {}));
-    if (maxCls >= 0.1) problems.push(`CLS=${maxCls}（阈值 0.1）`);
-    const tf = r.task_flows;
-    if (tf) {
-      if (tf.definition_errors?.length) problems.push(`核心任务场景定义问题: ${tf.definition_errors.slice(0, 3).join("; ")}`);
-      if (tf.failures?.length) problems.push(`核心任务执行失败 ${tf.failures.length}/${tf.total}: ${tf.failures.slice(0, 3).map((x) => `${x.id}(${x.error})`).join("; ")}`);
-    } else if ((r.checks_version ?? 1) >= 3) problems.push("results.json 缺 task_flows");
+    let r = null, problems;
+    try { r = JSON.parse(readFileSync(axePath, "utf8")); } catch (e) { problems = [`results.json 非法 JSON: ${String(e.message).split("\n")[0]}`]; }
+    if (r !== null) {
+      const { scenarios, errors: scenarioErrors } = loadScenarios(root);
+      problems = resultsIssues(r, {
+        currentVersion, activeHashes,
+        prototypePages: collectPrototypePages(root).map((p) => p.name),
+        scenarios, scenarioErrors,
+      });
+    }
+    const maxCls = Math.max(0, ...Object.values(r?.cls ?? {}).filter((x) => typeof x === "number"));
     add("无障碍与渲染", problems.length === 0 ? "pass" : "fail",
-      problems.length ? problems.join("; ") : `同源指纹一致；axe 严重违规 0，键盘可达 100%，可见焦点 100%，控制台 0 错，reflow/200% 缩放 OK，无裁切，CLS≤${maxCls}，核心任务场景 ${tf?.passed ?? 0}/${tf?.total ?? 0} 通过（含错误路径）`);
+      problems.length ? problems.slice(0, 6).join("; ")
+        : `同源指纹一致（${(r.pages ?? []).length} 页全覆盖）；axe 严重违规 0，键盘可达 100%，可见焦点 100%，控制台 0 错，reflow/200% 缩放 OK，无裁切，CLS≤${maxCls}，核心任务场景 ${r.task_flows.passed}/${r.task_flows.total} 通过（含错误路径，与 scenarios.json 对账一致）`);
   }
 }
 

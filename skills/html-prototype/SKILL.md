@@ -48,9 +48,11 @@ description: 根据已确认的用户流与视觉系统生成可点击高保真�
 原型不只是"能看"，要"能被证明可用"。按 flows.md 的核心任务写可执行场景，browser-check 会用 Playwright 逐步执行并断言：
 
 - 至少 1 个 `kind: success`（核心任务成功路径：填写 → 提交 → 断言成功态出现）和 1 个 `kind: error`（错误路径：漏填/错填 → 断言错误提示出现，wcag-3.3.1）。
-- 每个场景 `{ id, name, kind, flow, page, steps }`；`flow` 必须逐字引用 flows.md 中的核心任务名（规范 24.3）——场景证明的是 IA 文档里真实存在的任务，不许自造场景自证可用。
+- 每个场景 `{ id, name, kind, flow, page, steps }`；`flow` 必须逐字引用 flows.md 中的核心任务名（≥4 个实义字符，规范 24.3/27.11）——场景证明的是 IA 文档里真实存在的任务，不许自造场景自证可用。
 - step 动作：`fill{selector,value}` / `click{selector}` / `press{key}` / `expect_visible{selector}` / `expect_hidden{selector}` / `expect_text{selector,text}`。每个场景至少一步 `expect_*` 断言（跑完不验证等于没跑）+ 至少一步交互（fill/click/press，零交互只是加载检查）。
-- 断言目标禁止 `body`/`html`/`*`/`:root`——"页面存在"不构成任务完成证明。选择器写稳定的（id / 语义标签 / aria 属性），别依赖易变的 class 链。
+- 断言目标禁止 `body`/`html`/`*`/`:root` 与裸标签选择器（`main`/`section`…在静态页恒真）——必须带 `#id`/`.class`/`[attr]` 定位到具体组件（规范 27.11）。优先 id / aria 属性，别依赖易变的 class 链。
+- **断言必须由交互建立**（规范 27.11）：browser-check 会先在初始状态求值全部 `expect_*`，若不做任何交互就全部成立，该场景判废——成功/错误信号必须是交互的结果（初始 hidden，提交后出现）。
+- **交互期不许抛错**（规范 27.11）：场景执行中的 JS 异常、console error、资源加载失败都会被捕获——既让该场景失败，也计入控制台错误阻断信号。
 - 场景失败 = browser-check 阻断信号 = 验收 fail。写场景时自己先跑一遍 `node scripts/browser-check.mjs`。
 
 ## 职责

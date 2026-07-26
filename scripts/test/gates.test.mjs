@@ -130,7 +130,28 @@ function makePkgWithTwoShots() {
 test("有 ≥2 张截图可用但八维全引用同一张 → 拒绝（未逐维看图）", () => {
   const pkg = makePkgWithTwoShots();
   const doc = fullDoc(pkg); // 八维全引用 desktop 一张
-  assert.ok(semanticIssuesVisual(doc, pkg.dir).some((s) => s.includes("全部引用同一张截图")));
+  assert.ok(semanticIssuesVisual(doc, pkg.dir).some((s) => s.includes("截图内容完全相同")));
+  rmSync(pkg.dir, { recursive: true, force: true });
+});
+
+test("对抗：同一张图复制改名、八维交替引用 → 按 sha256 判定仍拒绝（规范 27.11）", () => {
+  // 形态②：盘上有第三张不同内容的图，但八维只在两份同字节文件间交替
+  const pkg = makePkgWithTwoShots();
+  const copyPath = join(pkg.dir, "audit", "screenshots", "index.copy.png");
+  writeFileSync(copyPath, "PNGDATA"); // 与 desktop 完全同字节
+  const doc = fullDoc(pkg);
+  doc.dimension_reviews.forEach((r, i) => {
+    if (i % 2 === 1) { r.screenshot = "audit/screenshots/index.copy.png"; r.screenshot_sha256 = pkg.shotSha; }
+  });
+  assert.ok(semanticIssuesVisual(doc, pkg.dir).some((s) => s.includes("截图内容完全相同")));
+  rmSync(pkg.dir, { recursive: true, force: true });
+});
+
+test("对抗：截图库本身被同一份字节注水（文件≥2、内容 1 份）→ 证据退化拒绝", () => {
+  const pkg = makePkgWithTwoShots();
+  writeFileSync(join(pkg.dir, "audit", "screenshots", "index.mobile.png"), "PNGDATA"); // 覆盖为同字节
+  const doc = fullDoc(pkg);
+  assert.ok(semanticIssuesVisual(doc, pkg.dir).some((s) => s.includes("内容只有 1 份")));
   rmSync(pkg.dir, { recursive: true, force: true });
 });
 

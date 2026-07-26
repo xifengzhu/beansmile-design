@@ -41,7 +41,7 @@ const shotDir = join(root, "audit", "screenshots");
 mkdirSync(shotDir, { recursive: true });
 
 const result = {
-  checks_version: 6,
+  checks_version: 7,
   artifact_version: version,
   method: probe.method,
   generated_at: new Date().toISOString(),
@@ -206,6 +206,19 @@ for (const { file, name } of pages) {
 }
 
 // —— 核心任务场景执行（填写 → 提交 → 断言成功/报错）——
+// 断言初始态探测（规范 27.11）：不等待、立即求值。若场景的全部 expect_* 在加载后
+// 未做任何交互就已成立，该场景没有证明任何"交互引起的状态变化"——判废（failure），
+// 封"click 任意元素 + expect 静态恒真元素"把任务证明退化成页面加载测试。
+async function expectHoldsNow(page, st) {
+  try {
+    const loc = page.locator(st.selector).first();
+    if (st.action === "expect_visible") return await loc.isVisible();
+    if (st.action === "expect_hidden") return !(await loc.isVisible());
+    if (st.action === "expect_text") return (await loc.isVisible()) && (await loc.innerText()).includes(st.text);
+  } catch { return false; }
+  return false;
+}
+
 const { scenarios, errors: scenarioErrors } = loadScenarios(root);
 result.task_flows.definition_errors = scenarioErrors;
 result.task_flows.total = scenarios.length;
@@ -213,11 +226,23 @@ if (!scenarioErrors.length) {
   for (const sc of scenarios) {
     const context = await browser.newContext();
     const page = await context.newPage();
+    // 场景 context 与静态巡检同等捕获错误（规范 27.11）：交互期抛异常/控制台错误/
+    // 资源失败是"任务不可用"的直接证据，静默吞掉会让 flow 假通过。
+    const scErrors = [];
+    page.on("pageerror", (e) => scErrors.push(`场景 ${sc.id}: ${String(e).split("\n")[0]}`));
+    page.on("console", (m) => { if (m.type() === "error") scErrors.push(`场景 ${sc.id}: ${m.text()}`); });
+    page.on("requestfailed", (r) => scErrors.push(`场景 ${sc.id}: 资源加载失败 ${r.url()}`));
     let failure = null;
     try {
       await page.setViewportSize({ width: 1280, height: 800 });
       await page.goto(pathToFileURL(join(root, "prototype", sc.page)).href, { waitUntil: "load" });
-      for (const [j, st] of sc.steps.entries()) {
+      const expects = sc.steps.filter((st) => String(st.action).startsWith("expect_"));
+      const holdsNow = [];
+      for (const st of expects) holdsNow.push(await expectHoldsNow(page, st));
+      if (holdsNow.length && holdsNow.every(Boolean)) {
+        failure = `全部 ${expects.length} 条断言在初始状态即成立——场景未证明任何交互引起的状态变化，不构成任务完成证明（规范 27.11）`;
+      }
+      if (!failure) for (const [j, st] of sc.steps.entries()) {
         const loc = st.selector ? page.locator(st.selector).first() : null;
         try {
           if (st.action === "fill") await loc.fill(String(st.value), { timeout: 3000 });
@@ -236,6 +261,9 @@ if (!scenarioErrors.length) {
         }
       }
     } catch (e) { failure = `导航失败: ${String(e.message).split("\n")[0]}`; }
+    await page.waitForTimeout(120); // 给异步错误（unhandled rejection/迟到的资源失败）落地窗口
+    if (!failure && scErrors.length) failure = `执行期 JS/资源错误 ${scErrors.length} 条: ${scErrors[0]}`;
+    result.console_errors.push(...scErrors);
     if (failure) result.task_flows.failures.push({ id: sc.id, name: sc.name, kind: sc.kind, error: failure });
     else result.task_flows.passed++;
     await context.close();

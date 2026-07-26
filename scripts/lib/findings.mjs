@@ -58,10 +58,22 @@ export function semanticIssuesVisual(doc, pkgRoot) {
   const issues = [];
   const reviews = doc.dimension_reviews ?? [];
 
+  // 多样性按图片内容（sha256）而非路径判定（规范 27.11）：两个文件名指向相同字节、
+  // 八维交替引用，路径数≥2 但看的仍是同一张图——复制改名不构成多样性。
+  // 两个分支封死两种造假形态：①盘上文件数≥2 但内容只有 1 份（把库本身复制注水）；
+  // ②盘上确有 ≥2 份不同内容，但八维引用的内容 <2 份（挑同一份换着名引）。
   const shotDir = join(pkgRoot, "audit", "screenshots");
-  const availableShots = existsSync(shotDir) ? readdirSync(shotDir).filter((f) => f.endsWith(".png")).length : 0;
-  if (availableShots >= 2 && reviews.length >= 2 && new Set(reviews.map((r) => r.screenshot)).size < 2) {
-    issues.push(`八维全部引用同一张截图（audit/screenshots/ 有 ${availableShots} 张可用），不构成逐维看图的证据`);
+  const shotFiles = existsSync(shotDir) ? readdirSync(shotDir).filter((f) => f.endsWith(".png")) : [];
+  const availableDigests = new Set(shotFiles.map((f) => sha256File(join(shotDir, f))));
+  const referencedDigests = new Set(reviews.map((r) => {
+    const s = String(r.screenshot ?? "");
+    const p = join(pkgRoot, s);
+    return (!s.includes("..") && /^audit\//.test(s) && existsSync(p)) ? sha256File(p) : `missing:${s}`;
+  }));
+  if (shotFiles.length >= 2 && availableDigests.size < 2) {
+    issues.push(`audit/screenshots/ 有 ${shotFiles.length} 个文件但内容只有 1 份（sha256 全同）——审计截图证据退化，复制同一张图不构成多视口/多页证据`);
+  } else if (availableDigests.size >= 2 && reviews.length >= 2 && referencedDigests.size < 2) {
+    issues.push(`八维引用的截图内容完全相同（audit/screenshots/ 有 ${availableDigests.size} 张内容不同的图可用）——按 sha256 判定，改名复制同一张图不构成逐维看图的证据`);
   }
   const byObserved = new Map();
   for (const r of reviews) {

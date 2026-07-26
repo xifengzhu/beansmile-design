@@ -173,6 +173,7 @@ artifacts:
   handoff:
     path: Design.md
     artifact_version: "3"
+    artifact_revision: 1
     source_manifest_digest: "sha256:snapshot-manifest"
     source_bundle_digest: "sha256:delivery-source-bundle"
     sha256: "sha256:design-md"
@@ -180,13 +181,14 @@ artifacts:
   presentation:
     path: presentation/design-system.pptx
     artifact_version: "3"
+    artifact_revision: 1
     source_manifest_digest: "sha256:snapshot-manifest"
     source_bundle_digest: "sha256:delivery-source-bundle"
     sha256: "sha256:design-system-pptx"
     updated_by: design_presentation
 ```
 
-两个 artifact 的 `artifact_version` 必须等于 `artifacts.prototype.artifact_version`，两个来源摘要必须分别等于快照 manifest digest 和 delivery source bundle digest。文件哈希必须由验收脚本重新计算，不能只信 Skill 自报值。示例中的版本 `"3"` 仅表示当前 artifact version，不是固定版本号。
+两个 artifact 的 `artifact_version` 必须等于 `artifacts.prototype.artifact_version`，两个来源摘要必须分别等于快照 manifest digest 和 delivery source bundle digest。`artifact_revision` 从 1 开始；同一设计版本内重新生成交付物时必须严格递增。文件哈希必须由验收脚本重新计算，不能只信 Skill 自报值。示例中的版本 `"3"` 仅表示当前 artifact version，不是固定版本号。
 
 ## 8. Design.md 内容契约
 
@@ -195,6 +197,7 @@ artifacts:
 ```yaml
 ---
 artifact_version: "3"
+artifact_revision: 1
 source_manifest_digest: "sha256:snapshot-manifest"
 source_bundle_digest: "sha256:delivery-source-bundle"
 platforms: [web, mobile_web]
@@ -222,7 +225,7 @@ generated_at: "2026-07-26T12:00:00Z"
 
 校验脚本重新解析源产物并检查：
 
-- frontmatter 的版本、快照 digest 和 delivery source bundle digest 正确。
+- frontmatter 的版本、revision、快照 digest 和 delivery source bundle digest 正确。
 - 所有必需章节存在且非空。
 - `prototype/` 中每个 HTML 页面都出现在页面规格中。
 - `prototype/scenarios.json` 中每个成功与错误场景都有验收用例。
@@ -328,7 +331,7 @@ Codex adapter 使用可用的 Presentations 能力及 `@oai/artifact-tool`。其
 
 - 交付 Skill 发现需要新增设计决策时停止生成，Director 将任务退回相应设计阶段，升版后重走截图、快照和双评审。
 - 源 manifest 在生成期间变化时丢弃输出，不能把旧输出登记到新版本。
-- 仅修正文档措辞或 PPT 排版且没有新增设计事实时，可以在同一源版本重新生成，但必须重新运行对应 QA 并更新文件哈希。
+- 仅修正文档措辞或 PPT 排版且没有新增设计事实时，可以在同一源版本重新生成，但必须递增 `artifact_revision`、重新运行对应 QA 并更新文件哈希。
 - 在验收前手工编辑 PPTX 会使哈希和 QA 绑定失效，必须重新检查；`delivered` 后复制出的下游版本不再代表本交付包的审计结论。
 - 生成器不可用、字体缺失、图片损坏、输出无法重读或渲染时，报告具体能力和文件位置，不得静默删页或栅格化绕过。
 
@@ -351,7 +354,7 @@ Codex adapter 使用可用的 Presentations 能力及 `@oai/artifact-tool`。其
 
 - 新专业模式包缺任一交付物必须失败。
 - 快速模式未请求时允许缺失，请求一个或两个后按声明验收。
-- artifact version、snapshot digest、source bundle digest、文件哈希任一错配必须失败。
+- artifact version、artifact revision、snapshot digest、source bundle digest、文件哈希任一错配必须失败。
 - 生成期间源快照漂移必须拒绝登记。
 - 旧快照版本输出迁移提示，不追溯撤销历史 delivered 结论。
 

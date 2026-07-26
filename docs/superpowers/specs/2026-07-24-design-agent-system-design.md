@@ -801,3 +801,58 @@ standards 评审的 findings 必须附 `rule_coverage`（schema 强制 + `semant
 ### 26.2 测试
 
 正向 + 对抗共新增 50 用例（注册表 23、覆盖模板 18、冻结绑定 9），全库 108 测试。对抗面：幽灵/孤儿文件、私货卡（快照含 manifest 外卡）、哈希漂移、fail→pass 篡改、未确认 N/A、注册表升级后激活门报不一致等。
+
+## 27. Token 效率层（v1.8 增补）
+
+### 27.1 目标与不变量
+
+背景：首批端到端实测证明系统"质量优先、Token 偏高"——样本多页专业任务中 4 轮双评审文本输入约 551k tokens、7 轮迭代 84 张截图中 49% 哈希完全重复、4 个页面各内联同一份 26.4KB CSS、评审 Agent 可能通读整个 `evidence/rules/`。本章目标：多页专业任务减少 40%–60% 文本输入、消除接近一半的重复迭代图读取。
+
+**不变量（省 token 的红线）**：不合并两个评审角色；不删减 WCAG 规则；不对迭代轮数设硬上限；**最终交付版本仍走全量双评审 + 全量浏览器检查**——本章所有机制只作用于中间过程（中间轮截图、中间版本评审、上游知识加载、上下文派发），验收对最终版本的既有门禁一律不放松。历史包（快照无 `snapshot_version >= 2` 标记，即 v1.7 及以前产物）不追溯判非法，新门禁输出迁移措辞（§9.1 语义）。
+
+### 27.2 共享样式抽取门（`scripts/lib/css-dup.mjs` + `scripts/lint-prototype.mjs`）
+
+多页原型（`prototype/**/*.html` ≥2 页）：① 每页必须以 `<link>` 引入至少一个 `prototype/assets/` 下的共享样式表；② 规范化（剥注释、压空白）后内容 sha256 相同且长度 ≥2048 字符的内联 `<style>` 块出现在 ≥2 个页面即判 fail。页面私有小段样式（<2KB）不管；`audit/candidates/` 豁免（候选刻意单文件自包含）；单页项目豁免。检查为纯静态（无浏览器依赖），`npm run lint:proto` 供 html-prototype 自检，验收新增「共享样式」维度调用同一实现——**不放进 browser-check**，保证降级环境不豁免。
+
+### 27.3 增量截图（`scripts/screenshot.mjs --incremental` + `scripts/lib/iterations.mjs`）
+
+- 首轮与收官轮必须全量；第 2 轮起可用 `--incremental`：与上一轮 `meta.json` 的 `page_hashes` 比对（`diffHashMaps`），只重截变更页。**保守规则**：`prototype/assets/**` 或 `design-tokens.json` 任何变化 → 全部页面视为变更（共享样式全局生效，防"改共享 CSS 只截一页"）；变更页数为 0 → 拒绝执行（空轮不构成迭代，勿刷轮数）。
+- `meta.json` 升级 v2：新增 `meta_version: 2` 与 `pages[]`，每页 `{name, slug, status: "shot"|"carried", from_round?, page_sha256?, shots?}`；`page_hashes` 仍为全树口径不变。carried 只允许一跳引用某个真实截图轮（生成时自动解析到最近 shot 轮，禁转引链）。
+- **验收携带链校验**（`iterationChainIssues`，acceptance 5b 迁入）：首末轮全量；每条 carried 记录三方哈希一致（当前轮 `page_hashes[页]` === 引用轮同键值 === 记录内 `page_sha256`），引用轮该页须为 shot 且 PNG 真实在盘；meta 登记的 shots 文件必须存在；notes.md 仍须引用**当轮实际新截**的图（carried 不算当轮证据）。伪造"谎称未变"需同时篡改两轮 meta，而末轮全量 + 末轮与交付原型逐字节同源（既有门）锚定交付态真实。无 `meta_version` 的 v1.7 meta 按全量轮兼容处理。
+
+### 27.4 紧凑评审规则包（`scripts/lib/review-bundle.mjs`）
+
+- `snapshot.mjs` 冻结规则后追加生成 `rules/review-bundle.yaml`：激活规则按 `rule_id` 排序的**确定性投影**，每条含 `rule_id/pack_id/rule_sha256/state/title/rule/check_method/platforms/scope/strength` 及可选 `exceptions/na_candidate`；剔除 `publisher/source_url/source_version/last_verified/rationale/evidence_grade/conflicts_with`（溯源与裁决字段留在冻结全卡，评审需要时回读）。单卡约省 40%–55%，且 bundle 由 `applicableRules` 派生、不假设规则数，规则库扩张（扩展设计第 5–7 步）后收益自动放大。
+- **再生比对门**：`buildReviewBundle` 为 snapshot 与校验方共用的纯函数；`loadFrozenRules` 在冻结卡哈希校验通过后用冻结卡重建 bundle 并比对 sha256——篡改 bundle 软化规则文本即被抓（篡改冻结卡本身已被既有哈希门拦）。v1.7 老快照无 bundle → 返回 `bundle: null`，评审回退读全卡，不报错。
+- standards-audit 的评审输入首选 bundle，同时**收回 `evidence/rules/` 读权限**（修正 v1.7 措辞残留——§8.4 本就要求评审只读冻结集）。
+
+### 27.5 中间版本增量评审（`scripts/lib/delta-review.mjs` + `schemas/findings-delta.schema.json`)
+
+- 协议：**首个版本与拟交付版本全量双评审**（现状不变，验收「标准合规门/视觉质量门/规则快照四门」一行不改）；中间版本（首版与拟交付版之间）可用 delta 评审。验收本就只消费当前版本的全量 findings，delta 结论不进验收。
+- **delta 包**（确定性、可再生）：`snapshot.mjs --delta-from <prev>` 在新快照内生成 `delta/`（计入快照 manifest 哈希）：`changed-files.json`（两个冻结快照的 `diffHashMaps` 结果）、`files.diff`（`scripts/lib/text-diff.mjs` 朴素逐行 diff，两侧都是冻结快照故字节确定）、`open-findings.yaml`（前版 blocker/warning findings + coverage fail 规则清单，机器汇取）、`changed-pages.json`。校验方从两个冻结快照 + 前版 findings 重建比对（`deltaIssues`，同 27.4 再生门模式）。
+- **delta findings**：经 `record-findings.mjs --delta` 落盘为 `audit/findings/<reviewer>-<v>-delta.yaml`——与全量 `-<v>.yaml` 命名区隔，`loadFindingsForVersion` 只找全量名，且全量 schema `additionalProperties: false` 拒收 `baseline_version` 字段，**delta 永不可能冒充全量评审**（双保险）。语义校验（`semanticIssuesDelta`）：baseline findings 存在且逐版接续；rule_id 都在冻结 manifest 内；截图哈希纪律与全量同源（复用同一子函数）；**闭合性——baseline 的每条 open blocker/warning 必须出现在 `resolved_findings`（≥10 字核销证据）或 `findings`（再断言）中**，缺一拒收：省 token 不许静默丢问题。
+- **验收新增「迭代评审链」维度**：对每个介于首版与当前版本之间的中间版本，须存在全量 findings 对或通过语义校验的 delta 对；仅 `snapshot_version >= 2` 的包启用，老包输出「v1.7 流程包，无迭代评审链要求」。
+
+### 27.6 最小上下文投影（`scripts/project-context.mjs`）
+
+§5.2 的 reads 白名单此前只用于出向门禁（越权补丁拒绝），入向仍传完整 `context.yaml`。v1.8 将既有 `projectContext(ctx, reads)`（`scripts/lib/context.mjs`）接线为 CLI `npm run ctx:project -- --package <dir> --skill <id>`：按该 Skill manifest 的 `reads` 生成字段投影视图。Director 派发协议同步：每个流程 Skill 收到**投影视图 + 声明的输入产物路径**，且每次派发使用全新子代理会话（不继承完整聊天历史）。投影与 `hardenedGate` 共用同一份 manifest，无第二实现。评审侧不变（本就禁读 context.yaml）。
+
+### 27.7 知识库按方向章节路由
+
+`skills/visual-system/references/direction-playbooks.md`（约 12KB，8 个平行方向章节）拆分为 `references/playbooks/_intro.md`（总则 + 候选竞争构成要求）+ `D1.md`–`D8.md`。两阶段加载协议：**方向选定前**读 `direction-library.md`（方向索引）+ `color-system.md` + `type-and-spacing.md`，提案候选只读候选方向的 `Dn.md` + `_intro.md`；**方向确认后**只读选定 `Dn.md` + `font-pairings.md` 中该方向配方节 + `layout-composition.md`。不再要求每次调用通读 8 个方向的完整执行手册。结构一致性门：`npm run check` 校验 `direction-library.md` 声明的方向与 `playbooks/` 文件一一对应（无缺章、无孤儿，`scripts/lib/kb-index.mjs`，与规则包幽灵/孤儿检查同构）。
+
+### 27.8 快速模式自动分类（`scripts/lib/mode-classifier.mjs`）
+
+- `suggestMode()` 纯函数（`npm run mode:suggest` CLI）：单页 且 流程 ≤2 且 无品牌探索 且 单平台 → 建议 `quick` 并给出理由；任一输入缺失 → `professional`（不猜）。分类只产生**建议**，Director 须把理由呈给用户确认。
+- **模式确认门机器化**：`director-advance.mjs --confirm mode`（`context.schema.json` 的 `confirmations` 新增 `mode` 键，`--reply` 仍须用户答复原文）。验收「流程确认」维度：`mode === "quick"` 的 v1.8 包（`snapshot_version >= 2`）须存在 `confirmations.mode`，缺失即 fail；老包不追溯。
+- 快速模式的既有硬底线（WCAG 2.2 AA、多视口截图、溢出/console 检查、依据记录，§9.2）均为验收无条件维度，不受本节影响。
+
+### 27.9 刻意不做
+
+- **不做 CSS AST 级相似度**——只封"规范化后逐字节重复"的零成本复制；规则重排序绕过属残余风险，由视觉评审组件一致性维度兜底（同 24.5 的 exact-dup 边界哲学）。
+- **不机器验证"Agent 实际读了哪章知识库"**——不可验证；产出质量仍由既有门守（候选竞争、确认门 C、视觉评审方向对标）。`font-pairings.md` 不拆分（5.5KB，收益低于维护成本）。
+- **不对中间版本 delta findings 做覆盖矩阵全量闭合**——那正是要省的成本；最终版本的覆盖模板闭合门原样保留。
+- **不校验中间轮 meta 哈希的历史真实性**——快照体系外无法复算；末轮全量 + 末轮同源是硬锚，暴露面与 v1.7 一致未加宽。携带链是防低成本谎报的一致性检查，不是密码学证明。
+- **不自动降级到快速模式**——分类只建议，用户不确认不生效。
+- **不追溯历史包**——共享样式、迭代评审链、模式确认三门均以 `snapshot_version >= 2` 判新老，历史 delivered 结论不失效。
+- **提示缓存与并行评审不在本章范围**——缓存只降费用与延迟、并行只降墙钟时间，均不减少名义 token，不构成本章意义上的优化。

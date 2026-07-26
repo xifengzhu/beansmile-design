@@ -15,7 +15,8 @@ description: 设计 Agent 系统的唯一决策中心。识别任务、维护 co
 ## 唯一事实源
 
 - 全流程只有一个可写状态文件 `context.yaml`，schema 见 `docs/superpowers/specs/schemas/context.schema.json`。
-- 每个 Skill 收到 `context.yaml` 只读副本 + 其声明的输入产物路径，产出文件 + 返回"字段补丁"。
+- 每个 Skill 收到其 **reads 投影视图**（`node scripts/project-context.mjs --package <目录> --skill <canonical id> --out <临时文件>` 按 manifest 的 reads 白名单生成，规范 27.6）+ 其声明的输入产物路径，产出文件 + 返回"字段补丁"。不传完整 `context.yaml`。
+- **每次派发使用全新子代理会话**：只给该阶段的投影、产物索引与必要文件，不让子代理继承完整聊天历史（规范 27.6）。
 - 你必须用 diff 门禁校验补丁只触及该 Skill 白名单内的字段（`scripts/check-diff-gate.mjs`），通过才合并；否则该阶段失败，进入第 15 章失败处理。
 - 白名单见 `docs/superpowers/specs/schemas/skill-manifests.yaml`。
 
@@ -81,6 +82,7 @@ description: 设计 Agent 系统的唯一决策中心。识别任务、维护 co
 | 自检 | `node scripts/env-check.mjs --out <目录>/audit/environment.md` |
 | 记录确认门（A/B/C，专业模式必需） | `node scripts/director-advance.mjs --package <目录> --confirm requirements\|flows\|direction --summary .. --reply .. [--candidates .. --chosen ..]` |
 | 推进阶段 | `node scripts/director-advance.mjs --package <目录> --stage <阶段>` |
+| 生成派发用上下文投影（每次调度流程 Skill 前） | `node scripts/project-context.mjs --package <目录> --skill <canonical id> --out <临时文件>` |
 | 候选竞争截图（prototype 阶段、全量开发前） | `node scripts/screenshot.mjs --package <目录> --candidates` |
 | 合并 Skill 补丁（唯一写 context） | `node scripts/apply-patch.mjs --package <目录> --skill <canonical id> --patch <patch.yaml>` |
 | 浏览器自动检查 | `node scripts/browser-check.mjs --package <目录> --version <v>` |

@@ -10,6 +10,7 @@
     "validate:rules": "node scripts/validate-rules.mjs",
     "validate:context": "node scripts/validate-context.mjs",
     "gate:diff": "node scripts/check-diff-gate.mjs",
+    "ctx:project": "node scripts/project-context.mjs",
     "env:check": "node scripts/env-check.mjs",
     "setup:agents": "node scripts/setup-agent-skills.mjs",
     "recall": "node scripts/recall-harness.mjs",

@@ -75,8 +75,11 @@ for (const [file, cards] of byFile) {
 }
 
 // rules-manifest.json：激活集的规范化哈希登记（按 rule_id 排序，applicableRules 已排序）。
+// snapshot_version 2 = v1.8 流程包标记：验收的「共享样式/迭代评审链/流程确认(mode)」
+// 门只对 >=2 的包启用，历史包输出迁移措辞不追溯（规范 27.1/27.9）。
 const rulesManifest = {
   artifact_version: String(version),
+  snapshot_version: 2,
   generated_at: new Date().toISOString(),
   rules: applicable.map((a) => ({ rule_id: a.rule_id, pack_id: a.pack_id, file: a.file, sha256: a.rule_sha256 })),
 };

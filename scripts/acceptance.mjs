@@ -17,6 +17,8 @@ import { loadFrozenRules, activationGateIssues, MIGRATION_HINT } from "./lib/fro
 import { templateClosureIssues } from "./lib/coverage-template.mjs";
 import { hashPaths, manifestDigest, verifyManifest, diffHashMaps } from "./lib/hash.mjs";
 import { collectCandidates, candidateIssues } from "./lib/candidates.mjs";
+import { sharedCssIssues } from "./lib/css-dup.mjs";
+import { collectPrototypePages } from "./lib/pages.mjs";
 import { checkEnvironment } from "./env-check.mjs";
 
 function arg(name) { const i = process.argv.indexOf(name); return i >= 0 ? process.argv[i + 1] : undefined; }
@@ -228,6 +230,23 @@ const frozen = currentVersion ? loadFrozenRules(root, currentVersion) : { ok: fa
     }
     add("迭代自评", problems.length === 0 ? "pass" : "fail",
       problems.length ? problems.slice(0, 5).join("; ") : `${rounds.length} 轮迭代，均有截图+自评记录，末轮与交付原型一致`);
+  }
+}
+
+// v1.8 流程包判定：snapshot_version >= 2 才启用本版新增门（共享样式/迭代评审链/流程确认 mode），
+// 历史包输出迁移措辞、不追溯 fail（规范 27.1/27.9）。
+const isV2Package = frozen.ok && (frozen.manifest.snapshot_version ?? 1) >= 2;
+
+// —— 5b-2. 共享样式（规范 27.2：多页原型必须抽取共享 CSS，静态检查不受降级豁免）——
+{
+  if (!existsSync(P("prototype"))) add("共享样式", "fail", "缺 prototype/");
+  else if (!isV2Package) add("共享样式", "pass", "v1.7 及以前流程包，共享样式门不追溯（新交付须抽取共享 CSS 到 prototype/assets/）");
+  else {
+    const issues = sharedCssIssues(root);
+    const pageCount = collectPrototypePages(root).length;
+    add("共享样式", issues.length === 0 ? "pass" : "fail",
+      issues.length ? issues.slice(0, 4).join("; ")
+        : (pageCount < 2 ? "单页原型，单文件自包含合法" : `${pageCount} 页均引入 assets/ 共享样式表，无 ≥2KB 重复内联块`));
   }
 }
 

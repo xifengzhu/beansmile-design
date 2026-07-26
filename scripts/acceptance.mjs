@@ -19,6 +19,7 @@ import { hashPaths, manifestDigest, verifyManifest, diffHashMaps } from "./lib/h
 import { collectCandidates, candidateIssues } from "./lib/candidates.mjs";
 import { sharedCssIssues } from "./lib/css-dup.mjs";
 import { collectPrototypePages } from "./lib/pages.mjs";
+import { iterationChainIssues } from "./lib/iterations.mjs";
 import { checkEnvironment } from "./env-check.mjs";
 
 function arg(name) { const i = process.argv.indexOf(name); return i >= 0 ? process.argv[i + 1] : undefined; }
@@ -195,41 +196,18 @@ const frozen = currentVersion ? loadFrozenRules(root, currentVersion) : { ok: fa
   }
 }
 
-// —— 5b. 迭代自评（截图-自评-迭代循环确实发生，html-prototype v1.1 的机器门）——
-// ≥2 轮；每轮有截图 + 非空 notes.md 且引用当轮截图；末轮 page_hashes 与交付原型一致（改完必须复评）。
+// —— 5b. 迭代自评（截图-自评-迭代循环确实发生，html-prototype v1.1 门 + 规范 27.3 携带链）——
+// 完整判定迁入 scripts/lib/iterations.mjs（与 screenshot.mjs 共用轮次/meta 解析）：
+// ≥2 轮；每轮 notes.md 引用当轮实际新截的图；carried 页三方哈希链一致且引用轮实拍图在盘；
+// 首末轮全量；末轮 page_hashes 与交付原型一致（改完必须复评）。v1.7 meta 按全量轮兼容。
 {
-  const iterRoot = P("audit", "iterations");
   if (env.degraded) {
     add("迭代自评", "unverified", "浏览器不可用（6.2 降级）：无法产生截图轮次，须人工核对代码级自评记录");
-  } else if (!existsSync(iterRoot)) {
-    add("迭代自评", "fail", "缺 audit/iterations/：截图-自评-迭代循环未发生");
   } else {
-    const rounds = readdirSync(iterRoot).map((d) => /^round-(\d+)$/.exec(d)).filter(Boolean)
-      .map((m) => ({ dir: m[0], n: Number(m[1]) })).sort((a, b) => a.n - b.n);
-    const problems = [];
-    if (rounds.length < 2) problems.push(`仅 ${rounds.length} 轮（要求 ≥2）`);
-    for (const r of rounds) {
-      const rd = join(iterRoot, r.dir);
-      const files = readdirSync(rd);
-      const pngs = files.filter((x) => x.endsWith(".png"));
-      if (!pngs.length) problems.push(`${r.dir} 无截图`);
-      if (!files.includes("notes.md")) { problems.push(`${r.dir} 缺 notes.md（自评未记录）`); continue; }
-      const notes = readFileSync(join(rd, "notes.md"), "utf8").trim();
-      if (notes.length < 50) problems.push(`${r.dir}/notes.md 过短（${notes.length} 字符），不构成有效自评`);
-      else if (!pngs.some((p) => notes.includes(p))) problems.push(`${r.dir}/notes.md 未引用当轮任何截图文件名`);
-      if (!files.includes("meta.json")) problems.push(`${r.dir} 缺 meta.json（旧版截图产物，需用当前 screenshot.mjs 重跑）`);
-    }
-    const last = rounds[rounds.length - 1];
-    if (last) {
-      const metaPath = join(iterRoot, last.dir, "meta.json");
-      if (existsSync(metaPath)) {
-        const meta = JSON.parse(readFileSync(metaPath, "utf8"));
-        const drift = diffHashMaps(meta.page_hashes ?? {}, activeHashes, ["prototype"]);
-        if (drift.length) problems.push(`末轮（${last.dir}）后原型又被改动且未复评: ${drift.slice(0, 3).join("; ")}`);
-      }
-    }
+    const { rounds, problems } = iterationChainIssues(root, activeHashes);
     add("迭代自评", problems.length === 0 ? "pass" : "fail",
-      problems.length ? problems.slice(0, 5).join("; ") : `${rounds.length} 轮迭代，均有截图+自评记录，末轮与交付原型一致`);
+      problems.length ? problems.slice(0, 5).join("; ")
+        : `${rounds} 轮迭代，均有截图+自评记录，携带链完整，末轮全量且与交付原型一致`);
   }
 }
 

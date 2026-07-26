@@ -29,12 +29,13 @@ description: 根据已确认的用户流与视觉系统生成可点击高保真�
 
 ## 截图-自评-迭代循环（强制，验收机器判定，不迭代过不了验收）
 
-1. 首版完成后运行 `node scripts/screenshot.mjs --package <目录> --round 1`（375/768/1440 三视口截图到 `audit/iterations/round-1/`，同时自动写 `meta.json` 记录当轮原型指纹）。
+1. 首版完成后运行 `node scripts/screenshot.mjs --package <目录> --round 1`（375/768/1440 三视口截图到 `audit/iterations/round-1/`，同时自动写 `meta.json` 记录当轮原型指纹）。**首轮必须全量**。
 2. **Read 每张截图**，对照 `references/polish-checklist.md` 逐节自评，列出命中项与修法（C/D 类"廉价感"问题必须正面检查，不许只挑硬伤）。
-3. 修改后 `--round 2` 再截再评。**至少完成 2 轮**；直到一轮零新增命中才可交回 Director 进评审。
-4. 每轮在 `audit/iterations/round-N/notes.md` 记录：命中项、修复动作，并**引用当轮截图文件名**。
-5. 浏览器不可用时（6.2 降级）：跳过截图但仍按清单做代码级自评，并在 assumptions 记录"视觉未经渲染验证"。
-6. 验收（18.2「迭代自评」维度）机器判定：轮数 ≥2；每轮有截图 + 非空 notes.md（≥50 字符且引用当轮截图文件名）+ meta.json；**末轮 `page_hashes` 必须与交付原型一致**——截完图再改代码而不复评一轮，验收直接 fail。
+3. 修改后 `--round 2 --incremental` 再截再评（规范 27.3）：只重截相对上一轮有变更的页面，未变页自动记 carried 并链到实拍轮——**只 Read 本轮新截的图**，carried 页上一轮已看过。`assets/` 或 `design-tokens.json` 有改动会自动转全量（共享样式全局生效）；零变更会被拒绝（空轮不构成迭代）。**至少完成 2 轮**；直到一轮零新增命中才可交回 Director 进评审。
+4. 每轮在 `audit/iterations/round-N/notes.md` 记录：命中项、修复动作，并**引用当轮实际新截的截图文件名**（carried 图不算当轮证据）。
+5. **收官轮必须去掉 `--incremental` 全量重截**——验收核对首末轮全量与末轮同源。
+6. 浏览器不可用时（6.2 降级）：跳过截图但仍按清单做代码级自评，并在 assumptions 记录"视觉未经渲染验证"。
+7. 验收（18.2「迭代自评」维度）机器判定：轮数 ≥2；每轮非空 notes.md（≥50 字符且引用当轮新截图）+ meta.json；carried 页三方哈希链一致（当前轮/引用轮/记录）且引用轮实拍图在盘；首末轮全量；**末轮 `page_hashes` 必须与交付原型一致**——截完图再改代码而不复评一轮，或谎称"未变更"跳过重截，验收直接 fail。
 
 ## 白名单（由 Director 做字段级 diff 门禁强制）
 

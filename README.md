@@ -1,6 +1,6 @@
 # beansmile-design
 
-`beansmile-design` 是一套运行在 Codex 或 Claude 中的设计 Agent 运行时。它从业务目标、用户任务和目标平台出发，把产品需求转化为可点击、响应式、高保真的 HTML 原型，以及包含决策依据、截图、评审结果和验收报告的可审计交付包。
+`beansmile-design` 是一套运行在 Codex 或 Claude 中的设计 Agent 运行时。它从业务目标、用户任务和目标平台出发，先生成并确认设计契约 `Design.md`，再把需求转化为可点击、响应式、高保真的 HTML 原型；评审后补齐同一文档作为开发交接，并生成可编辑设计方案 PPTX 与可审计交付包。
 
 它不是生产前端框架，也不直接生成生产级 Web、原生 App 或小程序代码。项目重点解决的是设计过程的一致性、可追溯性和质量验收。
 
@@ -9,7 +9,7 @@
 | 组成 | 作用 |
 |---|---|
 | Design Director | 维护任务状态、调度各阶段、记录用户确认并作出最终设计裁决 |
-| 5 个流程 Skills | 完成需求研究、UX 架构、视觉系统、HTML 原型和决策记录 |
+| 7 个可产出补丁的 Skills | 5 个流程 Skill 完成研究、UX、视觉、原型和决策；2 个交付 Skill 负责 `Design.md` 与设计方案 PPTX |
 | 2 个只读评审 | 分别执行规范审计和视觉评审，避免创作方自行判定通过 |
 | 版本化依据库 | 管理 WCAG、平台规范、设计工艺和行业规则 |
 | 可执行质量门 | 校验上下文、字段权限、阶段转换、浏览器行为、快照、评审和最终交付 |
@@ -31,6 +31,7 @@ Web 和响应式移动 Web 具备完整的浏览器自动化检查链路。原�
 - Node.js 18 或更高版本
 - npm
 - Chrome，或由 Playwright 安装的 Chromium
+- LibreOffice（`soffice`）与 Poppler（`pdftoppm`），用于专业模式 PPTX 的真实渲染和逐页 QA
 
 安装依赖：
 
@@ -50,12 +51,13 @@ npx playwright install chromium
 npm run check
 npm test
 npm run env:check
+npm run presentation:probe
 ```
 
-`env:check` 会真实启动一次浏览器，而不只是检查依赖是否存在：
+`env:check` 会真实启动一次浏览器，并分别报告浏览器与 presentation 能力；`presentation:probe` 会创建、重读并渲染一份最小可编辑 PPTX，而不只是检查命令是否存在：
 
 - 退出码 `0`：Node、Playwright、axe-core 和浏览器自动化均可用。
-- 退出码 `3`：进入降级状态，浏览器相关结论只能标为“未验证”，任务不能标记为已完成。
+- 退出码 `3`：对应能力处于降级状态，受影响结论只能标为“未验证”。专业模式的 presentation probe 返回 `3` 时不可交付。
 - 其他非零退出码：命令失败，需要先修复环境或参数问题。
 
 ### 3. 在 Claude Code 或 Codex 中启用 Skills
@@ -66,7 +68,7 @@ Skill 定义遵循 [Agent Skills 开放标准](https://agentskills.io)（SKILL.m
 npm run setup:agents
 ```
 
-该命令把 `skills/` 下的 8 个 Skill 以相对符号链接挂进 `.claude/skills/` 和 `.codex/skills/`（两个目录已被 Git 忽略，每位使用者在自己的克隆里运行一次即可）。命令幂等，新增 Skill 后重跑一次即可更新。
+该命令把 `skills/` 下的 10 个 Skill 以相对符号链接挂进 `.claude/skills/` 和 `.codex/skills/`（两个目录已被 Git 忽略，每位使用者在自己的克隆里运行一次即可）。命令幂等，新增 Skill 后重跑一次即可更新。
 
 之后**在仓库根目录**开启会话：
 
@@ -104,6 +106,8 @@ npm run init -- \
 ```bash
 npm run validate:context -- outputs/demo/context.yaml
 ```
+
+新包使用 `package_format_version: 3`。专业模式会初始化 `design_specification` 与 `design_presentation` 两个必需输出：在 Visual 前生成、确认并锁定 `Design.md`，评审后补齐同一文件，再生成 `presentation/design-system.pptx`。快速模式通过 `--deliverables` 按需请求；请求 presentation 会自动要求完整 Design.md 生命周期。
 
 ### 5. 启动设计任务
 

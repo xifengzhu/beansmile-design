@@ -8,15 +8,13 @@
 需求与素材
     |
     v
-intake -> research -> ux -> visual -> prototype -> review -> delivered
-    |          |       |       |             |           |
-    |          |       |       |             |           +-- 最终验收与交付
-    |          |       |       |             +-- 浏览器检查、快照、双评审
-    |          |       |       +-- 候选竞争、高保真原型、截图迭代
-    |          |       +-- 视觉方向与设计令牌
-    |          +-- 任务流、页面地图与状态矩阵
-    +-- 目标、用户、平台、行业与约束
+intake -> research -> ux -> prepare Design.md -> confirm/seal -> visual -> prototype
+                                                                           |
+                                                                           v
+delivered <- acceptance <- presentation <- finalize Design.md <- review
 ```
+
+生命周期仍只有 `intake -> research -> ux -> visual -> prototype -> review -> delivered`。Design.md 的 prepare/seal 是 ux 内进入 Visual 前的动作，finalize 与 presentation 是 review 内进入 delivered 前的动作，不新增 stage。
 
 ### 专业模式
 
@@ -24,11 +22,11 @@ intake -> research -> ux -> visual -> prototype -> review -> delivered
 |---|---|---|
 | `intake` | 初始化 `context.yaml`，澄清目标、用户、平台、行业与限制 | 无 |
 | `research` | `brief.md` | 确认需求与成功标准 |
-| `ux` | `flows.md` | 确认任务流和页面范围 |
-| `visual` | 视觉方向、`design-tokens.json` | 从至少两个候选方向中选择或提出修订 |
+| `ux` | `flows.md`；冻结 prepare 来源；生成 proposed `Design.md` | 同时确认任务流、页面范围和设计契约，Director seal contract lock |
+| `visual` | 绑定设计契约的视觉方向、`design-tokens.json` | 从至少两个候选方向中选择或提出修订 |
 | `prototype` | 候选竞争、`prototype/`、场景定义、至少两轮截图自评 | 已选方向作为约束 |
-| `review` | 浏览器检查、不可变快照、规范审计、视觉评审、修订记录 | blocker 裁决需要用户确认 |
-| `delivered` | `audit/report.md` 和最终机器验收 | 交付 |
+| `review` | 浏览器检查、不可变快照、双评审；finalize 同一 `Design.md`；生成并逐页检查 `presentation/design-system.pptx` | blocker 裁决需要用户确认 |
+| `delivered` | acceptance 全部通过后的可审计交付包 | 交付 |
 
 三个确认门必须记录用户的原始答复，不能由 Agent 代拟：
 
@@ -40,7 +38,18 @@ node scripts/director-advance.mjs \
   --reply "用户答复原文"
 ```
 
-`flows` 确认门使用相同格式。视觉方向确认还需要候选与选中项：
+`flows` 确认必须在 proposed Design.md 生成后同时 seal 两份内容：
+
+```bash
+node scripts/director-advance.mjs \
+  --package outputs/demo \
+  --confirm flows \
+  --summary "任务流、页面范围与 Design.md 设计契约摘要" \
+  --reply "用户答复原文" \
+  --design-patch outputs/demo/audit/design/provisional-patch.yaml
+```
+
+视觉方向确认还需要候选与选中项：
 
 ```bash
 node scripts/director-advance.mjs \
@@ -56,13 +65,24 @@ node scripts/director-advance.mjs \
 
 快速模式适用于范围明确的简单页面。它缩短需求和视觉方向的确认过程，但不会跳过目标平台、关键状态、WCAG 2.2 AA、真实截图、控制台错误、内容溢出、决策依据或双评审等硬性质量要求。
 
+快速包默认不请求额外交付物，可在初始化时声明：
+
+```bash
+npm run init -- \
+  --package outputs/quick-demo \
+  --mode quick \
+  --deliverables design_specification,design_presentation
+```
+
+`--deliverables` 只接受 `design_specification`、`design_presentation`。请求 presentation 会隐式加入 design specification，因而仍必须执行 prepare、用户确认/seal 和 finalize；不能根据现成原型反向补写 Design.md 冒充前置契约。专业模式始终要求两项输出。
+
 ## 常用命令
 
 ### 系统与依据库
 
 | 命令 | 用途 |
 |---|---|
-| `npm run check` | 校验依据库、5 个流程 Skill 清单和 Skill 注册表的一致性 |
+| `npm run check` | 校验依据库、7 个可产出补丁的 Skill manifest 和角色注册表一致性 |
 | `npm test` | 运行 Node 测试套件 |
 | `npm run validate:rules` | 校验规则卡 schema、ID 唯一性和冲突引用 |
 | `npm run validate:context -- <context.yaml>` | 校验任务上下文及当前阶段 |
@@ -78,10 +98,48 @@ node scripts/director-advance.mjs \
 | `node scripts/director-advance.mjs --package <目录> --stage <阶段>` | 由 Director 推进合法阶段 |
 | `npm run gate:diff -- --skill <canonical_id> --before <context.yaml> --patch <patch.yaml>` | 只检查 Skill 补丁的字段权限、schema、阶段和版本 |
 | `npm run apply -- --package <目录> --skill <canonical_id> --patch <patch.yaml>` | 门禁通过后合并补丁并写回上下文 |
-| `npm run ctx:project -- --package <目录> --skill <canonical_id> [--out <文件>]` | 按 Skill reads 白名单生成 context 字段投影视图（派发用，规范 27.6） |
+| `npm run ctx:project -- --package <目录> --skill <canonical_id> [--operation prepare\|finalize] [--out <文件>]` | 按 Skill/operation 的 reads 白名单生成派发投影；`design_specification` 必须传 operation |
 | `npm run mode:suggest -- --platforms web --pages 1 --flows 2 --brand-exploration false` | 快速模式建议（须经用户确认后 `--confirm mode` 落盘，规范 27.8） |
 
-内部脚本使用 [`skills/registry.yaml`](../skills/registry.yaml) 中的 canonical snake_case ID，例如 `requirements_research`、`ux_architecture` 和 `html_prototype`，不要传目录使用的连字符名称。
+内部脚本使用 [`skills/registry.yaml`](../skills/registry.yaml) 中的 canonical snake_case ID，例如 `requirements_research`、`design_specification` 和 `html_prototype`，不要传目录使用的连字符名称。
+
+### Design.md 与 presentation
+
+| 命令 | 用途 |
+|---|---|
+| `npm run design:prepare-source -- --package <目录>` | 在 ux 阶段原子冻结 Design.md prepare 的 brief、flows、context 与规则来源 |
+| `npm run design:check -- --package <目录> --phase proposed_contract` | 在用户确认前校验 proposed Design.md 的结构、来源和契约 digest |
+| `npm run design:check -- --package <目录> --phase implementation_ready` | 校验最终 Design.md 未改冻结契约，且实施规格闭合 reviewed source |
+| `npm run design:revise -- --package <目录> --from design_contract --reason <原因>` | Director-only 受控回退到 ux；保留旧证据并登记 stale/revision record |
+| `npm run delivery:prepare -- --package <目录>` | 评审通过后冻结 finalize 所需的 prototype、tokens、快照、findings、结果和决策 |
+| `npm run delivery:check-presentation -- --package <目录> --structure-only` | 重读 PPTX OOXML，检查八段叙事、可编辑对象、来源、边界和绑定 |
+| `npm run delivery:check-presentation -- --package <目录>` | 真实渲染所有幻灯片，重建 QA，并验证 Director 逐页复核 |
+| `npm run presentation:probe` | 创建、重读和渲染最小可编辑 PPTX，验证 LibreOffice/Poppler 能力 |
+
+专业模式固定命令顺序如下；每个 Skill 都在全新会话中使用相应投影，补丁只能经 diff/apply 门合并：
+
+```bash
+# ux: Design.md prepare 与用户确认/seal
+npm run design:prepare-source -- --package outputs/demo
+npm run ctx:project -- --package outputs/demo --skill design_specification --operation prepare --out /tmp/design-prepare.yaml
+npm run design:check -- --package outputs/demo --phase proposed_contract
+node scripts/director-advance.mjs --package outputs/demo --confirm flows --summary "实际展示摘要" --reply "用户答复原文" --design-patch outputs/demo/audit/design/provisional-patch.yaml
+
+# visual/prototype 完成浏览器检查、snapshot 与双评审后：finalize
+npm run delivery:prepare -- --package outputs/demo
+npm run ctx:project -- --package outputs/demo --skill design_specification --operation finalize --out /tmp/design-finalize.yaml
+npm run design:check -- --package outputs/demo --phase implementation_ready
+
+# presentation 与最终验收
+npm run ctx:project -- --package outputs/demo --skill design_presentation --out /tmp/design-presentation.yaml
+npm run delivery:check-presentation -- --package outputs/demo --structure-only
+npm run delivery:check-presentation -- --package outputs/demo
+# Director 查看每一张 render 并写 audit/presentation/director-review.json 后重跑上一条完整检查
+npm run accept -- --package outputs/demo
+node scripts/director-advance.mjs --package outputs/demo --stage delivered
+```
+
+不得通过直接编辑 `context.stage` 或 `director-advance --stage ux` 回退。契约变化只能使用 `design:revise`；当前 seal 证据固定为 `audit/design/contract-lock.json`，修订命令会写 `audit/revisions/contract-<旧>-to-<新>.json`，随后必须从 prepare/seal 到 presentation/acceptance 重跑当前契约链。
 
 ### 原型、评审与验收
 
@@ -100,7 +158,7 @@ node scripts/director-advance.mjs \
 | `npm run accept -- --package <目录>` | 执行最终机器验收 |
 | `npm run accept -- --package <目录> --check-urls` | 最终验收并在线核实已引用规则来源 |
 
-浏览器相关脚本使用统一退出码语义：`0` 表示检查通过，`1` 表示发现失败项，`2` 表示参数错误，`3` 表示浏览器能力不可用、结果待人工验证。
+浏览器与 presentation 能力脚本使用统一退出码语义：`0` 表示检查通过，`1` 表示发现失败项，`2` 表示参数错误，`3` 表示所需能力不可用、结果为“未验证”。任何最终验收出现 `3` 都不可交付，`director-advance --stage delivered` 会保持 `context.yaml` 不变。
 
 ## 交付包结构
 
@@ -110,14 +168,22 @@ outputs/demo/
 |-- README.md                    # 本次交付的范围与验证边界
 |-- brief.md                     # 业务目标、用户、约束和成功标准
 |-- flows.md                     # 任务流、页面地图和状态矩阵
+|-- Design.md                    # 设计前确认的契约 + 评审后闭合的开发实施规格
 |-- design-tokens.json           # 原始层与语义层设计令牌
 |-- decisions.md                 # 规则引用、关键决策、覆盖和例外
+|-- presentation/
+|   `-- design-system.pptx       # 原生可编辑的完整设计方案演示
 |-- prototype/
 |   |-- index.html               # 可点击原型入口
 |   |-- scenarios.json           # 成功与错误路径的可执行场景
 |   `-- assets/
 `-- audit/
     |-- environment.md           # 环境能力和降级状态
+    |-- design/                  # prepare 来源、投影、provisional patch 与 contract lock
+    |   `-- contract-lock.json   # 用户确认时、下游创作前冻结的契约绑定
+    |-- delivery/                # finalize 与 presentation 的 reviewed source 投影
+    |-- presentation/            # manifest、逐页 PNG、QA 和 director-review.json
+    |-- revisions/               # 受控契约回退记录；旧证据保留但不再满足当前链
     |-- candidates/              # 专业模式的执行候选与选择记录
     |-- iterations/              # 原型截图自评迭代
     |-- screenshots/             # 最终多视口截图
@@ -129,7 +195,7 @@ outputs/demo/
     `-- report.md                # 聚合评审和交付判定
 ```
 
-最终验收要求交付包中的原型、浏览器结果、截图、快照和两份评审都绑定当前 `artifact_version`。评审后若修改 `prototype/` 或 `design-tokens.json`，必须升级版本并重新执行截图自评、浏览器检查、快照和评审——首版与拟交付版为全量双评审，中间版本可用 delta 增量评审（规范 27.5，验收「迭代评审链」维度核对链完整性）。
+最终验收要求 Design.md contract lock、原型、浏览器结果、截图、快照、两份评审、最终 handoff、PPTX 和逐页 QA 都绑定当前 `artifact_version`、contract digest 与文件哈希。评审后若修改 `prototype/` 或 `design-tokens.json`，必须升级版本并重新执行截图自评、浏览器检查、快照和评审；修改冻结契约则必须受控回退并让旧链 stale。首版与拟交付版为全量双评审，中间版本可用 delta 增量评审。
 
 ## 平台验证边界
 

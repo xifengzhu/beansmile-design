@@ -42,6 +42,12 @@ test("快速模式不设确认门；未传 ctx 时不误伤（兼容旧调用）
   assert.equal(validateStageTransition("research", "ux", "professional").ok, true);
 });
 
+test("普通 Skill 补丁不得把生命周期直接回退到 ux", () => {
+  const result = validateStageTransition("review", "ux", "professional", {});
+  assert.equal(result.ok, false);
+  assert.match(result.reason, /回退/);
+});
+
 test("design_specification operation 只能写 design_document", () => {
   const before = {
     project: {

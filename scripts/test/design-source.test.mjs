@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   existsSync,
+  mkdirSync,
   mkdtempSync,
   readFileSync,
   readdirSync,
@@ -131,6 +132,52 @@ test("stale downstream registrations still require the matching revision record"
   });
   try {
     assert.throws(() => buildContractSource(root, { contractRevision: 2 }), /revision record|revision.*记录|修订记录/);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("contract source rejects a revision record that does not bind the stale artifacts and old digest", () => {
+  const stale = {
+    stale: true,
+    stale_reason: "新增必需错误状态",
+    superseded_contract_revision: 1,
+  };
+  const root = makeDesignSourcePackage({
+    artifacts: {
+      design_document: {
+        path: "Design.md",
+        artifact_version: "1",
+        phase: "stale",
+        contract_revision: 1,
+        contract_digest: "a".repeat(64),
+        contract_source_digest: "b".repeat(64),
+        sha256: "c".repeat(64),
+        updated_by: "design_specification",
+        ...stale,
+      },
+      tokens: {
+        path: "design-tokens.json",
+        artifact_version: "1",
+        updated_by: "visual_system",
+        ...stale,
+      },
+    },
+  });
+  try {
+    writeFileSync(join(root, "Design.md"), "old design\n");
+    writeFileSync(join(root, "design-tokens.json"), "{}\n");
+    const recordDir = join(root, "audit", "revisions");
+    const recordPath = join(recordDir, "contract-1-to-2.json");
+    const invalid = {
+      old_contract_revision: 1,
+      new_contract_revision: 2,
+      old_contract_digest: "f".repeat(64),
+      affected_artifacts: [{ key: "design_document", path: "Design.md", sha256: "0".repeat(64) }],
+    };
+    mkdirSync(recordDir, { recursive: true });
+    writeFileSync(recordPath, `${JSON.stringify(invalid, null, 2)}\n`);
+    assert.throws(() => buildContractSource(root, { contractRevision: 2 }), /old.*digest|affected|revision record|修订记录/i);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

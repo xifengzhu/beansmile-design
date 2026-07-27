@@ -4,11 +4,12 @@ import {
   readFileSync,
   renameSync,
   rmSync,
+  statSync,
   writeFileSync,
 } from "node:fs";
 import { isAbsolute, join, relative, resolve } from "node:path";
 import yaml from "js-yaml";
-import { canonicalDigest, sha256File, sha256Text } from "./hash.mjs";
+import { canonicalDigest, hashPaths, sha256File, sha256Text } from "./hash.mjs";
 import { loadYaml, projectContext, validateContext } from "./context.mjs";
 import { resolveManifest } from "./manifests.mjs";
 import { loadRules, makeValidator } from "./rules.mjs";
@@ -33,6 +34,15 @@ function safePath(root, path) {
   const rel = relative(root, target);
   if (!rel || rel.startsWith("..") || isAbsolute(rel)) return null;
   return target;
+}
+
+function artifactPathSha256(root, path) {
+  const target = safePath(root, path);
+  if (!target) throw new Error(`artifact 路径非法或越界: ${path}`);
+  if (!existsSync(target)) throw new Error(`artifact 文件不存在: ${path}`);
+  return statSync(target).isDirectory()
+    ? canonicalDigest(hashPaths(root, [path]))
+    : sha256File(target);
 }
 
 function serializeContext(ctx) {
@@ -102,6 +112,21 @@ function validateNewSourceContext(root, ctx, contractRevision) {
     catch (error) { throw new Error(`revision record 非法 JSON: ${error.message}`); }
     if (record.old_contract_revision !== oldRevision || record.new_contract_revision !== contractRevision) {
       throw new Error("revision record 的 old/new contract revision 与本次 source 不符");
+    }
+    const oldDesign = ctx.artifacts?.design_document;
+    if (!oldDesign || record.old_contract_digest !== oldDesign.contract_digest) {
+      throw new Error("revision record 的 old contract digest 与 stale Design.md 不符");
+    }
+    if (!Array.isArray(record.affected_artifacts)) throw new Error("revision record 缺 affected_artifacts");
+    const byKey = new Map(record.affected_artifacts.map((entry) => [entry?.key, entry]));
+    for (const key of staleArtifacts) {
+      const artifact = ctx.artifacts[key];
+      const entry = byKey.get(key);
+      if (!entry || entry.path !== artifact.path) throw new Error(`revision record 未绑定 stale artifact: ${key}`);
+      let currentSha;
+      try { currentSha = artifactPathSha256(root, artifact.path); }
+      catch (error) { throw new Error(`revision record 的 ${key} 证据不可验证: ${error.message}`); }
+      if (entry.sha256 !== currentSha) throw new Error(`revision record 的 affected artifact 哈希不符: ${key}`);
     }
   }
 }

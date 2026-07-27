@@ -57,7 +57,14 @@ ${sections}
 `;
 }
 
-export function makeBoundDesignPackage() {
+export function makeBoundDesignPackage({
+  chosenDirection = "D3",
+  tokenDirection = "D3",
+  prototypeExtra = "",
+  initialAssumptions = [],
+  initialDecisions = [{ id: "direction-D3", summary: "采用方向 D3", decided_by: "user" }],
+  initialExceptions = [],
+} = {}) {
   const root = mkdtempSync(join(tmpdir(), "design-delivery-"));
   const ctx = {
     project: {
@@ -73,9 +80,9 @@ export function makeBoundDesignPackage() {
     users: { primary: "采购方" },
     goals: { user_tasks: ["提交询价"] },
     constraints: ["技术栈未指定"],
-    assumptions: [],
-    decisions: [],
-    exceptions: [],
+    assumptions: initialAssumptions,
+    decisions: initialDecisions,
+    exceptions: initialExceptions,
     artifacts: {
       brief: { path: "brief.md", artifact_version: "1", updated_by: "requirements_research" },
       flows: { path: "flows.md", artifact_version: "1", updated_by: "ux_architecture" },
@@ -110,11 +117,15 @@ export function makeBoundDesignPackage() {
     },
     now: "2026-07-27T00:00:00Z",
   });
-  write(root, "design-tokens.json", '{"semantic":{"color":{"primary":"#14532d"}}}\n');
-  write(root, "prototype/index.html", '<!doctype html><html lang="zh-CN"><body><main><h1>提交询价</h1></main></body></html>\n');
+  write(root, "design-tokens.json", `${JSON.stringify({
+    direction_id: tokenDirection,
+    semantic: { color: { primary: "#14532d" } },
+  })}\n`);
+  write(root, "prototype/index.html", `<!doctype html><html lang="zh-CN"><body><main><form id="inquiry-form"><button id="submit">提交询价</button><p id="success">成功</p><p id="error">失败</p></form>${prototypeExtra}</main></body></html>\n`);
+  write(root, "prototype/assets/logo.png", "logo-png-bytes\n");
   write(root, "prototype/scenarios.json", `${JSON.stringify([
-    { id: "inquiry-success", kind: "success", flow: "提交询价", page: "index.html", steps: [{ action: "click", target: "#submit" }, { action: "expect_visible", target: "#success" }] },
-    { id: "inquiry-error", kind: "error", flow: "提交询价", page: "index.html", steps: [{ action: "click", target: "#submit" }, { action: "expect_visible", target: "#error" }] },
+    { id: "inquiry-success", name: "询价成功", kind: "success", flow: "提交询价", page: "index.html", steps: [{ action: "click", selector: "#submit" }, { action: "expect_visible", selector: "#success" }] },
+    { id: "inquiry-error", name: "询价失败", kind: "error", flow: "提交询价", page: "index.html", steps: [{ action: "click", selector: "#submit" }, { action: "expect_visible", selector: "#error" }] },
   ], null, 2)}\n`);
   const lockSha = sealed.context.confirmations.flows.contract_lock_sha256;
   const next = {
@@ -142,7 +153,7 @@ export function makeBoundDesignPackage() {
         summary: "确认方向",
         user_reply: "选择 D3",
         candidates: ["D1", "D3"],
-        chosen: "D3",
+        chosen: chosenDirection,
       },
     },
     stage: "prototype",
@@ -165,14 +176,22 @@ function completedFindings(root, version) {
     reviewer: "visual",
     artifact_version: version,
     verdict: "pass",
-    findings: [],
+    findings: [{
+      id: "visual-warning-1",
+      severity: "warning",
+      dimension: "completion",
+      location: "prototype/index.html",
+      evidence: "实测 320px 视口仍需人工复核读屏播报顺序",
+      user_impact: "读屏用户可能需要额外确认反馈顺序",
+      recommendation: "开发阶段执行读屏人工核查",
+    }],
     dimension_reviews: DIMENSIONS.map((dimension, index) => ({
       dimension,
       screenshot: shotPath,
       screenshot_sha256: shotSha,
       region: `主页区域 x=0,y=${index * 10},w=1280`,
       observed: `${dimension} 已检查 ${index + 1} 个关键区域，间距 16px 且文字对比清晰。`,
-      judgment: "pass",
+      judgment: dimension === "completion" ? "warning" : "pass",
     })),
   };
   const standards = {
@@ -186,12 +205,13 @@ function completedFindings(root, version) {
   write(root, `audit/findings/visual-${version}.yaml`, yaml.dump(visual));
 }
 
-export function makeReviewedDesignPackage() {
-  const pkg = makeBoundDesignPackage();
+export function makeReviewedDesignPackage(options = {}) {
+  const pkg = makeBoundDesignPackage(options);
   write(pkg.root, "audit/screenshots/final.png", "unique-png-bytes\n");
   const snapshot = spawnSync("node", [SNAPSHOT, "--package", pkg.root, "--version", "3"], { encoding: "utf8" });
   if (snapshot.status !== 0) throw new Error(`snapshot fixture failed: ${snapshot.stderr}`);
   completedFindings(pkg.root, "3");
+  write(pkg.root, "decisions.md", `${readFileSync(join(pkg.root, "decisions.md"), "utf8")}\n[finding:visual-warning-1] 已接受，开发阶段执行读屏人工核查。\n`);
   const aggregate = spawnSync("node", [AGGREGATE, "--package", pkg.root, "--version", "3"], { encoding: "utf8" });
   if (aggregate.status !== 0) throw new Error(`aggregate fixture failed: ${aggregate.stderr}`);
   write(pkg.root, "audit/results.json", '{"checks_version":4,"artifact_version":"3"}\n');

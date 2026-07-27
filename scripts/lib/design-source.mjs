@@ -12,6 +12,7 @@ import { isAbsolute, join, relative, resolve } from "node:path";
 import yaml from "js-yaml";
 import {
   canonicalDigest,
+  diffHashMaps,
   hashPaths,
   manifestDigest,
   sha256File,
@@ -311,19 +312,110 @@ function validateDeliveryManifest(manifest) {
     `delivery-source schema ${error.instancePath || "(root)"} ${error.message}`);
 }
 
-function deliveryInputIssues(root, ctx) {
+function lockedContractContextIssues(root, ctx, design) {
+  const issues = [];
+  const manifestPath = join(root, MANIFEST_PATH);
+  let manifest;
+  if (!existsSync(manifestPath)) return [`缺 ${MANIFEST_PATH}`];
+  try { manifest = JSON.parse(readFileSync(manifestPath, "utf8")); }
+  catch (error) { return [`${MANIFEST_PATH} 非法 JSON: ${error.message}`]; }
+  issues.push(...validateManifest(manifest));
+  if (manifest.contract_source_digest !== sourceDigest(manifest)) {
+    issues.push("contract source manifest 摘要不符");
+  }
+  if (design?.contract_source_digest !== manifest.contract_source_digest) {
+    issues.push("Design.md contract_source_digest 与 contract source manifest 不符");
+  }
+
+  const frozenContextPath = safePath(root, manifest.context?.path);
+  if (!frozenContextPath || manifest.context?.path !== CONTEXT_PATH) {
+    issues.push(`contract source context 必须使用 ${CONTEXT_PATH}`);
+    return issues;
+  }
+  if (!existsSync(frozenContextPath)) return [...issues, `缺 ${CONTEXT_PATH}`];
+  if (sha256File(frozenContextPath) !== manifest.context?.sha256) {
+    issues.push("冻结 contract context SHA-256 与 source manifest 不符");
+  }
+  try {
+    const frozen = loadYaml(frozenContextPath);
+    const prepareManifest = resolveManifest("design_specification", "prepare");
+    const postLockFactFields = new Set(["decisions", "assumptions", "exceptions"]);
+    const lockedReads = prepareManifest.reads.filter((path) => !postLockFactFields.has(path));
+    const currentLocked = projectContext(ctx, lockedReads);
+    const frozenLocked = projectContext(frozen, lockedReads);
+    if (canonicalDigest(currentLocked) !== canonicalDigest(frozenLocked)) {
+      issues.push("当前 prepare context 相对冻结 contract context 漂移，必须修订设计契约");
+    }
+    for (const field of postLockFactFields) {
+      const beforeEntries = Array.isArray(frozen[field]) ? frozen[field] : [];
+      const currentEntries = Array.isArray(ctx[field]) ? ctx[field] : [];
+      const ids = currentEntries.map((entry) => entry.id);
+      if (new Set(ids).size !== ids.length) issues.push(`${field} 含重复 id`);
+      const currentById = new Map(currentEntries.map((entry) => [entry.id, entry]));
+      for (const before of beforeEntries) {
+        const current = currentById.get(before.id);
+        if (!current) {
+          issues.push(`冻结 contract context 的 ${field}.${before.id} 被删除`);
+          continue;
+        }
+        for (const [key, value] of Object.entries(before)) {
+          const assumptionResolved = field === "assumptions"
+            && key === "status"
+            && value === "tentative"
+            && ["tentative", "confirmed", "rejected"].includes(current[key]);
+          if (!assumptionResolved && canonicalDigest(current[key]) !== canonicalDigest(value)) {
+            issues.push(`冻结 contract context 的 ${field}.${before.id}.${key} 被改写`);
+          }
+        }
+      }
+    }
+  } catch (error) {
+    issues.push(`冻结 contract context 非法: ${error.message}`);
+  }
+  return issues;
+}
+
+function deliveryInputIssues(root, ctx, { allowFinalDesign = false, approvedDesign = null } = {}) {
   const issues = [];
   const contextCheck = validateContext(ctx);
   if (!contextCheck.ok) issues.push(...contextCheck.errors.map((error) => `context: ${error}`));
   if (ctx.stage !== "review") issues.push(`delivery source 要求 stage=review，当前为 ${ctx.stage}`);
   if (!requiresDesignContract(ctx)) issues.push("当前包未启用 design_specification");
-  const design = ctx.artifacts?.design_document;
+  const activeDesign = ctx.artifacts?.design_document;
+  const design = approvedDesign ?? activeDesign;
   const version = ctx.artifacts?.prototype?.artifact_version;
-  if (!design || design.phase !== "approved_contract" || design.stale === true) {
-    issues.push(`最终交付来源要求 active approved_contract Design.md，当前为 ${design?.phase ?? "缺失"}`);
+  issues.push(...lockedContractContextIssues(root, ctx, design));
+  if (!allowFinalDesign && (!activeDesign || activeDesign.phase !== "approved_contract" || activeDesign.stale === true)) {
+    issues.push(`最终交付来源要求 active approved_contract Design.md，当前为 ${activeDesign?.phase ?? "缺失"}`);
   }
-  for (const artifact of [null, ctx.artifacts?.tokens, ctx.artifacts?.prototype]) {
-    issues.push(...checkDesignContractBinding(root, ctx, artifact));
+  if (allowFinalDesign) {
+    if (!design || design.phase !== "approved_contract" || design.stale === true) {
+      issues.push(`冻结 delivery context 缺 active approved_contract Design.md，当前为 ${design?.phase ?? "缺失"}`);
+    }
+    if (!activeDesign || !["approved_contract", "implementation_ready"].includes(activeDesign.phase) || activeDesign.stale === true) {
+      issues.push(`finalize 校验要求 approved_contract 或 implementation_ready Design.md，当前为 ${activeDesign?.phase ?? "缺失"}`);
+    } else if (design) {
+      if (activeDesign.contract_revision !== design.contract_revision) issues.push("active Design.md contract_revision 与冻结 approved baseline 不符");
+      if (activeDesign.contract_digest !== design.contract_digest) issues.push("active Design.md contract_digest 与冻结 approved baseline 不符");
+      if (activeDesign.contract_source_digest !== design.contract_source_digest) issues.push("active Design.md contract_source_digest 与冻结 approved baseline 不符");
+    }
+  }
+  if (allowFinalDesign) {
+    const lockPath = join(root, "audit", "design", "contract-lock.json");
+    const lockSha = ctx.confirmations?.flows?.contract_lock_sha256;
+    if (!existsSync(lockPath)) issues.push("缺 audit/design/contract-lock.json");
+    else if (sha256File(lockPath) !== lockSha) issues.push("active contract lock SHA-256 与 confirmation 不符");
+    for (const [key, artifact] of [["tokens", ctx.artifacts?.tokens], ["prototype", ctx.artifacts?.prototype]]) {
+      if (!artifact) issues.push(`缺 artifacts.${key}`);
+      else {
+        if (artifact.design_contract_digest !== design?.contract_digest) issues.push(`artifacts.${key} contract digest 不符`);
+        if (artifact.contract_lock_sha256 !== lockSha) issues.push(`artifacts.${key} contract lock SHA-256 不符`);
+      }
+    }
+  } else {
+    for (const artifact of [null, ctx.artifacts?.tokens, ctx.artifacts?.prototype]) {
+      issues.push(...checkDesignContractBinding(root, ctx, artifact));
+    }
   }
   if (!version) return { issues: [...new Set(issues)], version, design, snapshot: null, frozen: null, findings: null };
 
@@ -343,9 +435,15 @@ function deliveryInputIssues(root, ctx) {
         issues.push(`version-3 snapshot 缺 ${required}`);
       }
     }
+    const bindingContext = approvedDesign
+      ? { ...ctx, artifacts: { ...ctx.artifacts, design_document: approvedDesign } }
+      : ctx;
     for (const artifact of [null, ctx.artifacts?.tokens, ctx.artifacts?.prototype]) {
-      issues.push(...checkDesignContractBinding(snapDir, ctx, artifact).map((issue) => `snapshot: ${issue}`));
+      issues.push(...checkDesignContractBinding(snapDir, bindingContext, artifact).map((issue) => `snapshot: ${issue}`));
     }
+    const activeHashes = hashPaths(root, ["prototype", "design-tokens.json"]);
+    issues.push(...diffHashMaps(snapshot.files ?? {}, activeHashes, ["prototype", "design-tokens.json"])
+      .map((issue) => `活动产物相对 reviewed snapshot ${issue}`));
   }
 
   const frozen = loadFrozenRules(root, version);
@@ -477,7 +575,7 @@ export function buildDeliverySource(rootPath, {
   }
 }
 
-export function verifyDeliverySource(rootPath, suppliedManifest = null) {
+export function verifyDeliverySource(rootPath, suppliedManifest = null, { allowFinalDesign = false } = {}) {
   const root = resolve(rootPath);
   const issues = [];
   const manifestPath = join(root, DELIVERY_MANIFEST_PATH);
@@ -503,13 +601,29 @@ export function verifyDeliverySource(rootPath, suppliedManifest = null) {
   if (!existsSync(contextPath)) return [...new Set([...issues, "缺 context.yaml"])];
   try {
     const ctx = loadYaml(contextPath);
-    const checked = deliveryInputIssues(root, ctx);
+    let approvedDesign = null;
+    if (allowFinalDesign) {
+      const frozenContextPath = join(root, DELIVERY_CONTEXT_PATH);
+      if (!existsSync(frozenContextPath)) issues.push(`缺 ${DELIVERY_CONTEXT_PATH}`);
+      else {
+        try {
+          approvedDesign = yaml.load(readFileSync(frozenContextPath, "utf8"))?.artifacts?.design_document ?? null;
+        } catch (error) {
+          issues.push(`${DELIVERY_CONTEXT_PATH} 非法 YAML: ${error.message}`);
+        }
+      }
+    }
+    const checked = deliveryInputIssues(root, ctx, { allowFinalDesign, approvedDesign });
     issues.push(...checked.issues);
     if (checked.version !== manifest.artifact_version) issues.push("delivery source artifact_version 与当前 prototype 不符");
+    if (checked.design?.contract_revision !== manifest.contract_revision) issues.push("delivery source contract_revision 与当前 Design.md 不符");
     if (checked.design?.contract_digest !== manifest.contract_digest) issues.push("delivery source contract digest 与当前 Design.md 不符");
     if (checked.snapshot?.digest !== manifest.snapshot_manifest_digest) issues.push("delivery source snapshot manifest digest 不符");
     if (ctx.confirmations?.flows?.contract_lock_sha256 !== manifest.contract_lock_sha256) issues.push("delivery source contract lock SHA-256 不符");
-    const currentProjection = serializeDeliveryContext(ctx);
+    const projectionContext = allowFinalDesign && approvedDesign
+      ? { ...ctx, artifacts: { ...ctx.artifacts, design_document: approvedDesign } }
+      : ctx;
+    const currentProjection = serializeDeliveryContext(projectionContext);
     const frozenContext = manifest.files?.find((entry) => entry.path === DELIVERY_CONTEXT_PATH);
     if (!frozenContext || frozenContext.sha256 !== sha256Text(currentProjection)) issues.push("当前 finalize context 投影与冻结 delivery context 漂移");
   } catch (error) {

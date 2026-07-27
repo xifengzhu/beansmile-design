@@ -242,3 +242,15 @@ test("delivery artifacts use independent monotonic version semantics", () => {
     /artifact_revision/,
   );
 });
+
+test("finalize requires exactly the next Design.md artifact version", () => {
+  const before = { artifact_version: "1", phase: "approved_contract" };
+  assert.deepEqual(
+    deliveryArtifactVersionIssues(before, { artifact_version: "2", phase: "implementation_ready" }, { kind: "design_document" }),
+    [],
+  );
+  assert.match(
+    deliveryArtifactVersionIssues(before, { artifact_version: "1", phase: "implementation_ready" }, { kind: "design_document" })[0],
+    /artifact_version/,
+  );
+});

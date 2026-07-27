@@ -1,10 +1,15 @@
 // context.yaml 加载/校验、字段级 diff、以及基于白名单的 diff 门禁（规范 5.2、8）。
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import yaml from "js-yaml";
 import { makeValidator } from "./rules.mjs";
 import { SCHEMAS } from "./paths.mjs";
-import { deliveryArtifactVersionIssues, requiresDesignContract } from "./delivery.mjs";
+import {
+  deliveryArtifactVersionIssues,
+  requiresDesignContract,
+} from "./delivery.mjs";
 import { checkDesignContractBinding } from "./design-contract-binding.mjs";
+import { implementationReadyIssues, parseDesignDocument } from "./design-document.mjs";
 
 export function loadYaml(path) {
   return yaml.load(readFileSync(path, "utf8"));
@@ -169,6 +174,24 @@ export function hardenedGate(manifest, before, { after, patch, packageRoot } = {
         prototypeVersion: merged.artifacts?.prototype?.artifact_version,
       },
     )) reasons.push(issue);
+  }
+  if (manifest.skill === "design_specification" && manifest.operation === "finalize") {
+    if (!packageRoot) reasons.push("design_specification/finalize 需要 packageRoot 才能验证最终 Design.md artifact");
+    else {
+      const designPath = join(packageRoot, "Design.md");
+      const sourcePath = join(packageRoot, "audit", "delivery", "source-manifest.json");
+      if (!existsSync(designPath) || !existsSync(sourcePath)) {
+        reasons.push(`design_specification/finalize 缺 ${!existsSync(designPath) ? "Design.md" : "audit/delivery/source-manifest.json"}`);
+      } else {
+        try {
+          const parsed = parseDesignDocument(readFileSync(designPath, "utf8"));
+          const source = JSON.parse(readFileSync(sourcePath, "utf8"));
+          reasons.push(...implementationReadyIssues(packageRoot, parsed, source, merged.artifacts?.design_document));
+        } catch (error) {
+          reasons.push(`design_specification/finalize 完整校验失败: ${error.message}`);
+        }
+      }
+    }
   }
 
   if (["visual_system", "html_prototype"].includes(manifest.skill) && requiresDesignContract(merged)) {

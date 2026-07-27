@@ -3,6 +3,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import {
   implementationReadyIssues,
+  approvedContractIssues,
   parseDesignDocument,
   proposedContractIssues,
 } from "./lib/design-document.mjs";
@@ -14,8 +15,8 @@ function arg(name) {
 
 const pkg = arg("--package");
 const phase = arg("--phase");
-if (!pkg || !["proposed_contract", "implementation_ready"].includes(phase)) {
-  console.error("用法: node scripts/check-design-document.mjs --package <目录> --phase proposed_contract|implementation_ready");
+if (!pkg || !["proposed_contract", "approved_contract", "implementation_ready"].includes(phase)) {
+  console.error("用法: node scripts/check-design-document.mjs --package <目录> --phase proposed_contract|approved_contract|implementation_ready");
   process.exit(2);
 }
 
@@ -23,7 +24,9 @@ const root = resolve(pkg);
 const designPath = join(root, "Design.md");
 const sourcePath = phase === "proposed_contract"
   ? join(root, "audit", "design", "contract-source.json")
-  : join(root, "audit", "delivery", "source-manifest.json");
+  : phase === "approved_contract"
+    ? join(root, "audit", "design", "contract-lock.json")
+    : join(root, "audit", "delivery", "source-manifest.json");
 if (!existsSync(designPath) || !existsSync(sourcePath)) {
   console.error(`✗ 缺 ${!existsSync(designPath) ? "Design.md" : sourcePath}`);
   process.exit(1);
@@ -34,7 +37,9 @@ try {
   const source = JSON.parse(readFileSync(sourcePath, "utf8"));
   const issues = phase === "proposed_contract"
     ? proposedContractIssues(root, parsed, source)
-    : implementationReadyIssues(root, parsed, source, null);
+    : phase === "approved_contract"
+      ? approvedContractIssues(root, parsed)
+      : implementationReadyIssues(root, parsed, source, null);
   if (issues.length) {
     console.error(`✗ Design.md ${phase} 校验失败:`);
     for (const issue of issues) console.error(`  - ${issue}`);

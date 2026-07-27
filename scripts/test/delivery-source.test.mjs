@@ -51,6 +51,8 @@ test("delivery source fails closed on every frozen evidence class", () => {
     ["results", (root) => writeFileSync(join(root, "audit", "results.json"), "{}\n"), /results\.json/],
     ["report", (root) => writeFileSync(join(root, "audit", "report.md"), "changed\n"), /report\.md/],
     ["screenshots", (root) => writeFileSync(join(root, "audit", "screenshots", "final.png"), "changed\n"), /screenshots/],
+    ["active tokens", (root) => writeFileSync(join(root, "design-tokens.json"), '{"direction_id":"D3","semantic":{"color":{"primary":"#ffffff"}}}\n'), /design-tokens|活动产物|快照/],
+    ["active prototype", (root) => writeFileSync(join(root, "prototype", "index.html"), "changed after review\n"), /prototype|活动产物|快照/],
     ["context projection", (root) => {
       const path = join(root, "context.yaml");
       const ctx = yaml.load(readFileSync(path, "utf8"));
@@ -67,6 +69,123 @@ test("delivery source fails closed on every frozen evidence class", () => {
     } finally {
       rmSync(pkg.root, { recursive: true, force: true });
     }
+  }
+});
+
+test("delivery source binds the current contract revision", () => {
+  const pkg = makeReviewedDesignPackage();
+  try {
+    const manifest = buildDeliverySource(pkg.root);
+    const changed = { ...manifest, contract_revision: 99 };
+    const { generated_at, source_bundle_digest, ...payload } = changed;
+    changed.source_bundle_digest = canonicalDigest(payload);
+    assert.ok(
+      verifyDeliverySource(pkg.root, changed).some((issue) => /contract revision|contract_revision/.test(issue)),
+    );
+  } finally {
+    rmSync(pkg.root, { recursive: true, force: true });
+  }
+});
+
+test("delivery source rejects locked contract context drift before freezing", () => {
+  const cases = [
+    ["task", (ctx) => ctx.goals.user_tasks.push("删除账户")],
+    ["constraint", (ctx) => ctx.constraints.push("必须支持离线模式")],
+  ];
+  for (const [name, mutate] of cases) {
+    const pkg = makeReviewedDesignPackage();
+    try {
+      const contextPath = join(pkg.root, "context.yaml");
+      const ctx = yaml.load(readFileSync(contextPath, "utf8"));
+      mutate(ctx);
+      writeFileSync(contextPath, yaml.dump(ctx));
+      assert.throws(
+        () => buildDeliverySource(pkg.root),
+        /contract.*context|context.*契约|冻结.*context/i,
+        name,
+      );
+    } finally {
+      rmSync(pkg.root, { recursive: true, force: true });
+    }
+  }
+});
+
+test("delivery source accepts authorized post-lock design facts", () => {
+  const cases = [
+    ["decision", (ctx) => ctx.decisions.push({
+      id: "visual-density",
+      summary: "采用紧凑密度",
+      decided_by: "director",
+    })],
+    ["assumption", (ctx) => ctx.assumptions.push({
+      id: "browser-rendered",
+      statement: "浏览器渲染结果已人工复核",
+      status: "confirmed",
+      source: "verified",
+    })],
+    ["exception", (ctx) => ctx.exceptions.push({
+      id: "native-check-pending",
+      rule_id: "wcag-1.4.3-contrast-minimum",
+      reason: "原生壳层尚未接入",
+      risk: "原生环境仍需复核",
+      scope: "native shell",
+    })],
+  ];
+  for (const [name, mutate] of cases) {
+    const pkg = makeReviewedDesignPackage();
+    try {
+      const contextPath = join(pkg.root, "context.yaml");
+      const ctx = yaml.load(readFileSync(contextPath, "utf8"));
+      mutate(ctx);
+      writeFileSync(contextPath, yaml.dump(ctx));
+      assert.doesNotThrow(() => buildDeliverySource(pkg.root), name);
+    } finally {
+      rmSync(pkg.root, { recursive: true, force: true });
+    }
+  }
+});
+
+test("delivery source preserves facts already frozen into the contract context", () => {
+  const cases = [
+    ["deleted decision", (ctx) => { ctx.decisions = []; }],
+    ["rewritten decision", (ctx) => { ctx.decisions[0].summary = "改写已锁定方向"; }],
+    ["duplicate decision", (ctx) => { ctx.decisions.push({ ...ctx.decisions[0] }); }],
+  ];
+  for (const [name, mutate] of cases) {
+    const pkg = makeReviewedDesignPackage();
+    try {
+      const contextPath = join(pkg.root, "context.yaml");
+      const ctx = yaml.load(readFileSync(contextPath, "utf8"));
+      mutate(ctx);
+      writeFileSync(contextPath, yaml.dump(ctx));
+      assert.throws(
+        () => buildDeliverySource(pkg.root),
+        /冻结.*decision|decision.*删除|decision.*改写|decision.*重复/i,
+        name,
+      );
+    } finally {
+      rmSync(pkg.root, { recursive: true, force: true });
+    }
+  }
+});
+
+test("delivery source allows a frozen tentative assumption to resolve", () => {
+  const pkg = makeReviewedDesignPackage({
+    initialAssumptions: [{
+      id: "browser-available",
+      statement: "交付环境可运行真实浏览器",
+      status: "tentative",
+      source: "inferred",
+    }],
+  });
+  try {
+    const contextPath = join(pkg.root, "context.yaml");
+    const ctx = yaml.load(readFileSync(contextPath, "utf8"));
+    ctx.assumptions[0].status = "confirmed";
+    writeFileSync(contextPath, yaml.dump(ctx));
+    assert.doesNotThrow(() => buildDeliverySource(pkg.root));
+  } finally {
+    rmSync(pkg.root, { recursive: true, force: true });
   }
 });
 

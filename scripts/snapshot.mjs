@@ -10,7 +10,7 @@
 // 时在快照内生成 delta/（中间版本增量评审输入，验收可再生比对）。
 // 用法: node scripts/snapshot.mjs --package <目录> --version <artifact_version> [--delta-from <基线版本>]
 import { cpSync, mkdirSync, existsSync, readdirSync, readFileSync, writeFileSync, rmSync, renameSync } from "node:fs";
-import { resolve, join } from "node:path";
+import { resolve, join, dirname } from "node:path";
 import yaml from "js-yaml";
 import { hashPaths, manifestDigest } from "./lib/hash.mjs";
 import { loadYaml } from "./lib/context.mjs";
@@ -21,6 +21,8 @@ import { buildReviewBundle } from "./lib/review-bundle.mjs";
 import { buildDeltaBundle } from "./lib/delta-review.mjs";
 import { naCandidates } from "./lib/na-scan.mjs";
 import { MIGRATION_HINT } from "./lib/frozen-rules.mjs";
+import { requiresDesignContract } from "./lib/delivery.mjs";
+import { checkDesignContractBinding } from "./lib/design-contract.mjs";
 
 function arg(name) { const i = process.argv.indexOf(name); return i >= 0 ? process.argv[i + 1] : undefined; }
 
@@ -33,7 +35,8 @@ mkdirSync(snapRoot, { recursive: true });
 // 先读 context 并求激活集——缺 reference_system 时按 §9.1 报迁移提示退出，不生成半套快照。
 const ctxPath = join(root, "context.yaml");
 if (!existsSync(ctxPath)) { console.error("✗ 缺 context.yaml，无法确定激活规则集"); process.exit(1); }
-const project = loadYaml(ctxPath)?.project ?? {};
+const ctx = loadYaml(ctxPath);
+const project = ctx?.project ?? {};
 if (project.reference_system === undefined) {
   console.error(`✗ context.project 缺 reference_system —— ${MIGRATION_HINT}`);
   process.exit(1);
@@ -67,6 +70,22 @@ if (deltaFrom !== undefined) {
   }
 }
 
+const designContractRequired = requiresDesignContract(ctx);
+if (designContractRequired) {
+  const issues = [];
+  if (String(ctx.artifacts?.prototype?.artifact_version ?? "") !== String(version)) {
+    issues.push(`快照版本 ${version} 与当前 prototype artifact_version=${ctx.artifacts?.prototype?.artifact_version ?? "缺失"} 不符`);
+  }
+  for (const artifact of [null, ctx.artifacts?.tokens, ctx.artifacts?.prototype]) {
+    issues.push(...checkDesignContractBinding(root, ctx, artifact));
+  }
+  if (issues.length) {
+    console.error("✗ Design.md 契约/下游绑定未通过，禁止创建 version-3 快照：");
+    for (const issue of [...new Set(issues)]) console.error(`  - ${issue}`);
+    process.exit(1);
+  }
+}
+
 // 组装到临时目录，全部成功后原子 rename 到最终路径——中途失败不留半成品。
 const work = join(snapRoot, `.tmp-${version}`);
 rmSync(work, { recursive: true, force: true });
@@ -74,11 +93,26 @@ mkdirSync(work, { recursive: true });
 
 try {
 
-const items = ["prototype", "design-tokens.json", "decisions.md", "brief.md", "flows.md"];
+const items = [
+  "prototype",
+  "design-tokens.json",
+  "decisions.md",
+  "brief.md",
+  "flows.md",
+  ...(designContractRequired ? [
+    "Design.md",
+    "audit/design/contract-source.json",
+    "audit/design/contract-lock.json",
+  ] : []),
+];
 const copied = [];
 for (const it of items) {
   const src = join(root, it);
-  if (existsSync(src)) { cpSync(src, join(work, it), { recursive: true }); copied.push(it); }
+  if (existsSync(src)) {
+    mkdirSync(dirname(join(work, it)), { recursive: true });
+    cpSync(src, join(work, it), { recursive: true });
+    copied.push(it);
+  }
 }
 
 // —— 冻结激活规则集（§8.4）——
@@ -101,7 +135,7 @@ for (const [file, cards] of byFile) {
 // 门只对 >=2 的包启用，历史包输出迁移措辞不追溯（规范 27.1/27.10）。
 const rulesManifest = {
   artifact_version: String(version),
-  snapshot_version: 2,
+  snapshot_version: designContractRequired ? 3 : 2,
   generated_at: new Date().toISOString(),
   rules: applicable.map((a) => ({ rule_id: a.rule_id, pack_id: a.pack_id, file: a.file, sha256: a.rule_sha256 })),
 };

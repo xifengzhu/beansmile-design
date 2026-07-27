@@ -2,6 +2,7 @@ import {
   existsSync,
   mkdirSync,
   readFileSync,
+  readdirSync,
   renameSync,
   rmSync,
   statSync,
@@ -9,12 +10,29 @@ import {
 } from "node:fs";
 import { isAbsolute, join, relative, resolve } from "node:path";
 import yaml from "js-yaml";
-import { canonicalDigest, hashPaths, sha256File, sha256Text } from "./hash.mjs";
+import {
+  canonicalDigest,
+  hashPaths,
+  manifestDigest,
+  sha256File,
+  sha256Text,
+  verifyManifest,
+} from "./hash.mjs";
 import { loadYaml, projectContext, validateContext } from "./context.mjs";
 import { resolveManifest } from "./manifests.mjs";
 import { loadRules, makeValidator } from "./rules.mjs";
 import { applicableRules, loadRulePacks } from "./rule-packs.mjs";
 import { SCHEMAS } from "./paths.mjs";
+import { checkDesignContractBinding } from "./design-contract.mjs";
+import { requiresDesignContract } from "./delivery.mjs";
+import {
+  countBlockers,
+  loadFindingsForVersion,
+  semanticIssuesStandards,
+  semanticIssuesVisual,
+} from "./findings.mjs";
+import { loadFrozenRules } from "./frozen-rules.mjs";
+import { templateClosureIssues } from "./coverage-template.mjs";
 
 const SOURCE_VERSION = 1;
 const CONTEXT_PATH = "audit/design/context.yaml";
@@ -266,6 +284,236 @@ export function verifyContractSource(rootPath, suppliedManifest = null) {
     }
   } catch (error) {
     issues.push(`重算当前 context/规则失败: ${error.message}`);
+  }
+  return [...new Set(issues)];
+}
+
+const DELIVERY_CONTEXT_PATH = "audit/delivery/context.yaml";
+const DELIVERY_MANIFEST_PATH = "audit/delivery/source-manifest.json";
+
+function deliverySourceDigest(manifest) {
+  if (!manifest || typeof manifest !== "object" || Array.isArray(manifest)) return null;
+  const { generated_at, source_bundle_digest, ...payload } = manifest;
+  return canonicalDigest(payload);
+}
+
+function serializeDeliveryContext(ctx) {
+  const manifest = resolveManifest("design_specification", "finalize");
+  return yaml.dump(projectContext(ctx, manifest.reads), { lineWidth: 120, sortKeys: true });
+}
+
+function validateDeliveryManifest(manifest) {
+  const validator = makeValidator().compile(
+    JSON.parse(readFileSync(SCHEMAS.deliverySource, "utf8")),
+  );
+  if (validator(manifest)) return [];
+  return validator.errors.map((error) =>
+    `delivery-source schema ${error.instancePath || "(root)"} ${error.message}`);
+}
+
+function deliveryInputIssues(root, ctx) {
+  const issues = [];
+  const contextCheck = validateContext(ctx);
+  if (!contextCheck.ok) issues.push(...contextCheck.errors.map((error) => `context: ${error}`));
+  if (ctx.stage !== "review") issues.push(`delivery source 要求 stage=review，当前为 ${ctx.stage}`);
+  if (!requiresDesignContract(ctx)) issues.push("当前包未启用 design_specification");
+  const design = ctx.artifacts?.design_document;
+  const version = ctx.artifacts?.prototype?.artifact_version;
+  if (!design || design.phase !== "approved_contract" || design.stale === true) {
+    issues.push(`最终交付来源要求 active approved_contract Design.md，当前为 ${design?.phase ?? "缺失"}`);
+  }
+  for (const artifact of [null, ctx.artifacts?.tokens, ctx.artifacts?.prototype]) {
+    issues.push(...checkDesignContractBinding(root, ctx, artifact));
+  }
+  if (!version) return { issues: [...new Set(issues)], version, design, snapshot: null, frozen: null, findings: null };
+
+  const snapDir = join(root, "audit", "snapshots", String(version));
+  const snapshotPath = join(snapDir, "manifest.json");
+  let snapshot = null;
+  if (!existsSync(snapshotPath)) issues.push(`缺当前 snapshot manifest: audit/snapshots/${version}/manifest.json`);
+  else {
+    try { snapshot = JSON.parse(readFileSync(snapshotPath, "utf8")); }
+    catch (error) { issues.push(`snapshot manifest 非法 JSON: ${error.message}`); }
+  }
+  if (snapshot) {
+    if (snapshot.digest !== manifestDigest(snapshot)) issues.push("snapshot manifest digest 不符");
+    issues.push(...verifyManifest(snapDir, snapshot));
+    for (const required of ["Design.md", "audit/design/contract-source.json", "audit/design/contract-lock.json"]) {
+      if (!Object.keys(snapshot.files ?? {}).some((path) => path === required || path.startsWith(`${required}/`))) {
+        issues.push(`version-3 snapshot 缺 ${required}`);
+      }
+    }
+    for (const artifact of [null, ctx.artifacts?.tokens, ctx.artifacts?.prototype]) {
+      issues.push(...checkDesignContractBinding(snapDir, ctx, artifact).map((issue) => `snapshot: ${issue}`));
+    }
+  }
+
+  const frozen = loadFrozenRules(root, version);
+  if (!frozen.ok) issues.push(...frozen.errors.map((error) => `snapshot rules: ${error}`));
+  else if ((frozen.manifest.snapshot_version ?? 1) < 3) issues.push(`snapshot v${version} 不是 snapshot_version 3`);
+
+  const findings = loadFindingsForVersion(root, version);
+  if (findings.errors.length) issues.push(...findings.errors.map((error) => `findings: ${error}`));
+  const decisionsPath = join(root, "decisions.md");
+  const decisions = existsSync(decisionsPath) ? readFileSync(decisionsPath, "utf8") : "";
+  for (const reviewer of ["standards", "visual"]) {
+    const doc = findings[reviewer];
+    if (!doc) continue;
+    if (doc.verdict !== "pass") issues.push(`${reviewer} findings verdict=${doc.verdict}`);
+    if (countBlockers(doc) > 0) issues.push(`${reviewer} findings 存在 blocker`);
+    const unhandled = (doc.findings ?? [])
+      .filter((finding) => finding.severity === "warning" && !decisions.includes(`[finding:${finding.id}]`))
+      .map((finding) => finding.id);
+    if (unhandled.length) issues.push(`${reviewer} findings 有未处理 warning，decisions.md 缺 ${unhandled.map((id) => `[finding:${id}]`).join(", ")}`);
+  }
+  if (frozen.ok && findings.standards) {
+    issues.push(...semanticIssuesStandards(findings.standards, frozen.cards));
+    issues.push(...templateClosureIssues(
+      findings.standards.rule_coverage,
+      frozen.scope?.rule_coverage_template ?? [],
+      findings.standards.findings,
+    ));
+  }
+  if (findings.visual) issues.push(...semanticIssuesVisual(findings.visual, root));
+
+  for (const required of ["decisions.md", "audit/results.json", "audit/report.md"]) {
+    if (!existsSync(join(root, required))) issues.push(`缺最终交付来源 ${required}`);
+  }
+  const reportPath = join(root, "audit", "report.md");
+  if (existsSync(reportPath)) {
+    const report = readFileSync(reportPath, "utf8");
+    if (!report.includes(`artifact_version ${version}`) || !report.includes("可交付")) {
+      issues.push(`audit/report.md 未绑定当前 artifact_version ${version} 的可交付聚合结论`);
+    }
+  }
+  const screenshotsDir = join(root, "audit", "screenshots");
+  if (!existsSync(screenshotsDir) || !readdirSync(screenshotsDir).some((name) => !name.startsWith("."))) {
+    issues.push("缺实际 screenshots 交付证据");
+  }
+  return { issues: [...new Set(issues)], version, design, snapshot, frozen, findings };
+}
+
+function deliveryFilePaths(root, version, contextText) {
+  const snapDir = join(root, "audit", "snapshots", String(version));
+  const snapshotFiles = hashPaths(root, [`audit/snapshots/${version}`]);
+  const currentFiles = hashPaths(root, [
+    "decisions.md",
+    "audit/results.json",
+    "audit/report.md",
+    `audit/findings/standards-${version}.yaml`,
+    `audit/findings/visual-${version}.yaml`,
+    "audit/screenshots",
+  ]);
+  if (!existsSync(snapDir)) return [];
+  const entries = new Map(Object.entries({ ...snapshotFiles, ...currentFiles }));
+  entries.set(DELIVERY_CONTEXT_PATH, sha256Text(contextText));
+  return [...entries.entries()]
+    .sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0))
+    .map(([path, sha256]) => ({ path, sha256 }));
+}
+
+export function buildDeliverySource(rootPath, {
+  now = new Date().toISOString(),
+  overwrite = true,
+  beforeCommit,
+} = {}) {
+  const root = resolve(rootPath);
+  const contextPath = join(root, "context.yaml");
+  if (!existsSync(contextPath)) throw new Error("缺 context.yaml");
+  const ctx = loadYaml(contextPath);
+  const checked = deliveryInputIssues(root, ctx);
+  if (checked.issues.length) throw new Error(`delivery source 输入未通过: ${checked.issues.join("; ")}`);
+
+  const deliveryDir = join(root, "audit", "delivery");
+  const existingManifestPath = join(deliveryDir, "source-manifest.json");
+  if (existsSync(deliveryDir) && !overwrite) throw new Error(`${DELIVERY_MANIFEST_PATH} 已存在；显式传 --overwrite 才可重建`);
+  if (existsSync(existingManifestPath) && overwrite) {
+    let old;
+    try { old = JSON.parse(readFileSync(existingManifestPath, "utf8")); }
+    catch (error) { throw new Error(`旧 delivery source manifest 非法 JSON: ${error.message}`); }
+    if (old.artifact_version !== checked.version || old.contract_digest !== checked.design.contract_digest) {
+      throw new Error("--overwrite 只能重建相同 prototype version 与 contract digest 的 delivery source");
+    }
+  }
+
+  const contextText = serializeDeliveryContext(ctx);
+  const manifest = {
+    source_version: 1,
+    artifact_version: checked.version,
+    contract_revision: checked.design.contract_revision,
+    contract_digest: checked.design.contract_digest,
+    contract_lock_sha256: ctx.confirmations.flows.contract_lock_sha256,
+    snapshot_manifest_digest: checked.snapshot.digest,
+    files: deliveryFilePaths(root, checked.version, contextText),
+    generated_at: new Date(now).toISOString(),
+  };
+  manifest.source_bundle_digest = deliverySourceDigest(manifest);
+  const schemaIssues = validateDeliveryManifest(manifest);
+  if (schemaIssues.length) throw new Error(schemaIssues.join("; "));
+
+  const auditDir = join(root, "audit");
+  const work = join(auditDir, `.tmp-delivery-${process.pid}-${Date.now()}`);
+  const backup = join(auditDir, `.tmp-delivery-backup-${process.pid}-${Date.now()}`);
+  rmSync(work, { recursive: true, force: true });
+  rmSync(backup, { recursive: true, force: true });
+  mkdirSync(work, { recursive: true });
+  let movedExisting = false;
+  try {
+    writeFileSync(join(work, "context.yaml"), contextText);
+    writeFileSync(join(work, "source-manifest.json"), `${JSON.stringify(manifest, null, 2)}\n`);
+    beforeCommit?.({ root, work, manifest });
+    if (existsSync(deliveryDir)) {
+      renameSync(deliveryDir, backup);
+      movedExisting = true;
+    }
+    renameSync(work, deliveryDir);
+    rmSync(backup, { recursive: true, force: true });
+    return manifest;
+  } catch (error) {
+    rmSync(work, { recursive: true, force: true });
+    if (movedExisting && !existsSync(deliveryDir) && existsSync(backup)) renameSync(backup, deliveryDir);
+    else rmSync(backup, { recursive: true, force: true });
+    throw error;
+  }
+}
+
+export function verifyDeliverySource(rootPath, suppliedManifest = null) {
+  const root = resolve(rootPath);
+  const issues = [];
+  const manifestPath = join(root, DELIVERY_MANIFEST_PATH);
+  let manifest = suppliedManifest;
+  if (!manifest) {
+    if (!existsSync(manifestPath)) return [`缺 ${DELIVERY_MANIFEST_PATH}`];
+    try { manifest = JSON.parse(readFileSync(manifestPath, "utf8")); }
+    catch (error) { return [`${DELIVERY_MANIFEST_PATH} 非法 JSON: ${error.message}`]; }
+  }
+  if (!manifest || typeof manifest !== "object" || Array.isArray(manifest)) return ["delivery source manifest 须为对象"];
+  issues.push(...validateDeliveryManifest(manifest));
+  if (manifest.source_bundle_digest !== deliverySourceDigest(manifest)) issues.push("source_bundle_digest 与 manifest 规范化内容不符");
+  const paths = Array.isArray(manifest.files) ? manifest.files.map((entry) => entry?.path) : [];
+  if (JSON.stringify(paths) !== JSON.stringify([...paths].sort())) issues.push("delivery source files 必须按 path 排序");
+  if (new Set(paths).size !== paths.length) issues.push("delivery source files 含重复 path");
+  for (const entry of Array.isArray(manifest.files) ? manifest.files : []) {
+    const target = safePath(root, entry.path);
+    if (!target) issues.push(`非法路径或越界到包外: ${entry.path}`);
+    else if (!existsSync(target)) issues.push(`delivery source 缺文件: ${entry.path}`);
+    else if (sha256File(target) !== entry.sha256) issues.push(`delivery source 漂移: ${entry.path}`);
+  }
+  const contextPath = join(root, "context.yaml");
+  if (!existsSync(contextPath)) return [...new Set([...issues, "缺 context.yaml"])];
+  try {
+    const ctx = loadYaml(contextPath);
+    const checked = deliveryInputIssues(root, ctx);
+    issues.push(...checked.issues);
+    if (checked.version !== manifest.artifact_version) issues.push("delivery source artifact_version 与当前 prototype 不符");
+    if (checked.design?.contract_digest !== manifest.contract_digest) issues.push("delivery source contract digest 与当前 Design.md 不符");
+    if (checked.snapshot?.digest !== manifest.snapshot_manifest_digest) issues.push("delivery source snapshot manifest digest 不符");
+    if (ctx.confirmations?.flows?.contract_lock_sha256 !== manifest.contract_lock_sha256) issues.push("delivery source contract lock SHA-256 不符");
+    const currentProjection = serializeDeliveryContext(ctx);
+    const frozenContext = manifest.files?.find((entry) => entry.path === DELIVERY_CONTEXT_PATH);
+    if (!frozenContext || frozenContext.sha256 !== sha256Text(currentProjection)) issues.push("当前 finalize context 投影与冻结 delivery context 漂移");
+  } catch (error) {
+    issues.push(`重算 delivery source 失败: ${error.message}`);
   }
   return [...new Set(issues)];
 }

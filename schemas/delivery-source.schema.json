@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://beansmile-design/schemas/delivery-source.schema.json",
+  "title": "Final Design.md frozen delivery source manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "source_version",
+    "artifact_version",
+    "contract_revision",
+    "contract_digest",
+    "contract_lock_sha256",
+    "snapshot_manifest_digest",
+    "files",
+    "source_bundle_digest",
+    "generated_at"
+  ],
+  "properties": {
+    "source_version": { "const": 1 },
+    "artifact_version": { "type": "string", "pattern": "^[1-9][0-9]*$" },
+    "contract_revision": { "type": "integer", "minimum": 1 },
+    "contract_digest": { "$ref": "#/$defs/sha256" },
+    "contract_lock_sha256": { "$ref": "#/$defs/sha256" },
+    "snapshot_manifest_digest": { "$ref": "#/$defs/sha256" },
+    "files": {
+      "type": "array",
+      "minItems": 8,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "sha256"],
+        "properties": {
+          "path": { "$ref": "#/$defs/safePath" },
+          "sha256": { "$ref": "#/$defs/sha256" }
+        }
+      }
+    },
+    "source_bundle_digest": { "$ref": "#/$defs/sha256" },
+    "generated_at": { "type": "string", "format": "date-time" }
+  },
+  "$defs": {
+    "safePath": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$)).+$"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  }
+}

@@ -3,10 +3,12 @@
 // 组装走临时目录 + 原子 rename，snapshots/ 下要么是完整快照要么什么都没有。
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync, readdirSync, existsSync } from "node:fs";
+import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, rmSync, readdirSync, existsSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { spawnSync } from "node:child_process";
+import yaml from "js-yaml";
+import { makeBoundDesignPackage } from "./design-delivery-fixture.mjs";
 
 const CLI = resolve(import.meta.dirname, "..", "snapshot.mjs");
 
@@ -65,4 +67,54 @@ test("对抗：版本不单调 → 退出 1 且已有快照不受影响、无残
   assert.equal(r.status, 1, r.stderr);
   assert.deepEqual(snapshotEntries(dir), ["3"]);
   rmSync(dir, { recursive: true, force: true });
+});
+
+test("version-3 Design.md package snapshots the approved contract and bindings", () => {
+  const pkg = makeBoundDesignPackage();
+  try {
+    const result = run(pkg.root, "--version", "3");
+    assert.equal(result.status, 0, result.stderr);
+    const snap = join(pkg.root, "audit", "snapshots", "3");
+    assert.equal(existsSync(join(snap, "Design.md")), true);
+    assert.equal(existsSync(join(snap, "audit", "design", "contract-source.json")), true);
+    assert.equal(existsSync(join(snap, "audit", "design", "contract-lock.json")), true);
+    const rules = JSON.parse(readFileSync(join(snap, "rules", "rules-manifest.json"), "utf8"));
+    assert.equal(rules.snapshot_version, 3);
+  } finally {
+    rmSync(pkg.root, { recursive: true, force: true });
+  }
+});
+
+test("version-3 snapshot rejects stale documents and contract binding drift without residue", () => {
+  const cases = [
+    ["stale document", (pkg) => {
+      const ctx = yaml.load(readFileSync(join(pkg.root, "context.yaml"), "utf8"));
+      ctx.artifacts.design_document.phase = "stale";
+      ctx.artifacts.design_document.stale = true;
+      writeFileSync(join(pkg.root, "context.yaml"), yaml.dump(ctx));
+    }],
+    ["token digest", (pkg) => {
+      const ctx = yaml.load(readFileSync(join(pkg.root, "context.yaml"), "utf8"));
+      ctx.artifacts.tokens.design_contract_digest = "f".repeat(64);
+      writeFileSync(join(pkg.root, "context.yaml"), yaml.dump(ctx));
+    }],
+    ["prototype lock", (pkg) => {
+      const ctx = yaml.load(readFileSync(join(pkg.root, "context.yaml"), "utf8"));
+      ctx.artifacts.prototype.contract_lock_sha256 = "f".repeat(64);
+      writeFileSync(join(pkg.root, "context.yaml"), yaml.dump(ctx));
+    }],
+    ["lock bytes", (pkg) => writeFileSync(join(pkg.root, "audit", "design", "contract-lock.json"), "{}\n")],
+    ["Design.md bytes", (pkg) => writeFileSync(join(pkg.root, "Design.md"), `${readFileSync(join(pkg.root, "Design.md"), "utf8")}\nchanged\n`)],
+  ];
+  for (const [name, mutate] of cases) {
+    const pkg = makeBoundDesignPackage();
+    try {
+      mutate(pkg);
+      const result = run(pkg.root, "--version", "3");
+      assert.equal(result.status, 1, `${name}: ${result.stderr}`);
+      assert.deepEqual(snapshotEntries(pkg.root), [], name);
+    } finally {
+      rmSync(pkg.root, { recursive: true, force: true });
+    }
+  }
 });

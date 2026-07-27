@@ -13,6 +13,7 @@
     "ctx:project": "node scripts/project-context.mjs",
     "mode:suggest": "node scripts/suggest-mode.mjs",
     "env:check": "node scripts/env-check.mjs",
+    "presentation:probe": "node scripts/presentation-probe.mjs",
     "design:prepare-source": "node scripts/prepare-design-contract.mjs",
     "design:check": "node scripts/check-design-document.mjs",
     "design:revise": "node scripts/revise-design-contract.mjs",

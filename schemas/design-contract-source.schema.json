@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://beansmile-design/schemas/design-contract-source.schema.json",
+  "title": "Design contract frozen source manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "source_version",
+    "contract_revision",
+    "generated_at",
+    "files",
+    "context",
+    "rules",
+    "contract_source_digest"
+  ],
+  "properties": {
+    "source_version": { "const": 1 },
+    "contract_revision": { "type": "integer", "minimum": 1 },
+    "generated_at": { "type": "string", "format": "date-time" },
+    "files": {
+      "type": "array",
+      "minItems": 2,
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/file" }
+    },
+    "context": { "$ref": "#/$defs/frozenInput" },
+    "rules": {
+      "allOf": [
+        { "$ref": "#/$defs/frozenInput" },
+        {
+          "type": "object",
+          "required": ["rule_ids"],
+          "properties": {
+            "rule_ids": {
+              "type": "array",
+              "uniqueItems": true,
+              "items": { "type": "string", "minLength": 1 }
+            }
+          }
+        }
+      ]
+    },
+    "contract_source_digest": { "$ref": "#/$defs/sha256" }
+  },
+  "$defs": {
+    "safePath": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$)).+$"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "file": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "sha256"],
+      "properties": {
+        "path": { "$ref": "#/$defs/safePath" },
+        "sha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "frozenInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "sha256"],
+      "properties": {
+        "path": { "$ref": "#/$defs/safePath" },
+        "sha256": { "$ref": "#/$defs/sha256" },
+        "rule_ids": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1 }
+        }
+      }
+    }
+  }
+}

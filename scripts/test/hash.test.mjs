@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { hashPaths, manifestDigest, verifyManifest, diffHashMaps, sha256File } from "../lib/hash.mjs";
+import { canonicalDigest, hashPaths, manifestDigest, verifyManifest, diffHashMaps, sha256File } from "../lib/hash.mjs";
 
 function makePkg() {
   const dir = mkdtempSync(join(tmpdir(), "bsd-hash-"));
@@ -57,4 +57,12 @@ test("diffHashMaps 捕获改动/删除/新增，且只看限定前缀", () => {
   assert.ok(diff.some((s) => s.includes("新增: prototype/new.html")));
   // brief.md 不在范围内，不报
   assert.ok(!diff.some((s) => s.includes("brief.md")));
+});
+
+test("canonicalDigest recursively ignores object key order but preserves array order", () => {
+  assert.equal(
+    canonicalDigest({ b: 2, nested: { y: 2, x: 1 }, list: ["a", "b"] }),
+    canonicalDigest({ list: ["a", "b"], nested: { x: 1, y: 2 }, b: 2 }),
+  );
+  assert.notEqual(canonicalDigest({ list: ["a", "b"] }), canonicalDigest({ list: ["b", "a"] }));
 });

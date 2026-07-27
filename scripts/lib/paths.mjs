@@ -16,4 +16,5 @@ export const SCHEMAS = {
   skillManifest: resolve(SCHEMA_DIR, "skill-manifest.schema.json"),
   findings: resolve(SCHEMA_DIR, "findings.schema.json"),
   findingsDelta: resolve(SCHEMA_DIR, "findings-delta.schema.json"),
+  designContractSource: resolve(SCHEMA_DIR, "design-contract-source.schema.json"),
 };

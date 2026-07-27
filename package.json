@@ -13,6 +13,8 @@
     "ctx:project": "node scripts/project-context.mjs",
     "mode:suggest": "node scripts/suggest-mode.mjs",
     "env:check": "node scripts/env-check.mjs",
+    "design:prepare-source": "node scripts/prepare-design-contract.mjs",
+    "design:check": "node scripts/check-design-document.mjs",
     "setup:agents": "node scripts/setup-agent-skills.mjs",
     "recall": "node scripts/recall-harness.mjs",
     "init": "node scripts/init-project.mjs",
@@ -30,6 +32,7 @@
     "ajv": "^8.17.1",
     "ajv-formats": "^3.0.1",
     "js-yaml": "^4.1.0",
+    "mdast-util-from-markdown": "^2.0.2",
     "node-html-parser": "^6.1.13"
   },
   "devDependencies": {

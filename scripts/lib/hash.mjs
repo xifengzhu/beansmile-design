@@ -11,6 +11,20 @@ export function sha256Text(text) {
   return createHash("sha256").update(text, "utf8").digest("hex");
 }
 
+function sortKeysDeep(value) {
+  if (Array.isArray(value)) return value.map(sortKeysDeep);
+  if (value !== null && typeof value === "object") {
+    return Object.fromEntries(
+      Object.keys(value).sort().map((key) => [key, sortKeysDeep(value[key])]),
+    );
+  }
+  return value;
+}
+
+export function canonicalDigest(value) {
+  return sha256Text(JSON.stringify(sortKeysDeep(value)));
+}
+
 // 递归列出目录下全部文件（相对 root 的 posix 路径，排序保证确定性）。
 export function listFilesRecursive(root, dir = root) {
   const out = [];

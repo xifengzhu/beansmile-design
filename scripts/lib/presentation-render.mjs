@@ -7,18 +7,22 @@ import {
   lstatSync,
   mkdirSync,
   mkdtempSync,
+  readFileSync,
   readdirSync,
+  realpathSync,
   renameSync,
   rmSync,
 } from "node:fs";
 import { promisify } from "node:util";
 import { pathToFileURL } from "node:url";
+import { inflateSync } from "node:zlib";
 import {
   basename,
   delimiter,
   dirname,
   isAbsolute,
   join,
+  relative,
   resolve,
   sep,
 } from "node:path";
@@ -26,6 +30,82 @@ import { sha256File } from "./hash.mjs";
 
 const execFileAsync = promisify(execFile);
 const REQUIRED_QA_CHECKS = Object.freeze(["overlap", "clipping", "title_wrap", "font_substitution"]);
+const PNG_SIGNATURE = Buffer.from("89504e470d0a1a0a", "hex");
+const PNG_CHANNELS = Object.freeze({ 0: 1, 2: 3, 3: 1, 4: 2, 6: 4 });
+
+function crc32(buffer) {
+  let crc = 0xffffffff;
+  for (const byte of buffer) {
+    crc ^= byte;
+    for (let bit = 0; bit < 8; bit += 1) {
+      crc = (crc >>> 1) ^ ((crc & 1) ? 0xedb88320 : 0);
+    }
+  }
+  return (crc ^ 0xffffffff) >>> 0;
+}
+
+function assertValidPng(path) {
+  const bytes = readFileSync(path);
+  if (bytes.length < 33 || !bytes.subarray(0, 8).equals(PNG_SIGNATURE)) {
+    throw new Error(`PNG render 非法或为空: ${path}`);
+  }
+
+  let offset = 8;
+  let width;
+  let height;
+  let bitDepth;
+  let colorType;
+  let interlace;
+  let sawIhdr = false;
+  let sawIend = false;
+  const idat = [];
+  while (offset < bytes.length) {
+    if (offset + 12 > bytes.length) throw new Error(`PNG chunk 截断: ${path}`);
+    const length = bytes.readUInt32BE(offset);
+    const typeStart = offset + 4;
+    const dataStart = typeStart + 4;
+    const crcStart = dataStart + length;
+    const next = crcStart + 4;
+    if (next > bytes.length) throw new Error(`PNG chunk 长度非法: ${path}`);
+    const type = bytes.toString("ascii", typeStart, dataStart);
+    const expectedCrc = bytes.readUInt32BE(crcStart);
+    if (crc32(bytes.subarray(typeStart, crcStart)) !== expectedCrc) {
+      throw new Error(`PNG chunk CRC 非法: ${path}`);
+    }
+    const data = bytes.subarray(dataStart, crcStart);
+    if (type === "IHDR") {
+      if (sawIhdr || offset !== 8 || length !== 13) throw new Error(`PNG IHDR 非法: ${path}`);
+      sawIhdr = true;
+      width = data.readUInt32BE(0);
+      height = data.readUInt32BE(4);
+      bitDepth = data[8];
+      colorType = data[9];
+      interlace = data[12];
+    } else if (type === "IDAT") {
+      idat.push(data);
+    } else if (type === "IEND") {
+      if (length !== 0 || next !== bytes.length) throw new Error(`PNG IEND 非法: ${path}`);
+      sawIend = true;
+    }
+    offset = next;
+  }
+
+  const channels = PNG_CHANNELS[colorType];
+  if (!sawIhdr || !sawIend || !width || !height || !channels || !idat.length || interlace !== 0) {
+    throw new Error(`PNG render 结构不完整或不受支持: ${path}`);
+  }
+  const rowBytes = Math.ceil((width * channels * bitDepth) / 8);
+  let pixels;
+  try {
+    pixels = inflateSync(Buffer.concat(idat));
+  } catch {
+    throw new Error(`PNG pixel 数据无法解压: ${path}`);
+  }
+  if (pixels.length !== height * (rowBytes + 1)) throw new Error(`PNG pixel 数据长度非法: ${path}`);
+  for (let row = 0; row < height; row += 1) {
+    if (pixels[row * (rowBytes + 1)] > 4) throw new Error(`PNG filter 非法: ${path}`);
+  }
+}
 
 function executable(path) {
   if (!path) return null;
@@ -73,13 +153,29 @@ function atomicReplaceDirectory(next, destination, tempRoot) {
       movedExisting = true;
     }
     renameSync(next, destination);
-    if (movedExisting) rmSync(backup, { recursive: true, force: true });
+    if (movedExisting) {
+      try {
+        rmSync(backup, { recursive: true, force: true });
+      } catch {
+        // Publishing succeeded; a stale backup is safer than reporting a false render failure.
+      }
+    }
   } catch (error) {
     if (!existsSync(destination) && movedExisting && existsSync(backup)) renameSync(backup, destination);
     throw error;
   } finally {
-    rmSync(tempRoot, { recursive: true, force: true });
-    if (existsSync(backup) && existsSync(destination)) rmSync(backup, { recursive: true, force: true });
+    try {
+      rmSync(tempRoot, { recursive: true, force: true });
+    } catch {
+      // Best-effort cleanup must not invalidate an already published render set.
+    }
+    if (existsSync(backup) && existsSync(destination)) {
+      try {
+        rmSync(backup, { recursive: true, force: true });
+      } catch {
+        // Leave the backup for later cleanup rather than failing after publication.
+      }
+    }
   }
 }
 
@@ -127,14 +223,17 @@ export async function renderPptx(pptxPath, outDir, tools) {
       throw new Error("pdftoppm PNG 页码不连续");
     }
 
-    for (const [index, page] of pages.entries()) {
-      copyFileSync(join(raw, page.name), join(next, `slide-${index + 1}.png`));
-    }
-    atomicReplaceDirectory(next, outDir, tempRoot);
-    const renders = pages.map((_page, index) => {
-      const path = join(outDir, `slide-${index + 1}.png`);
-      return { slideNumber: index + 1, path, sha256: sha256File(path) };
+    const stagedRenders = pages.map((page, index) => {
+      const path = join(next, `slide-${index + 1}.png`);
+      copyFileSync(join(raw, page.name), path);
+      assertValidPng(path);
+      return { slideNumber: index + 1, sha256: sha256File(path) };
     });
+    atomicReplaceDirectory(next, outDir, tempRoot);
+    const renders = stagedRenders.map((render) => ({
+      ...render,
+      path: join(outDir, `slide-${render.slideNumber}.png`),
+    }));
     return { pdf, renders };
   } catch (error) {
     rmSync(tempRoot, { recursive: true, force: true });
@@ -147,6 +246,18 @@ function safePackagePath(root, path) {
   const packageRoot = resolve(root);
   const resolved = resolve(packageRoot, path);
   if (resolved !== packageRoot && !resolved.startsWith(`${packageRoot}${sep}`)) return null;
+  try {
+    const realRoot = realpathSync(packageRoot);
+    const realResolved = realpathSync(resolved);
+    if (realResolved !== realRoot && !realResolved.startsWith(`${realRoot}${sep}`)) return null;
+    let current = packageRoot;
+    for (const segment of relative(packageRoot, resolved).split(sep).filter(Boolean)) {
+      current = join(current, segment);
+      if (lstatSync(current).isSymbolicLink()) return null;
+    }
+  } catch {
+    return null;
+  }
   return resolved;
 }
 
@@ -187,11 +298,14 @@ export function presentationQaIssues(root, inspected, qa, directorReview) {
       try {
         if (!lstatSync(fullPath).isFile()) {
           issues.push(`slide ${render?.slide_number ?? "unknown"} render path 必须是 package 内普通文件`);
-        } else if (render?.sha256 !== sha256File(fullPath)) {
-          issues.push(`slide ${render.slide_number} render SHA/hash 漂移`);
+        } else {
+          assertValidPng(fullPath);
+          if (render?.sha256 !== sha256File(fullPath)) {
+            issues.push(`slide ${render.slide_number} render SHA/hash 漂移`);
+          }
         }
-      } catch {
-        issues.push(`slide ${render?.slide_number ?? "unknown"} render 无法读取`);
+      } catch (error) {
+        issues.push(`slide ${render?.slide_number ?? "unknown"} render 无法读取或 PNG 非法: ${error.message}`);
       }
     }
   }

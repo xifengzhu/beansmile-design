@@ -19,6 +19,7 @@ import {
   renderPptx,
   resolvePresentationTools,
 } from "../lib/presentation-render.mjs";
+import { probePresentation } from "../presentation-probe.mjs";
 import { checkEnvironment } from "../env-check.mjs";
 import { sha256File } from "../lib/hash.mjs";
 import { inspectPptx, REQUIRED_NARRATIVE_ROLES } from "../lib/presentation.mjs";
@@ -30,6 +31,14 @@ const PROBE = resolve(ROOT, "scripts/presentation-probe.mjs");
 const CHECK_PRESENTATION = resolve(ROOT, "scripts/check-presentation.mjs");
 const PACKAGE_JSON = resolve(ROOT, "package.json");
 const ADAPTER = resolve(ROOT, "skills/design-presentation/references/codex-adapter.md");
+const VALID_PNG = Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
+  "base64",
+);
+const VALID_PNG_ALT = Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABAQMAAAAl21bKAAAAIGNIUk0AAHomAACAhAAA+gAAAIDoAAB1MAAA6mAAADqYAAAXcJy6UTwAAAAGUExURf8AAP///0EdNBEAAAABYktHRAH/Ai3eAAAAB3RJTUUH6gcbEzIXPvBSVQAAAApJREFUCNdjYAAAAAIAAeIhvDMAAAAldEVYdGRhdGU6Y3JlYXRlADIwMjYtMDctMjdUMTk6NTA6MjMrMDA6MDAFloW3AAAAJXRFWHRkYXRlOm1vZGlmeQAyMDI2LTA3LTI3VDE5OjUwOjIzKzAwOjAwdMs9CwAAACh0RVh0ZGF0ZTp0aW1lc3RhbXAAMjAyNi0wNy0yN1QxOTo1MDoyMyswMDowMCPeHNQAAAAASUVORK5CYII=",
+  "base64",
+);
 
 function makeRoot(name) {
   const root = join(tmpdir(), `beansmile-presentation-${name}-${process.pid}-${Date.now()}`);
@@ -42,7 +51,7 @@ function writeExecutable(path, source) {
   chmodSync(path, 0o755);
 }
 
-function fakeTools(root, { pages = 2 } = {}) {
+function fakeTools(root, { pages = 2, png = VALID_PNG } = {}) {
   const bin = join(root, "bin");
   mkdirSync(bin, { recursive: true });
   const soffice = join(bin, "soffice");
@@ -58,8 +67,9 @@ copyFileSync(input, join(out, basename(input).replace(/\.pptx$/i, ".pdf")));
   writeExecutable(pdftoppm, String.raw`
 const { writeFileSync } = require("node:fs");
 const prefix = process.argv.at(-1);
+const png = Buffer.from("${png.toString("base64")}", "base64");
 for (let number = 1; number <= ${pages}; number += 1) {
-  writeFileSync(prefix + "-" + String(number).padStart(2, "0") + ".png", Buffer.from("89504e470d0a1a0a0000000d4948445" + (number % 10), "hex"));
+  writeFileSync(prefix + "-" + String(number).padStart(2, "0") + ".png", png);
 }
 `);
   return { soffice, pdftoppm };
@@ -107,13 +117,35 @@ test("renderPptx uses fresh output, normalizes slide names, and records hashes",
   }
 });
 
+test("renderPptx rejects invalid PNG output before replacing the previous render set", async () => {
+  for (const [label, png] of [["empty", Buffer.alloc(0)], ["arbitrary", Buffer.alloc(32, 0x41)]]) {
+    const root = makeRoot(`invalid-render-${label}`);
+    try {
+      const pptx = join(root, "sample.pptx");
+      const out = join(root, "audit", "presentation", "rendered");
+      mkdirSync(out, { recursive: true });
+      writeFileSync(join(out, "old.png"), "previous-render-set");
+      writeFileSync(pptx, "fake-pptx");
+
+      await assert.rejects(
+        renderPptx(pptx, out, { available: true, ...fakeTools(root, { pages: 1, png }), error: null }),
+        /PNG|render|image/i,
+      );
+      assert.equal(readFileSync(join(out, "old.png"), "utf8"), "previous-render-set");
+      assert.equal(existsSync(join(out, "slide-1.png")), false);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  }
+});
+
 function validQaFixture() {
   const root = makeRoot("qa");
   const rendered = join(root, "audit", "presentation", "rendered");
   mkdirSync(rendered, { recursive: true });
   const files = [1, 2].map((number) => {
     const path = join(rendered, `slide-${number}.png`);
-    writeFileSync(path, `png-${number}`);
+    writeFileSync(path, VALID_PNG);
     return {
       slide_number: number,
       path: `audit/presentation/rendered/slide-${number}.png`,
@@ -172,7 +204,7 @@ test("presentationQaIssues rejects stale bindings, render drift, and unverified 
     missingRender.renders.pop();
     cases.push([missingRender, fixture.director, /render|渲染/]);
     const drift = structuredClone(fixture.qa);
-    writeFileSync(join(fixture.root, drift.renders[0].path), "changed");
+    writeFileSync(join(fixture.root, drift.renders[0].path), VALID_PNG_ALT);
     cases.push([drift, fixture.director, /hash|SHA|漂移/i]);
     for (const check of ["overlap", "clipping", "title_wrap", "font_substitution"]) {
       const qa = structuredClone(fixture.qa);
@@ -248,7 +280,7 @@ test("presentationQaIssues rejects noncanonical timestamps and symlinked render 
 
     const firstRender = fixture.qa.renders[0];
     const renderPath = join(fixture.root, firstRender.path);
-    writeFileSync(externalPath, "external-png");
+    writeFileSync(externalPath, VALID_PNG);
     rmSync(renderPath);
     symlinkSync(externalPath, renderPath);
     firstRender.sha256 = sha256File(externalPath);
@@ -257,6 +289,28 @@ test("presentationQaIssues rejects noncanonical timestamps and symlinked render 
   } finally {
     rmSync(fixture.root, { recursive: true, force: true });
     rmSync(externalPath, { force: true });
+  }
+});
+
+test("presentationQaIssues rejects render evidence through a symlinked parent directory", () => {
+  const fixture = validQaFixture();
+  const rendered = join(fixture.root, "audit", "presentation", "rendered");
+  const externalDir = join(dirname(fixture.root), `${basename(fixture.root)}-external-renders`);
+  try {
+    rmSync(rendered, { recursive: true, force: true });
+    mkdirSync(externalDir, { recursive: true });
+    for (const render of fixture.qa.renders) {
+      const externalPath = join(externalDir, `slide-${render.slide_number}.png`);
+      writeFileSync(externalPath, VALID_PNG);
+      render.sha256 = sha256File(externalPath);
+    }
+    symlinkSync(externalDir, rendered, "dir");
+
+    const issues = presentationQaIssues(fixture.root, fixture.inspected, fixture.qa, fixture.director);
+    assert.ok(issues.some((issue) => /render|path|symlink|\u8def\u5f84/i.test(issue)), issues.join("\n"));
+  } finally {
+    rmSync(fixture.root, { recursive: true, force: true });
+    rmSync(externalDir, { recursive: true, force: true });
   }
 });
 
@@ -309,6 +363,22 @@ test("presentation probe exits 3 when render tools are unavailable", () => {
     });
     assert.equal(result.status, 3, `${result.stdout}\n${result.stderr}`);
     assert.match(`${result.stdout}\n${result.stderr}`, /unavailable|未验证|soffice|pdftoppm|LibreOffice|Poppler/i);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("presentation probe rejects arbitrary bytes reported as a PNG render", async () => {
+  const root = makeRoot("probe-invalid-png");
+  try {
+    const tools = fakeTools(root, { pages: 1, png: Buffer.alloc(32, 0x41) });
+    const result = await probePresentation({
+      tmpRoot: root,
+      tools: { available: true, ...tools, error: null },
+    });
+    assert.equal(result.available, false);
+    assert.equal(result.rendering, false);
+    assert.match(result.error, /PNG|render|image/i);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

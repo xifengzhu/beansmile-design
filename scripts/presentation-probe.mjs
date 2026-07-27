@@ -3,7 +3,6 @@ import {
   existsSync,
   mkdtempSync,
   rmSync,
-  statSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -45,8 +44,7 @@ export async function probePresentation(options = {}) {
 
     const rendered = await renderPptx(pptxPath, join(root, "rendered"), tools);
     result.rendering = rendered.renders.length === 1
-      && existsSync(rendered.renders[0].path)
-      && statSync(rendered.renders[0].path).size > 16;
+      && existsSync(rendered.renders[0].path);
     if (!result.rendering) throw new Error("presentation probe 未生成唯一非空 PNG render");
     result.available = true;
     result.error = null;

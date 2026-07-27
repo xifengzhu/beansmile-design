@@ -18,13 +18,13 @@ manifests:
       - flows.md
 
   - skill: visual_system
-    reads: [project, brand, goals, users, constraints]
+    reads: [project, brand, goals, users, constraints, artifacts.design_document]
     writes: [artifacts.tokens, decisions, stage]
     produces:
       - design-tokens.json
 
   - skill: html_prototype
-    reads: [project, users, goals, brand, constraints, artifacts.flows, artifacts.tokens]
+    reads: [project, users, goals, brand, constraints, artifacts.design_document, artifacts.flows, artifacts.tokens]
     writes: [artifacts.prototype, assumptions, stage]
     produces:
       - prototype/index.html

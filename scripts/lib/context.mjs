@@ -3,7 +3,8 @@ import { readFileSync } from "node:fs";
 import yaml from "js-yaml";
 import { makeValidator } from "./rules.mjs";
 import { SCHEMAS } from "./paths.mjs";
-import { deliveryArtifactVersionIssues } from "./delivery.mjs";
+import { deliveryArtifactVersionIssues, requiresDesignContract } from "./delivery.mjs";
+import { checkDesignContractBinding } from "./design-contract-binding.mjs";
 
 export function loadYaml(path) {
   return yaml.load(readFileSync(path, "utf8"));
@@ -128,7 +129,7 @@ export function checkArtifactMonotonic(before, after, { skip = [] } = {}) {
 
 // 硬化门禁：路径白名单 + reads 越读检测 + 合并后 schema + 阶段状态机 + 版本单调性。
 // after 可由 before + patch 得到（传 patch）或直接传 after。
-export function hardenedGate(manifest, before, { after, patch } = {}) {
+export function hardenedGate(manifest, before, { after, patch, packageRoot } = {}) {
   const merged = after ?? deepMerge(before, patch ?? {});
   const violations = [];
   const reasons = [];
@@ -168,6 +169,18 @@ export function hardenedGate(manifest, before, { after, patch } = {}) {
         prototypeVersion: merged.artifacts?.prototype?.artifact_version,
       },
     )) reasons.push(issue);
+  }
+
+  if (["visual_system", "html_prototype"].includes(manifest.skill) && requiresDesignContract(merged)) {
+    if (!packageRoot) {
+      reasons.push(`${manifest.skill} 需要 packageRoot 才能验证 Design.md contract lock`);
+    } else {
+      const artifactKey = manifest.skill === "visual_system" ? "tokens" : "prototype";
+      reasons.push(...checkDesignContractBinding(packageRoot, merged, merged.artifacts?.[artifactKey]));
+      if (manifest.skill === "html_prototype") {
+        reasons.push(...checkDesignContractBinding(packageRoot, merged, merged.artifacts?.tokens));
+      }
+    }
   }
 
   return {

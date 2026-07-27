@@ -17,4 +17,5 @@ export const SCHEMAS = {
   findings: resolve(SCHEMA_DIR, "findings.schema.json"),
   findingsDelta: resolve(SCHEMA_DIR, "findings-delta.schema.json"),
   designContractSource: resolve(SCHEMA_DIR, "design-contract-source.schema.json"),
+  designContractLock: resolve(SCHEMA_DIR, "design-contract-lock.schema.json"),
 };

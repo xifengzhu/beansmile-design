@@ -32,11 +32,11 @@ const FULL_CTX = {
   stage: "prototype",
 };
 
-test("正向：html_prototype 投影含 reads 字段，artifacts 下只含 flows/tokens", () => {
+test("正向：html_prototype 投影含 reads 字段，artifacts 下只含已确认契约/flows/tokens", () => {
   const { bySkill } = loadManifests();
   const view = projectContext(FULL_CTX, bySkill.get("html_prototype").reads);
   assert.deepEqual(Object.keys(view).sort(), ["artifacts", "brand", "constraints", "goals", "project", "users"]);
-  assert.deepEqual(Object.keys(view.artifacts).sort(), ["flows", "tokens"]);
+  assert.deepEqual(Object.keys(view.artifacts).sort(), ["design_document", "flows", "tokens"]);
   assert.ok(!("prototype" in view.artifacts), "artifacts.prototype 未声明，不得出现");
 });
 

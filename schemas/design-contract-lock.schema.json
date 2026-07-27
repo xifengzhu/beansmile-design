@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://beansmile-design/schemas/design-contract-lock.schema.json",
+  "title": "Sealed Design.md contract lock",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "lock_version",
+    "contract_revision",
+    "contract_digest",
+    "contract_source_digest",
+    "design_document_sha256",
+    "flows_sha256",
+    "confirmation_digest",
+    "sealed_at",
+    "sealed_at_stage",
+    "transition_target",
+    "downstream_absent",
+    "lock_digest"
+  ],
+  "properties": {
+    "lock_version": { "const": 1 },
+    "contract_revision": { "type": "integer", "minimum": 1 },
+    "contract_digest": { "$ref": "#/$defs/sha256" },
+    "contract_source_digest": { "$ref": "#/$defs/sha256" },
+    "design_document_sha256": { "$ref": "#/$defs/sha256" },
+    "flows_sha256": { "$ref": "#/$defs/sha256" },
+    "confirmation_digest": { "$ref": "#/$defs/sha256" },
+    "sealed_at": { "type": "string", "format": "date-time" },
+    "sealed_at_stage": { "const": "ux" },
+    "transition_target": { "const": "visual" },
+    "downstream_absent": { "const": true },
+    "lock_digest": { "$ref": "#/$defs/sha256" }
+  },
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  }
+}

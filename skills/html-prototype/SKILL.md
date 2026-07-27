@@ -39,7 +39,7 @@ description: 根据已确认的用户流与视觉系统生成可点击高保真�
 
 ## 白名单（由 Director 做字段级 diff 门禁强制）
 
-- reads: `project`, `users`, `goals`, `brand`, `constraints`, `artifacts.flows`, `artifacts.tokens`
+- reads: `project`, `users`, `goals`, `brand`, `constraints`, `artifacts.design_document`, `artifacts.flows`, `artifacts.tokens`
 - writes: `artifacts.prototype`, `assumptions`, `stage`
 - produces: `prototype/index.html`, `prototype/scenarios.json`
 
@@ -57,6 +57,7 @@ description: 根据已确认的用户流与视觉系统生成可点击高保真�
 
 ## 职责
 
+- 创作前读取已 seal 的 `Design.md` 与 contract lock，确认 tokens 绑定同一 digest/lock；只实现已确认契约，发现页面、流程或状态需变化时停止并交回 Director 受控回退。
 - 生成可真实点击完成核心任务的高保真 HTML，套用 `design-tokens.json`。
 - 覆盖核心流程、交互反馈与关键状态：正常/空/加载/错误/成功/禁用/焦点。
 - 支持目标视口与必要的响应式重排；使用稳定尺寸约束，避免动态内容造成跳动、遮挡或溢出。
@@ -82,4 +83,4 @@ description: 根据已确认的用户流与视觉系统生成可点击高保真�
 ## 输出契约
 
 - 文件 `prototype/index.html`（及必要的 `prototype/assets/`、分平台页面）。
-- 补丁：登记 `artifacts.prototype`（`path` + 单调递增 `artifact_version`），临时假设写入 `assumptions`，`stage` 推进到 `prototype`。
+- 补丁：登记 `artifacts.prototype`（`path` + 单调递增 `artifact_version` + 与当前 lock 一致的 `design_contract_digest` / `contract_lock_sha256`），临时假设写入 `assumptions`，`stage` 推进到 `prototype`。

@@ -28,6 +28,7 @@ export function deliveryModeIssues(ctx, { enforce = false } = {}) {
 }
 
 export function requiresDesignContract(ctx) {
+  if ((ctx?.project?.package_format_version ?? 0) < DELIVERY_PACKAGE_VERSION) return false;
   return requiredDeliveryOutputs(ctx).includes("design_specification");
 }
 

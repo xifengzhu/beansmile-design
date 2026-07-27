@@ -25,12 +25,13 @@ description: 基于品牌、内容与情境提出 2-3 个真正不同的视觉�
 
 ## 白名单（由 Director 做字段级 diff 门禁强制）
 
-- reads: `project`, `brand`, `goals`, `users`, `constraints`
+- reads: `project`, `brand`, `goals`, `users`, `constraints`, `artifacts.design_document`
 - writes: `artifacts.tokens`, `decisions`, `stage`
 - produces: `design-tokens.json`
 
 ## 职责
 
+- 创作前读取已 seal 的 `Design.md` 与 `audit/design/contract-lock.json`，只实现其中已确认的页面、流程、状态和约束；发现契约需变化时停止并交回 Director 受控回退。
 - 提出 2–3 个**真正不同**的视觉方向（专业模式），快速模式采用一个合理方向。
 - 定义令牌：颜色、字体、间距、圆角、图标、层级、密度、动效、响应式断点。
 - 用接近真实的内容与关键页面展示方向差异，而非占位文。
@@ -47,4 +48,4 @@ description: 基于品牌、内容与情境提出 2-3 个真正不同的视觉�
 
 - 文件 `design-tokens.json`：结构化令牌（含 color/type/space/radius/elevation/motion/breakpoints）。
 - 视觉方向预览 + 选定方向说明（供确认门 C）。
-- 补丁：登记 `artifacts.tokens`，把选定方向及其依据写入 `decisions`（引用相关 `rule_id`），`stage` 推进到 `visual`。
+- 补丁：登记 `artifacts.tokens`，除路径/版本/owner 外必须写入与当前 lock 一致的 `design_contract_digest` 和 `contract_lock_sha256`；把选定方向及其依据写入 `decisions`（引用相关 `rule_id`），`stage` 推进到 `visual`。

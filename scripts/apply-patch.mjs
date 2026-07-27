@@ -25,7 +25,7 @@ try {
 
 const before = loadYaml(ctxPath);
 const patch = yaml.load(readFileSync(patchPath, "utf8"));
-const r = hardenedGate(manifest, before, { patch });
+const r = hardenedGate(manifest, before, { patch, packageRoot: root });
 
 if (!r.ok) {
   console.error(`✗ 门禁拒绝 ${skill} 的补丁：`);

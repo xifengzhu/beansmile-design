@@ -8,6 +8,7 @@ import yaml from "js-yaml";
 import {
   deliveryArtifactVersionIssues,
   deliveryModeIssues,
+  requiresDesignContract,
   requiredDeliveryOutputs,
 } from "../lib/delivery.mjs";
 import { validateContext } from "../lib/context.mjs";
@@ -60,6 +61,17 @@ test("quick presentation implies design specification", () => {
     },
   };
   assert.deepEqual(requiredDeliveryOutputs(ctx), BOTH);
+});
+
+test("historical packages do not retroactively require the Design.md lifecycle", () => {
+  assert.equal(requiresDesignContract({ project: { mode: "professional" } }), false);
+  assert.equal(requiresDesignContract({
+    project: {
+      mode: "professional",
+      package_format_version: 3,
+      delivery_outputs: BOTH,
+    },
+  }), true);
 });
 
 test("delivery mode rejects unknown and duplicate output ids", () => {

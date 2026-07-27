@@ -24,6 +24,12 @@ import { loadReviewerFindings, semanticIssuesDelta, deltaIssues } from "./lib/de
 import { resultsIssues } from "./lib/results-check.mjs";
 import { loadScenarios } from "./lib/scenarios.mjs";
 import { checkEnvironment } from "./env-check.mjs";
+import {
+  DELIVERY_OUTPUTS,
+  deliveryAcceptance,
+  deliveryRevisionHistory,
+  requiredDeliveryOutputs,
+} from "./lib/delivery.mjs";
 
 function arg(name) { const i = process.argv.indexOf(name); return i >= 0 ? process.argv[i + 1] : undefined; }
 
@@ -55,7 +61,13 @@ const activeHashes = hashPaths(root, GUARDED);
   let ctxOk = false, ctxDetail = "缺少 context.yaml";
   if (ctx) { const v = validateContext(ctx); ctxOk = v.ok; ctxDetail = v.ok ? "context.yaml 通过 schema" : `context 校验失败: ${v.errors.join("; ")}`; }
   const { manifests } = loadManifests();
-  const missingProduced = manifests.flatMap((m) => m.produces).filter((f) => !existsSync(P(f)));
+  const requiredDeliveries = new Set(
+    (ctx?.project?.package_format_version ?? 0) >= 3 ? requiredDeliveryOutputs(ctx) : [],
+  );
+  const missingProduced = manifests
+    .filter((manifest) => !DELIVERY_OUTPUTS.includes(manifest.skill) || requiredDeliveries.has(manifest.skill))
+    .flatMap((manifest) => manifest.produces)
+    .filter((path) => !existsSync(P(path)));
   const versionOk = currentVersion !== null;
   const ok = missing.length === 0 && ctxOk && missingProduced.length === 0 && versionOk;
   add("结构稳定", ok ? "pass" : "fail",
@@ -368,10 +380,15 @@ const isV2Package = frozen.ok && (frozen.manifest.snapshot_version ?? 1) >= 2;
   if (!isV2Package) add("迭代评审链", "pass", "v1.7 流程包，无迭代评审链要求（新交付按规范 27.5 记录中间版本评审）");
   else {
     const snapRoot = P("audit", "snapshots");
-    const versions = existsSync(snapRoot)
+    const allVersions = existsSync(snapRoot)
       ? readdirSync(snapRoot).filter((d) => /^\d+$/.test(d)).map(Number).sort((a, b) => a - b) : [];
     const problems = [];
     const cur = Number(currentVersion);
+    const revisionHistory = (ctx?.project?.package_format_version ?? 0) >= 3
+      ? deliveryRevisionHistory(root, ctx, { snapshotVersion: cur, reviewVersions: allVersions })
+      : { issues: [], invalidatedVersions: [], reviewVersions: allVersions };
+    problems.push(...revisionHistory.issues.map((issue) => `契约修订记录: ${issue}`));
+    const versions = revisionHistory.reviewVersions;
     const first = versions[0];
     let deltaCount = 0, fullCount = 0;
     // 首版与全部中间版逐一核查；拟交付版（cur）由 blocks 4/7 + 规则快照四门全量把守。
@@ -412,7 +429,7 @@ const isV2Package = frozen.ok && (frozen.manifest.snapshot_version ?? 1) >= 2;
     }
     add("迭代评审链", problems.length === 0 ? "pass" : "fail",
       problems.length ? problems.slice(0, 4).join("; ")
-        : `${versions.length} 个版本评审链完整（历史版全量 ${fullCount} 份 / delta ${deltaCount} 份均过语义门，拟交付版由标准/视觉门全量把守）`);
+        : `${versions.length} 个当前契约版本评审链完整（忽略 ${revisionHistory.invalidatedVersions.length} 个已审计失效版本；历史版全量 ${fullCount} 份 / delta ${deltaCount} 份均过语义门，拟交付版由标准/视觉门全量把守）`);
   }
 }
 
@@ -457,6 +474,14 @@ const isV2Package = frozen.ok && (frozen.manifest.snapshot_version ?? 1) >= 2;
   const browserDims = ["无障碍与渲染", "迭代自评", "执行竞争"];
   const dishonest = results.filter((r) => browserDims.includes(r.dim) && env.degraded && r.status === "pass");
   add("环境诚实", dishonest.length === 0 ? "pass" : "fail", env.degraded ? "浏览器不可用；受影响结论均未判为通过" : "浏览器可用");
+}
+
+// —— 10-12. Design-first 最终交付三维 ——
+for (const deliveryGate of deliveryAcceptance(root, ctx, {
+  snapshotVersion: frozen.ok ? frozen.manifest.snapshot_version : null,
+  environment: env,
+})) {
+  add(deliveryGate.dimension, deliveryGate.status, deliveryGate.detail);
 }
 
 // —— 汇总 ——

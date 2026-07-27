@@ -54,6 +54,13 @@ try {
   const designSha = sha256File(paths.design);
   const sourceManifestDigest = sha256File(paths.source);
   const prototypeVersion = context?.artifacts?.prototype?.artifact_version;
+  const registeredPresentation = context?.artifacts?.presentation ?? null;
+  const inspectedVersion = {
+    artifact_version: manifest.artifact_version,
+    artifact_revision: manifest.artifact_revision,
+  };
+  const registeredVersionMatches = registeredPresentation?.artifact_version === inspectedVersion.artifact_version
+    && registeredPresentation?.artifact_revision === inspectedVersion.artifact_revision;
   const issues = [
     ...verifyDeliverySource(root, source, { allowFinalDesign: true }),
     ...implementationReadyIssues(root, parsed, source, context?.artifacts?.design_document ?? null),
@@ -62,11 +69,11 @@ try {
       prototypeVersion,
       sourceBundleDigest: source.source_bundle_digest,
     }),
-    ...deliveryArtifactVersionIssues(
-      context?.artifacts?.presentation ?? null,
-      { artifact_version: manifest.artifact_version, artifact_revision: manifest.artifact_revision },
+    ...(registeredVersionMatches ? [] : deliveryArtifactVersionIssues(
+      registeredPresentation,
+      inspectedVersion,
       { kind: "presentation", prototypeVersion },
-    ),
+    )),
   ];
   if (context?.artifacts?.design_document?.phase !== "implementation_ready") {
     issues.push("artifacts.design_document.phase 必须为 implementation_ready");

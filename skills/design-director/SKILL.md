@@ -10,7 +10,7 @@ description: 设计 Agent 系统的唯一决策中心。识别任务、维护 co
 
 ## Skill 标识约定
 
-系统内部（diff 门禁、快照/评审绑定、调度记录）一律用 canonical id（snake_case，见 `skills/registry.yaml`）：`requirements_research`、`ux_architecture`、`visual_system`、`html_prototype`、`decision_record`、`standards_audit`、`visual_review`。调用 Claude Skill 工具时用连字符名（如 `requirements-research`）。给 `check-diff-gate.mjs --skill` 传的必须是 canonical id。
+系统内部（diff 门禁、快照/评审绑定、调度记录）一律用 canonical id（snake_case，见 `skills/registry.yaml`）：`requirements_research`、`ux_architecture`、`design_specification`、`visual_system`、`html_prototype`、`design_presentation`、`decision_record`、`standards_audit`、`visual_review`。调用 Claude Skill 工具时用连字符名（如 `requirements-research`）。给 `check-diff-gate.mjs --skill` 传的必须是 canonical id；`design_specification` 还必须传 `--operation prepare|finalize`。
 
 ## 唯一事实源
 
@@ -37,21 +37,32 @@ description: 设计 Agent 系统的唯一决策中心。识别任务、维护 co
 1. **intake / 澄清**：识别任务类型、目标平台、模式与**行业**（`project.industry`：有规则包的用对应 slug 如 `ecommerce`/`saas_b2b`，通用产品用 `general`——验收「行业依据」维度要求必填，行业包存在时其规则必须实际参与决策）；一次只问一个需要用户决定的问题。初始化 `context.yaml`。
 2. **research**：调度 `requirements-research`，产出 `brief.md`。
 3. **确认门 A**：用户确认需求与成功标准。得到答复后**必须落盘**：`node scripts/director-advance.mjs --package <目录> --confirm requirements --summary <呈给用户的摘要> --reply <用户答复原文>`。未落盘时状态机拒绝 research→ux。
-4. **ux**：调度 `ux-architecture`，产出 `flows.md`。
-5. **确认门 B**：用户确认流程与页面范围。落盘：`--confirm flows --summary .. --reply ..`。未落盘时拒绝 ux→visual。
-6. **visual**：调度 `visual-system`，展示 2–3 个视觉方向。
+4. **ux**：调度 `ux-architecture`，产出 `flows.md`。在任何视觉创作前，先执行 `npm run design:prepare-source -- --package <目录>`，再用 `project-context.mjs --skill design_specification --operation prepare` 生成投影；在全新会话调度 `design-specification prepare`，校验 `Design.md` 为 `proposed_contract`，且只接收 `artifacts.design_document` provisional patch。
+5. **确认门 B 与契约 seal**：把 `flows.md` 和 proposed `Design.md` 一并呈给用户。收到书面答复原文后执行 `director-advance.mjs --confirm flows --summary .. --reply .. --design-patch <audit/design/provisional-patch.yaml>`。该命令原子写入 `approved_contract`、确认绑定和 `audit/design/contract-lock.json`；seal 前必须没有 tokens、prototype、snapshot 或 findings。未通过不得进入 visual。
+6. **visual**：推进到 visual 后，用 `project-context.mjs --skill visual_system` 投影已批准的契约；在全新会话调度 `visual-system`。其 tokens patch 必须同时绑定当前 `design_contract_digest` 与 `contract_lock_sha256`，再经 diff/apply 门合并，展示 2–3 个视觉方向。
 7. **确认门 C**：用户选择/修订方向。落盘：`--confirm direction --summary .. --reply .. --candidates D1,D3,D5 --chosen D3`（候选须 ≥2 且 chosen 在其中）。未落盘时拒绝 visual→prototype。`--reply` 一律为用户答复原文，不得代拟。
-8. **prototype**：调度 `html-prototype`。专业模式下它必须先完成**执行竞争**（同方向 2–3 个候选关键页 → `screenshot.mjs --candidates` 截图 → 对比择优写 `audit/candidates/selection.md`），再以赢家为底做全量原型。验收「执行竞争」维度机器判定。
-9. **自动检查**：运行 14.1 检查（axe、Playwright、多视口截图、溢出、控制台错误、200% 缩放）。
-10. **双重评审**：见下"评审编排"。
-11. **修订**：处理 findings，记录取舍到 `decisions.md`。
-12. **delivered**：blocker 清零后按第 13 章生成交付包并执行第 17 章完成定义。
+8. **prototype**：用 `project-context.mjs --skill html_prototype` 投影同一契约，在全新会话调度 `html-prototype`。其 prototype patch 必须绑定相同 digest 和 lock。专业模式下先完成**执行竞争**（同方向 2–3 个候选关键页 → `screenshot.mjs --candidates` 截图 → 对比择优写 `audit/candidates/selection.md`），再以赢家为底做全量原型。
+9. **自动检查与双重评审**：运行 axe、Playwright、多视口截图、溢出、控制台错误和 200% 缩放检查；冻结包含 approved `Design.md` 与 contract lock 的 version-3 snapshot，再按下文完成两份独立全量评审与聚合。
+10. **修订**：处理 findings，记录取舍到 `decisions.md`。若 findings 要求改变第一部分冻结契约，停止当前链并执行下文“受控契约修订”；不得直接编辑 `Design.md` 第一部分继续。
+11. **开发交接文档**：评审通过后执行 `npm run delivery:prepare -- --package <目录>`，再以 `project-context.mjs --skill design_specification --operation finalize` 生成投影；在全新会话调度 `design-specification finalize`，经 diff/apply 门合并。运行 `design:check --phase implementation_ready`，确认同一 `Design.md` 第一部分 digest 未变，第二部分已闭合当前 prototype、tokens、页面、场景、资源、决策和 findings。
+12. **设计方案演示**：用 `project-context.mjs --skill design_presentation` 生成投影，在全新会话调度 `design-presentation` 并经 diff/apply 门合并。依次运行 `delivery:check-presentation --structure-only` 和完整检查；Director 必须打开每张 render，逐页记录到 `audit/presentation/director-review.json`，再重跑完整检查。PPTX、QA、逐页复核必须绑定当前最终 Design.md SHA 和 prototype version。
+13. **验收后 delivered**：先运行 `node scripts/acceptance.mjs --package <目录>`；只有所有既有质量门及 `设计前契约`、`开发交接文档`、`设计方案演示` 均 pass，才能执行 `director-advance.mjs --stage delivered`。该推进命令会再次同步验收；退出码 1、2、3 均保持 context 原字节不变，且没有 bypass。
 
 每次调度 Skill 前把 `context.stage` 推进到对应阶段。调度 `decision-record` 贯穿全程记录依据。
 
 ### 快速模式
 
-前提：`confirmations.mode` 已记录用户确认（见上"模式选择协议"）。收集最小 Brief → 采用一个合理视觉方向直接生成原型 → 执行相同的硬性质量检查（不得跳过目标平台、关键状态、WCAG 2.2 AA、多视口截图、溢出检查、控制台错误、依据记录）。
+前提：`confirmations.mode` 已记录用户确认（见上"模式选择协议"）。收集最小 Brief → 采用一个合理视觉方向直接生成原型 → 执行相同的硬性质量检查（不得跳过目标平台、关键状态、WCAG 2.2 AA、多视口截图、溢出检查、控制台错误、依据记录）。未请求 delivery output 时可省略相应交付 Skill；请求 `design_presentation` 会隐式要求 `design_specification` 的 prepare、seal 与 finalize 全链，不得用事后反向补写 Design.md 代替。
+
+## 受控契约修订
+
+Visual、Prototype、评审、finalize 或 presentation 发现必须改变已批准契约时，执行：
+
+```sh
+npm run design:revise -- --package <目录> --from design_contract --reason <具体原因>
+```
+
+只有此 Director 命令可退回 ux。**不得直接编辑 `context.stage`，不得用 `director-advance.mjs --stage ux` 倒退阶段，也不得修改 confirmation、contract lock 或旧 artifact 的 stale 字段绕过重跑。**命令保留旧 Design.md、tokens、prototype、results、snapshots、findings、PPTX 和 QA，写入 `audit/revisions/contract-<旧>-to-<新>.json`，把契约绑定产物登记为 stale，并清除 flows/direction 确认。之后递增 contract revision，从 prepare、用户确认/seal、Visual、Prototype、浏览器检查、snapshot、双评审、finalize、presentation 和 acceptance 重新执行；旧证据只供审计，不能满足当前验收。
 
 ## 评审编排（强制只读，规范 5.3）
 
@@ -75,7 +86,7 @@ description: 设计 Agent 系统的唯一决策中心。识别任务、维护 co
 
 原型可打开 · 核心任务可完成 · 目标平台与关键状态覆盖 · blocker=0 · 关键决策有依据可追溯 · 假设/覆盖/例外已记录 · 目标视口真实截图已生成 · 浏览器自动化实际执行（否则标"待人工验证"）· 用户确认方向与范围。
 
-最后运行 `node scripts/acceptance.mjs --package <目录> [--check-urls]` 执行第 18.2 节可机器判定的验收阈值（`--package` 必填，缺失会以退出码 2 结束）。评审只读改为内容哈希判定（快照 manifest），不再需要 git ref 参数。
+最后先运行 `node scripts/acceptance.mjs --package <目录> [--check-urls]` 执行第 18.2 节可机器判定的验收阈值（`--package` 必填，缺失会以退出码 2 结束），通过后才运行 `director-advance.mjs --stage delivered`。评审只读改为内容哈希判定（快照 manifest），不再需要 git ref 参数。
 
 ## 可执行命令映射（Director 逐阶段调用）
 
@@ -84,8 +95,12 @@ description: 设计 Agent 系统的唯一决策中心。识别任务、维护 co
 | 初始化 | `node scripts/init-project.mjs --package <目录> --name .. --mode .. --task-type .. --platforms web,mobile_web --primary-user .. --industry ecommerce\|saas_b2b\|general` |
 | 自检 | `node scripts/env-check.mjs --out <目录>/audit/environment.md` |
 | 模式建议（intake 时，规范 27.8） | `node scripts/suggest-mode.mjs --platforms web --pages 1 --flows 2 --brand-exploration false [--industry ..]` |
-| 记录确认门（A/B/C 专业模式必需；mode 快速模式必需） | `node scripts/director-advance.mjs --package <目录> --confirm requirements\|flows\|direction\|mode --summary .. --reply .. [--candidates .. --chosen ..]` |
+| 冻结 Design prepare 来源 | `npm run design:prepare-source -- --package <目录>` |
+| 投影 Design prepare/finalize | `node scripts/project-context.mjs --package <目录> --skill design_specification --operation prepare\|finalize --out <临时文件>` |
+| 校验 Design.md | `npm run design:check -- --package <目录> --phase proposed_contract\|implementation_ready` |
+| 记录确认门（A/B/C 专业模式必需；mode 快速模式必需） | `node scripts/director-advance.mjs --package <目录> --confirm requirements\|flows\|direction\|mode --summary .. --reply .. [--design-patch ..] [--candidates .. --chosen ..]` |
 | 推进阶段 | `node scripts/director-advance.mjs --package <目录> --stage <阶段>` |
+| 受控契约修订 | `npm run design:revise -- --package <目录> --from design_contract --reason <原因>` |
 | 生成派发用上下文投影（每次调度流程 Skill 前） | `node scripts/project-context.mjs --package <目录> --skill <canonical id> --out <临时文件>` |
 | 候选竞争截图（prototype 阶段、全量开发前） | `node scripts/screenshot.mjs --package <目录> --candidates` |
 | 合并 Skill 补丁（唯一写 context） | `node scripts/apply-patch.mjs --package <目录> --skill <canonical id> --patch <patch.yaml>` |
@@ -95,4 +110,6 @@ description: 设计 Agent 系统的唯一决策中心。识别任务、维护 co
 | 落盘评审（评审只返回，Director 落盘） | `node scripts/record-findings.mjs --package <目录> --version <v> --in <findings.yaml>` |
 | 落盘中间版本增量评审 | `node scripts/record-findings.mjs --package <目录> --version <v> --in <findings.yaml> --delta` |
 | 聚合评审 | `node scripts/aggregate-reviews.mjs --package <目录> --version <v>` |
+| 冻结 finalize 来源 | `npm run delivery:prepare -- --package <目录>` |
+| 校验演示结构/渲染证据 | `npm run delivery:check-presentation -- --package <目录> [--structure-only]` |
 | 验收 | `node scripts/acceptance.mjs --package <目录>` |

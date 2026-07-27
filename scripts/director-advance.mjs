@@ -1,80 +1,140 @@
 #!/usr/bin/env node
 // Director 作为 context 唯一 owner：记录用户确认门（--confirm）与推进 stage（--stage）。
-// 不走 Skill 白名单，但仍受阶段状态机 + 确认门 + 合并后 schema 约束。
-// 专业模式下：research→ux 需 confirmations.requirements；ux→visual 需 flows；visual→prototype 需 direction。
-// 用法:
-//   node scripts/director-advance.mjs --package <目录> --stage <目标阶段>
-//   node scripts/director-advance.mjs --package <目录> --confirm requirements|flows|mode --summary <摘要> --reply <用户答复原文>
-//   version-3 Design.md 包确认 flows 时还须 --design-patch <provisional-patch.yaml>，命令会执行 seal。
-//   node scripts/director-advance.mjs --package <目录> --confirm direction --summary .. --reply .. --candidates D1,D3,D5 --chosen D3
-// mode 门（规范 27.8）：快速模式必须先经用户确认落盘，验收对 v1.8 quick 包核对 confirmations.mode。
+// review -> delivered 前同步执行完整 acceptance；任何非零状态都原样传播且不得写 context。
 import { readFileSync, writeFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
 import { resolve, join } from "node:path";
+import { pathToFileURL } from "node:url";
 import yaml from "js-yaml";
-import { loadYaml, validateContext, validateStageTransition } from "./lib/context.mjs";
+import { validateContext, validateStageTransition } from "./lib/context.mjs";
 import { requiresDesignContract } from "./lib/delivery.mjs";
 import { checkDesignContractBinding, sealDesignContract } from "./lib/design-contract.mjs";
 
-function arg(name) { const i = process.argv.indexOf(name); return i >= 0 ? process.argv[i + 1] : undefined; }
+const ACCEPTANCE = resolve(import.meta.dirname, "acceptance.mjs");
 
-const pkg = arg("--package"), stage = arg("--stage"), confirm = arg("--confirm");
-if (!pkg || (!stage && !confirm)) {
-  console.error("用法: node scripts/director-advance.mjs --package <目录> (--stage <阶段> | --confirm <gate> --summary .. --reply ..)");
-  process.exit(2);
-}
-const root = resolve(pkg);
-const ctxPath = join(root, "context.yaml");
-const ctx = loadYaml(ctxPath);
-const mode = ctx.project?.mode || "professional";
-
-let next;
-if (confirm) {
-  if (!["requirements", "flows", "direction", "mode"].includes(confirm)) { console.error(`✗ 未知确认门: ${confirm}（可选 requirements|flows|direction|mode）`); process.exit(2); }
-  const summary = arg("--summary"), reply = arg("--reply");
-  if (!summary || !reply) { console.error("✗ --confirm 需要 --summary 与 --reply（用户答复原文，不得由 Agent 代拟）"); process.exit(2); }
-  if (confirm === "flows" && requiresDesignContract(ctx)) {
-    const designPatchPath = arg("--design-patch");
-    if (!designPatchPath) {
-      console.error("✗ 本包要求 Design.md；--confirm flows 必须提供 --design-patch <provisional-patch.yaml>");
-      process.exit(2);
-    }
-    try {
-      const provisionalPatch = yaml.load(readFileSync(resolve(designPatchPath), "utf8"));
-      sealDesignContract(root, ctx, { summary, userReply: reply, provisionalPatch });
-      console.log("✓ Director 已记录 flows/Design.md 确认并 seal contract lock");
-      process.exit(0);
-    } catch (error) {
-      console.error(`✗ Design.md seal 失败: ${error.message}`);
-      process.exit(1);
-    }
-  }
-  const rec = { summary, user_reply: reply, decided_at: new Date().toISOString() };
-  if (confirm === "direction") {
-    const candidates = (arg("--candidates") || "").split(",").map((s) => s.trim()).filter(Boolean);
-    const chosen = arg("--chosen");
-    if (candidates.length < 2 || !chosen) { console.error("✗ --confirm direction 需要 --candidates（≥2 个，逗号分隔）与 --chosen"); process.exit(2); }
-    if (!candidates.includes(chosen)) { console.error(`✗ chosen=${chosen} 不在 candidates [${candidates.join(",")}] 中`); process.exit(2); }
-    rec.candidates = candidates;
-    rec.chosen = chosen;
-  }
-  next = { ...ctx, confirmations: { ...(ctx.confirmations || {}), [confirm]: rec } };
-} else {
-  const contractBoundary = requiresDesignContract(ctx)
-    && (stage === "visual" || stage === "prototype");
-  if (contractBoundary) {
-    const issues = checkDesignContractBinding(root, ctx);
-    if (issues.length) {
-      console.error("✗ Design.md contract lock 未通过，禁止进入创作阶段：");
-      for (const issue of issues) console.error(`  - ${issue}`);
-      process.exit(1);
-    }
-  }
-  const t = validateStageTransition(ctx.stage, stage, mode, ctx);
-  if (!t.ok) { console.error(`✗ ${t.reason}`); process.exit(1); }
-  next = { ...ctx, stage };
+function arg(argv, name) {
+  const index = argv.indexOf(name);
+  return index >= 0 ? argv[index + 1] : undefined;
 }
 
-const v = validateContext(next);
-if (!v.ok) { console.error("✗ 合并后 context 非法：\n  " + v.errors.join("\n  ")); process.exit(1); }
-writeFileSync(ctxPath, yaml.dump(next, { lineWidth: 100 }));
-console.log(confirm ? `✓ Director 记录确认门 ${confirm}` : `✓ Director 推进阶段 ${ctx.stage} → ${stage}`);
+function response(status, stdout = "", stderr = "") {
+  return { status, stdout, stderr };
+}
+
+function defaultAcceptanceRunner(root) {
+  return spawnSync(process.execPath, [ACCEPTANCE, "--package", root], {
+    encoding: "utf8",
+    maxBuffer: 20 * 1024 * 1024,
+  });
+}
+
+export function runDirectorAdvance(argv, { acceptanceRunner = defaultAcceptanceRunner } = {}) {
+  const pkg = arg(argv, "--package");
+  const stage = arg(argv, "--stage");
+  const confirm = arg(argv, "--confirm");
+  if (!pkg || (!stage && !confirm)) {
+    return response(2, "", "用法: node scripts/director-advance.mjs --package <目录> (--stage <阶段> | --confirm <gate> --summary .. --reply ..)\n");
+  }
+
+  const root = resolve(pkg);
+  const ctxPath = join(root, "context.yaml");
+  let ctx;
+  let originalContext;
+  try {
+    originalContext = readFileSync(ctxPath);
+    ctx = yaml.load(originalContext.toString("utf8"));
+  } catch (error) {
+    return response(1, "", `✗ context.yaml 无法读取: ${error.message}\n`);
+  }
+  const mode = ctx.project?.mode || "professional";
+  let next;
+  let acceptedOutput = "";
+
+  if (confirm) {
+    if (!["requirements", "flows", "direction", "mode"].includes(confirm)) {
+      return response(2, "", `✗ 未知确认门: ${confirm}（可选 requirements|flows|direction|mode）\n`);
+    }
+    const summary = arg(argv, "--summary");
+    const reply = arg(argv, "--reply");
+    if (!summary || !reply) {
+      return response(2, "", "✗ --confirm 需要 --summary 与 --reply（用户答复原文，不得由 Agent 代拟）\n");
+    }
+    if (confirm === "flows" && requiresDesignContract(ctx)) {
+      const designPatchPath = arg(argv, "--design-patch");
+      if (!designPatchPath) {
+        return response(2, "", "✗ 本包要求 Design.md；--confirm flows 必须提供 --design-patch <provisional-patch.yaml>\n");
+      }
+      try {
+        const provisionalPatch = yaml.load(readFileSync(resolve(designPatchPath), "utf8"));
+        sealDesignContract(root, ctx, { summary, userReply: reply, provisionalPatch });
+        return response(0, "✓ Director 已记录 flows/Design.md 确认并 seal contract lock\n");
+      } catch (error) {
+        return response(1, "", `✗ Design.md seal 失败: ${error.message}\n`);
+      }
+    }
+    const record = { summary, user_reply: reply, decided_at: new Date().toISOString() };
+    if (confirm === "direction") {
+      const candidates = (arg(argv, "--candidates") || "").split(",").map((value) => value.trim()).filter(Boolean);
+      const chosen = arg(argv, "--chosen");
+      if (candidates.length < 2 || !chosen) {
+        return response(2, "", "✗ --confirm direction 需要 --candidates（≥2 个，逗号分隔）与 --chosen\n");
+      }
+      if (!candidates.includes(chosen)) {
+        return response(2, "", `✗ chosen=${chosen} 不在 candidates [${candidates.join(",")}] 中\n`);
+      }
+      record.candidates = candidates;
+      record.chosen = chosen;
+    }
+    next = { ...ctx, confirmations: { ...(ctx.confirmations || {}), [confirm]: record } };
+  } else {
+    const contractBoundary = requiresDesignContract(ctx) && (stage === "visual" || stage === "prototype");
+    if (contractBoundary) {
+      const issues = checkDesignContractBinding(root, ctx);
+      if (issues.length) {
+        return response(1, "", `✗ Design.md contract lock 未通过，禁止进入创作阶段：\n${issues.map((issue) => `  - ${issue}`).join("\n")}\n`);
+      }
+    }
+    const transition = validateStageTransition(ctx.stage, stage, mode, ctx);
+    if (!transition.ok) return response(1, "", `✗ ${transition.reason}\n`);
+
+    if (stage === "delivered") {
+      let acceptance;
+      try {
+        acceptance = acceptanceRunner(root);
+      } catch (error) {
+        return response(1, "", `✗ acceptance 无法执行: ${error.message}\n`);
+      }
+      const status = Number.isInteger(acceptance?.status) ? acceptance.status : 1;
+      const stdout = String(acceptance?.stdout ?? "");
+      const stderr = String(acceptance?.stderr ?? acceptance?.error?.message ?? "");
+      if (status !== 0) return response(status, stdout, stderr);
+      acceptedOutput = stdout;
+      if (stderr) acceptedOutput += stderr;
+    }
+    next = { ...ctx, stage };
+  }
+
+  const validated = validateContext(next);
+  if (!validated.ok) {
+    return response(1, "", `✗ 合并后 context 非法：\n  ${validated.errors.join("\n  ")}\n`);
+  }
+  try {
+    if (!readFileSync(ctxPath).equals(originalContext)) {
+      return response(1, "", "✗ context.yaml 在 Director 操作期间发生漂移，拒绝覆盖；请基于最新状态重试\n");
+    }
+  } catch (error) {
+    return response(1, "", `✗ context.yaml 在 Director 操作期间不可读: ${error.message}\n`);
+  }
+  writeFileSync(ctxPath, yaml.dump(next, { lineWidth: 100 }));
+  const message = confirm
+    ? `✓ Director 记录确认门 ${confirm}`
+    : `✓ Director 推进阶段 ${ctx.stage} → ${stage}`;
+  return response(0, `${acceptedOutput}${message}\n`);
+}
+
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  const result = runDirectorAdvance(process.argv.slice(2));
+  if (result.stdout) process.stdout.write(result.stdout);
+  if (result.stderr) process.stderr.write(result.stderr);
+  process.exit(result.status);
+}

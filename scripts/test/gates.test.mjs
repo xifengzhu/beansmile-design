@@ -1,13 +1,20 @@
 // 门禁语义测试：确认门状态机 + visual findings 八维证据纪律。
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
-import { join } from "node:path";
+import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, rmSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
+import yaml from "js-yaml";
 import { hardenedGate, validateStageTransition } from "../lib/context.mjs";
 import { semanticIssuesVisual, DIMENSIONS } from "../lib/findings.mjs";
 import { sha256File } from "../lib/hash.mjs";
 import { resolveManifest } from "../lib/manifests.mjs";
+import { runDirectorAdvance } from "../director-advance.mjs";
+import { makeReviewedDesignPackage } from "./design-delivery-fixture.mjs";
+
+const DIRECTOR = resolve(import.meta.dirname, "..", "director-advance.mjs");
+const DIRECTOR_SKILL = resolve(import.meta.dirname, "..", "..", "skills", "design-director", "SKILL.md");
 
 // —— 确认门 ——
 
@@ -46,6 +53,106 @@ test("普通 Skill 补丁不得把生命周期直接回退到 ux", () => {
   const result = validateStageTransition("review", "ux", "professional", {});
   assert.equal(result.ok, false);
   assert.match(result.reason, /回退/);
+});
+
+test("review to delivered propagates acceptance failure without changing context bytes", () => {
+  const pkg = makeReviewedDesignPackage();
+  try {
+    const path = join(pkg.root, "context.yaml");
+    const before = readFileSync(path);
+    const result = spawnSync(process.execPath, [DIRECTOR, "--package", pkg.root, "--stage", "delivered"], {
+      encoding: "utf8",
+      maxBuffer: 20 * 1024 * 1024,
+    });
+    assert.equal(result.status, 1, `${result.stdout}\n${result.stderr}`);
+    assert.deepEqual(readFileSync(path), before);
+  } finally {
+    rmSync(pkg.root, { recursive: true, force: true });
+  }
+});
+
+test("review to delivered propagates unverified and writes only after acceptance passes", () => {
+  for (const status of [1, 3]) {
+    const pkg = makeReviewedDesignPackage();
+    try {
+      const path = join(pkg.root, "context.yaml");
+      const before = readFileSync(path);
+      const result = runDirectorAdvance([
+        "--package", pkg.root,
+        "--stage", "delivered",
+      ], {
+        acceptanceRunner: () => ({ status, stdout: `acceptance-${status}\n`, stderr: "" }),
+      });
+      assert.equal(result.status, status);
+      assert.match(result.stdout, new RegExp(`acceptance-${status}`));
+      assert.deepEqual(readFileSync(path), before);
+    } finally {
+      rmSync(pkg.root, { recursive: true, force: true });
+    }
+  }
+
+  const pkg = makeReviewedDesignPackage();
+  try {
+    const result = runDirectorAdvance([
+      "--package", pkg.root,
+      "--stage", "delivered",
+    ], {
+      acceptanceRunner: () => ({ status: 0, stdout: "all pass\n", stderr: "" }),
+    });
+    assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
+    assert.equal(yaml.load(readFileSync(join(pkg.root, "context.yaml"), "utf8")).stage, "delivered");
+  } finally {
+    rmSync(pkg.root, { recursive: true, force: true });
+  }
+});
+
+test("review to delivered rejects context drift during acceptance instead of overwriting it", () => {
+  const pkg = makeReviewedDesignPackage();
+  try {
+    const path = join(pkg.root, "context.yaml");
+    const changed = { ...pkg.context, assumptions: ["acceptance 期间的新事实"] };
+    const result = runDirectorAdvance([
+      "--package", pkg.root,
+      "--stage", "delivered",
+    ], {
+      acceptanceRunner: () => {
+        writeFileSync(path, yaml.dump(changed, { lineWidth: 100 }));
+        return { status: 0, stdout: "all pass\n", stderr: "" };
+      },
+    });
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /漂移|变化|变更/);
+    const persisted = yaml.load(readFileSync(path, "utf8"));
+    assert.equal(persisted.stage, "review");
+    assert.deepEqual(persisted.assumptions, changed.assumptions);
+  } finally {
+    rmSync(pkg.root, { recursive: true, force: true });
+  }
+});
+
+test("Design Director documents the complete design-first delivery sequence and controlled rollback", () => {
+  const skill = readFileSync(DIRECTOR_SKILL, "utf8");
+  const ordered = [
+    "design:prepare-source",
+    "--operation prepare",
+    "--design-patch",
+    "visual_system",
+    "html_prototype",
+    "delivery:prepare",
+    "--operation finalize",
+    "delivery:check-presentation",
+    "director-review.json",
+    "acceptance.mjs",
+    "--stage delivered",
+  ];
+  let previous = -1;
+  for (const marker of ordered) {
+    const index = skill.indexOf(marker, previous + 1);
+    assert.ok(index > previous, `Design Director 缺少或顺序错误: ${marker}`);
+    previous = index;
+  }
+  assert.match(skill, /design:revise.*--from design_contract.*--reason/s);
+  assert.match(skill, /不得直接.*(?:回退|倒退).*stage|禁止直接.*stage.*(?:回退|倒退)/s);
 });
 
 test("design_specification operation 只能写 design_document", () => {

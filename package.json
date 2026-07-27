@@ -17,6 +17,7 @@
     "design:check": "node scripts/check-design-document.mjs",
     "design:revise": "node scripts/revise-design-contract.mjs",
     "delivery:prepare": "node scripts/prepare-delivery.mjs",
+    "delivery:check-presentation": "node scripts/check-presentation.mjs",
     "setup:agents": "node scripts/setup-agent-skills.mjs",
     "recall": "node scripts/recall-harness.mjs",
     "init": "node scripts/init-project.mjs",
@@ -33,9 +34,12 @@
   "dependencies": {
     "ajv": "^8.17.1",
     "ajv-formats": "^3.0.1",
+    "fast-xml-parser": "^5.10.1",
     "js-yaml": "^4.1.0",
+    "jszip": "^3.10.1",
     "mdast-util-from-markdown": "^2.0.2",
-    "node-html-parser": "^6.1.13"
+    "node-html-parser": "^6.1.13",
+    "pptxgenjs": "^4.0.1"
   },
   "devDependencies": {
     "axe-core": "^4.12.1",

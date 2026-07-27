@@ -1,0 +1,4 @@
+interface:
+  display_name: "Design Specification"
+  short_description: "Prepare and finalize the development Design.md contract"
+  default_prompt: "Use $design-specification to prepare or finalize the package Design.md through the Director-controlled contract."

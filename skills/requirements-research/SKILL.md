@@ -9,7 +9,7 @@ description: 从业务目标、目标用户、核心任务与成功指标出发�
 ## 白名单（由 Director 做字段级 diff 门禁强制）
 
 - reads: `project`, `brand`, `constraints`
-- writes: `users`, `goals`, `constraints`, `assumptions`, `stage`
+- writes: `users`, `goals`, `constraints`, `assumptions`, `artifacts.brief`, `stage`
 - produces: `brief.md`
 
 ## 职责
@@ -30,4 +30,4 @@ description: 从业务目标、目标用户、核心任务与成功指标出发�
 ## 输出契约
 
 - 文件 `brief.md`：业务目标 / 目标用户与需求 / 核心任务 / 成功指标 / 平台与领域约束 / 来源分级。
-- 补丁：填充 `users.primary`、`users.needs`、`goals.*`、补充 `constraints`、登记 `assumptions`，并把 `stage` 推进到 `research`。
+- 补丁：填充 `users.primary`、`users.needs`、`goals.*`、补充 `constraints`、登记 `assumptions`，登记 `artifacts.brief: { path: "brief.md", artifact_version: "1", updated_by: "requirements_research" }`，并把 `stage` 推进到 `research`。

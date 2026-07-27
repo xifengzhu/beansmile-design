@@ -4,9 +4,10 @@ import assert from "node:assert/strict";
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { validateStageTransition } from "../lib/context.mjs";
+import { hardenedGate, validateStageTransition } from "../lib/context.mjs";
 import { semanticIssuesVisual, DIMENSIONS } from "../lib/findings.mjs";
 import { sha256File } from "../lib/hash.mjs";
+import { resolveManifest } from "../lib/manifests.mjs";
 
 // —— 确认门 ——
 
@@ -39,6 +40,60 @@ test("direction 门：候选 <2 或 chosen 不在候选中 → 拒绝", () => {
 test("快速模式不设确认门；未传 ctx 时不误伤（兼容旧调用）", () => {
   assert.equal(validateStageTransition("intake", "prototype", "quick", {}).ok, true);
   assert.equal(validateStageTransition("research", "ux", "professional").ok, true);
+});
+
+test("design_specification operation 只能写 design_document", () => {
+  const before = {
+    project: {
+      name: "x",
+      mode: "professional",
+      task_type: "new_design",
+      platforms: ["web"],
+      reference_system: "none",
+      industry: "general",
+      package_format_version: 3,
+      delivery_outputs: ["design_specification", "design_presentation"],
+    },
+    users: { primary: "访客" },
+    goals: {},
+    stage: "ux",
+    artifacts: {
+      brief: { path: "brief.md", artifact_version: "1", updated_by: "requirements_research" },
+      flows: { path: "flows.md", artifact_version: "1", updated_by: "ux_architecture" },
+    },
+  };
+  const manifest = resolveManifest("design_specification", "prepare");
+  const accepted = hardenedGate(manifest, before, {
+    patch: {
+      artifacts: {
+        design_document: {
+          path: "Design.md",
+          artifact_version: "1",
+          phase: "proposed_contract",
+          contract_revision: 1,
+          contract_digest: "a".repeat(64),
+          contract_source_digest: "b".repeat(64),
+          sha256: "c".repeat(64),
+          updated_by: "design_specification",
+        },
+      },
+    },
+  });
+  assert.equal(accepted.ok, true, accepted.reasons.join("\n"));
+
+  const rejected = hardenedGate(manifest, before, {
+    patch: {
+      artifacts: {
+        tokens: {
+          path: "design-tokens.json",
+          artifact_version: "1",
+          updated_by: "design_specification",
+        },
+      },
+    },
+  });
+  assert.equal(rejected.ok, false);
+  assert.ok(rejected.violations.some((path) => path.startsWith("artifacts.tokens")));
 });
 
 // —— visual 八维证据纪律 ——

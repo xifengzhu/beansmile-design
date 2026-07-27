@@ -27,7 +27,7 @@ report("检查映射登记表", checkMapping, `${checkMapping.count} 条，全�
 const manifests = validateManifests();
 report("Skill 清单", manifests, `${manifests.count} 个 Skill`);
 const registry = validateRegistry();
-report("注册表一致性", registry, `${registry.count} 个条目，flow↔manifest 一一对应`);
+report("注册表一致性", registry, `${registry.count} 个条目，flow/deliverable↔manifest 一一对应`);
 const kb = playbookIndexIssues();
 report("方向章节索引", kb, `${kb.count} 个方向，library ↔ playbooks/ 一一对应`);
 

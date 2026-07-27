@@ -17,6 +17,29 @@ export function loadManifests() {
   return { manifests: doc.manifests, bySkill };
 }
 
+export function resolveManifest(skill, operation) {
+  const { bySkill } = loadManifests();
+  const manifest = bySkill.get(skill);
+  if (!manifest) throw new Error(`未知 Skill: ${skill}`);
+
+  if (manifest.operations) {
+    if (!operation) throw new Error(`${skill} 需要 --operation`);
+    const selected = manifest.operations[operation];
+    if (!selected) throw new Error(`${skill} 未知 operation: ${operation}`);
+    return {
+      skill: manifest.skill,
+      operation,
+      reads: selected.reads,
+      writes: selected.writes,
+      produces: manifest.produces,
+      required_modes: manifest.required_modes ?? [],
+    };
+  }
+
+  if (operation) throw new Error(`${skill} 不支持 operation: ${operation}`);
+  return { ...manifest, operation: null };
+}
+
 export function validateManifests() {
   const ajv = makeValidator();
   const schema = JSON.parse(readFileSync(SCHEMAS.skillManifest, "utf8"));

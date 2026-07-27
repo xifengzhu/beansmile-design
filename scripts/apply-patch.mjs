@@ -5,19 +5,23 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { resolve, join } from "node:path";
 import yaml from "js-yaml";
-import { loadManifests } from "./lib/manifests.mjs";
+import { resolveManifest } from "./lib/manifests.mjs";
 import { loadYaml, hardenedGate } from "./lib/context.mjs";
 
 function arg(name) { const i = process.argv.indexOf(name); return i >= 0 ? process.argv[i + 1] : undefined; }
 
-const pkg = arg("--package"), skill = arg("--skill"), patchPath = arg("--patch");
+const pkg = arg("--package"), skill = arg("--skill"), operation = arg("--operation"), patchPath = arg("--patch");
 if (!pkg || !skill || !patchPath) { console.error("用法: node scripts/apply-patch.mjs --package <目录> --skill <id> --patch <patch.yaml>"); process.exit(2); }
 const root = resolve(pkg);
 const ctxPath = join(root, "context.yaml");
 
-const { bySkill } = loadManifests();
-const manifest = bySkill.get(skill);
-if (!manifest) { console.error(`✗ 未知 Skill: ${skill}（用 canonical snake_case id）`); process.exit(2); }
+let manifest;
+try {
+  manifest = resolveManifest(skill, operation);
+} catch (error) {
+  console.error(`✗ ${error.message}（用 canonical snake_case id）`);
+  process.exit(2);
+}
 
 const before = loadYaml(ctxPath);
 const patch = yaml.load(readFileSync(patchPath, "utf8"));
@@ -31,4 +35,5 @@ if (!r.ok) {
 }
 
 writeFileSync(ctxPath, yaml.dump(r.after, { lineWidth: 100 }));
-console.log(`✓ ${skill} 补丁已合并（改动 [${r.changes.join(", ")}]）→ stage=${r.after.stage}`);
+const label = operation ? `${skill}/${operation}` : skill;
+console.log(`✓ ${label} 补丁已合并（改动 [${r.changes.join(", ")}]）→ stage=${r.after.stage}`);

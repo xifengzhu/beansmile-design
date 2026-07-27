@@ -1,0 +1,4 @@
+interface:
+  display_name: "Design Presentation"
+  short_description: "Generate an editable audited design proposal PPTX"
+  default_prompt: "Use $design-presentation to generate the editable audited PPTX from an implementation-ready Design.md."

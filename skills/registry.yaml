@@ -1,7 +1,7 @@
 # Skill/Agent 唯一 canonical id 注册表。
 # canonical id = snake_case，是系统内部（manifest、diff gate、Director 调度、快照/评审绑定）
 # 唯一的引用键。dir 为磁盘目录；skill_tool_name 为 Claude Skill 工具的调用名（连字符）。
-# 校验：flow 类的 id 必须与 skill-manifests.yaml 的 skill 一一对应。
+# 校验：flow/deliverable 类的 id 必须与 skill-manifests.yaml 的 skill 一一对应。
 skills:
   - id: requirements_research
     kind: flow
@@ -23,6 +23,14 @@ skills:
     kind: flow
     dir: decision-record
     skill_tool_name: decision-record
+  - id: design_specification
+    kind: deliverable
+    dir: design-specification
+    skill_tool_name: design-specification
+  - id: design_presentation
+    kind: deliverable
+    dir: design-presentation
+    skill_tool_name: design-presentation
   - id: standards_audit
     kind: reviewer
     dir: standards-audit

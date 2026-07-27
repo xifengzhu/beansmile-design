@@ -3,11 +3,18 @@
 // 用法: node scripts/init-project.mjs --package <目录> --name <名> --mode professional|quick \
 //        --task-type new_design|redesign --platforms web,mobile_web --primary-user <描述> \
 //        --industry ecommerce|saas_b2b|general|<slug>（专业模式验收「行业依据」要求必填） \
-//        --reference-system none|ant_design|carbon（主参考系统，默认 none，分层扩展 §6）
+//        --reference-system none|ant_design|carbon（主参考系统，默认 none，分层扩展 §6） \
+//        [--deliverables design_specification,design_presentation]（quick 按需；PPT 隐含 Design.md）
 import { mkdirSync, writeFileSync, existsSync } from "node:fs";
 import { resolve, join } from "node:path";
 import yaml from "js-yaml";
 import { validateContext } from "./lib/context.mjs";
+import {
+  DELIVERY_OUTPUTS,
+  DELIVERY_PACKAGE_VERSION,
+  deliveryModeIssues,
+  requiredDeliveryOutputs,
+} from "./lib/delivery.mjs";
 
 function arg(name, def) { const i = process.argv.indexOf(name); return i >= 0 ? process.argv[i + 1] : def; }
 
@@ -16,6 +23,24 @@ if (!pkg) { console.error("用法见文件头"); process.exit(2); }
 const root = resolve(pkg);
 
 const industry = arg("--industry");
+const mode = arg("--mode", "professional");
+const deliverablesArg = arg("--deliverables");
+const requestedOutputs = deliverablesArg === undefined
+  ? (mode === "professional" ? [...DELIVERY_OUTPUTS] : [])
+  : deliverablesArg.split(",").map((value) => value.trim());
+const deliveryContext = {
+  project: {
+    mode,
+    package_format_version: DELIVERY_PACKAGE_VERSION,
+    delivery_outputs: requestedOutputs,
+  },
+};
+const deliveryIssues = deliveryModeIssues(deliveryContext, { enforce: true });
+if (deliveryIssues.length) {
+  console.error(`✗ 非法 --deliverables:\n  ${deliveryIssues.join("\n  ")}`);
+  process.exit(2);
+}
+const deliveryOutputs = requiredDeliveryOutputs(deliveryContext);
 const REFERENCE_SYSTEMS = ["none", "ant_design", "carbon"];
 const referenceSystem = arg("--reference-system", "none");
 if (!REFERENCE_SYSTEMS.includes(referenceSystem)) {
@@ -25,8 +50,10 @@ if (!REFERENCE_SYSTEMS.includes(referenceSystem)) {
 const ctx = {
   project: {
     name: arg("--name", "untitled"),
-    mode: arg("--mode", "professional"),
+    mode,
     task_type: arg("--task-type", "new_design"),
+    package_format_version: DELIVERY_PACKAGE_VERSION,
+    delivery_outputs: deliveryOutputs,
     ...(industry ? { industry } : {}),
     reference_system: referenceSystem,
     platforms: arg("--platforms", "web").split(",").map((s) => s.trim()),
@@ -40,13 +67,13 @@ const ctx = {
 const v = validateContext(ctx);
 if (!v.ok) { console.error("✗ 起始 context 非法：\n  " + v.errors.join("\n  ")); process.exit(1); }
 
+const ctxPath = join(root, "context.yaml");
+if (existsSync(ctxPath)) { console.error(`✗ ${ctxPath} 已存在，拒绝覆盖`); process.exit(1); }
 for (const d of ["", "prototype", "audit", "audit/snapshots", "audit/findings", "audit/screenshots"]) {
   mkdirSync(join(root, d), { recursive: true });
 }
-const ctxPath = join(root, "context.yaml");
-if (existsSync(ctxPath)) { console.error(`✗ ${ctxPath} 已存在，拒绝覆盖`); process.exit(1); }
 writeFileSync(ctxPath, yaml.dump(ctx, { lineWidth: 100 }));
-console.log(`✓ 已初始化交付包 ${root}（stage=intake, platforms=${ctx.project.platforms.join("/")}${industry ? `, industry=${industry}` : ""}, reference_system=${referenceSystem}）`);
+console.log(`✓ 已初始化交付包 ${root}（stage=intake, platforms=${ctx.project.platforms.join("/")}${industry ? `, industry=${industry}` : ""}, reference_system=${referenceSystem}, delivery_outputs=${deliveryOutputs.join(",") || "none"}）`);
 if (!industry && ctx.project.mode === "professional") {
   console.log("  ! 未指定 --industry：专业模式验收「行业依据」会 fail。识别行业后补写 context.project.industry（通用产品用 general）。");
 }

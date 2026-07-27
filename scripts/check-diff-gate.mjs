@@ -4,7 +4,7 @@
 // 用法:
 //   node scripts/check-diff-gate.mjs --skill <id> --before <before.yaml> --patch <patch.yaml>
 //   node scripts/check-diff-gate.mjs --skill <id> --before <before.yaml> --after <after.yaml>
-import { loadManifests } from "./lib/manifests.mjs";
+import { resolveManifest } from "./lib/manifests.mjs";
 import { loadYaml, hardenedGate } from "./lib/context.mjs";
 
 function arg(name) {
@@ -13,6 +13,7 @@ function arg(name) {
 }
 
 const skill = arg("--skill");
+const operation = arg("--operation");
 const beforePath = arg("--before");
 const afterPath = arg("--after");
 const patchPath = arg("--patch");
@@ -21,10 +22,11 @@ if (!skill || !beforePath || (!afterPath && !patchPath)) {
   process.exit(2);
 }
 
-const { bySkill } = loadManifests();
-const manifest = bySkill.get(skill);
-if (!manifest) {
-  console.error(`✗ 未知 Skill: ${skill}（清单中不存在；注意用 canonical snake_case id）`);
+let manifest;
+try {
+  manifest = resolveManifest(skill, operation);
+} catch (error) {
+  console.error(`✗ ${error.message}（注意用 canonical snake_case id）`);
   process.exit(2);
 }
 
@@ -32,11 +34,12 @@ const before = loadYaml(beforePath);
 const opts = afterPath ? { after: loadYaml(afterPath) } : { patch: loadYaml(patchPath) };
 const r = hardenedGate(manifest, before, opts);
 
+const label = operation ? `${skill}/${operation}` : skill;
 if (r.ok) {
-  console.log(`✓ diff 门禁通过：${skill} 改动 [${r.changes.join(", ") || "无"}]（白名单 [${manifest.writes.join(", ")}]，合并后 schema/阶段/版本均合法）`);
+  console.log(`✓ diff 门禁通过：${label} 改动 [${r.changes.join(", ") || "无"}]（白名单 [${manifest.writes.join(", ")}]，合并后 schema/阶段/版本均合法）`);
   process.exit(0);
 }
-console.error(`✗ diff 门禁失败：${skill}`);
+console.error(`✗ diff 门禁失败：${label}`);
 if (r.violations.length) {
   console.error(`  越权写字段（不在白名单 [${manifest.writes.join(", ")}]）：`);
   for (const v of r.violations) console.error(`    - ${v}`);

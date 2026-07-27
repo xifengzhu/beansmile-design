@@ -5,7 +5,17 @@
   "description": "每个流程 Skill 必须声明的读写白名单。Design Director 用它做字段级 diff 门禁，强制 '任何阶段只能修改自己负责的字段' (设计规范第 5.2、8 章)。",
   "type": "object",
   "additionalProperties": false,
-  "required": ["skill", "reads", "writes", "produces"],
+  "required": ["skill", "produces"],
+  "oneOf": [
+    {
+      "required": ["reads", "writes"],
+      "not": { "required": ["operations"] }
+    },
+    {
+      "required": ["operations"],
+      "not": { "anyOf": [{ "required": ["reads"] }, { "required": ["writes"] }] }
+    }
+  ],
   "properties": {
     "skill": {
       "description": "Skill 唯一标识。",
@@ -14,7 +24,9 @@
         "ux_architecture",
         "visual_system",
         "html_prototype",
-        "decision_record"
+        "decision_record",
+        "design_specification",
+        "design_presentation"
       ]
     },
     "reads": {
@@ -29,18 +41,46 @@
       "uniqueItems": true,
       "items": { "$ref": "#/$defs/contextPath" }
     },
+    "operations": {
+      "type": "object",
+      "minProperties": 1,
+      "propertyNames": { "pattern": "^[a-z][a-z0-9_]*$" },
+      "additionalProperties": { "$ref": "#/$defs/operation" }
+    },
     "produces": {
       "type": "array",
       "description": "该 Skill 产出的文件路径 (相对交付包根)。验收时逐一检查其存在 (第 18.2 章)。",
       "minItems": 1,
       "uniqueItems": true,
       "items": { "type": "string", "minLength": 1 }
+    },
+    "required_modes": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "enum": ["professional", "quick"] }
     }
   },
   "$defs": {
     "contextPath": {
       "type": "string",
       "pattern": "^(project|users|goals|brand|constraints|assumptions|decisions|exceptions|artifacts|stage)(\\.[a-z_]+)?$"
+    },
+    "operation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["reads", "writes"],
+      "properties": {
+        "reads": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/contextPath" }
+        },
+        "writes": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/contextPath" }
+        }
+      }
     }
   }
 }

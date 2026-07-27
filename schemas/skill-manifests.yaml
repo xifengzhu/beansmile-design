@@ -7,7 +7,7 @@
 manifests:
   - skill: requirements_research
     reads: [project, brand, constraints]
-    writes: [users, goals, constraints, assumptions, stage]
+    writes: [users, goals, constraints, assumptions, artifacts.brief, stage]
     produces:
       - brief.md
 
@@ -35,3 +35,20 @@ manifests:
     writes: [decisions, exceptions, stage]
     produces:
       - decisions.md
+
+  - skill: design_specification
+    operations:
+      prepare:
+        reads: [project, users, goals, brand, constraints, assumptions, decisions, exceptions, artifacts.brief, artifacts.flows]
+        writes: [artifacts.design_document]
+      finalize:
+        reads: [project, users, goals, brand, constraints, assumptions, decisions, exceptions, artifacts.brief, artifacts.flows, artifacts.tokens, artifacts.prototype, artifacts.design_document]
+        writes: [artifacts.design_document]
+    produces: [Design.md]
+    required_modes: [professional]
+
+  - skill: design_presentation
+    reads: [project, users, goals, brand, constraints, assumptions, decisions, exceptions, artifacts.flows, artifacts.tokens, artifacts.prototype, artifacts.design_document]
+    writes: [artifacts.presentation]
+    produces: [presentation/design-system.pptx, audit/presentation/manifest.json, audit/presentation/qa.json]
+    required_modes: [professional]

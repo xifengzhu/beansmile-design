@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import yaml from "js-yaml";
 import { makeValidator } from "./rules.mjs";
 import { SCHEMAS } from "./paths.mjs";
+import { deliveryArtifactVersionIssues } from "./delivery.mjs";
 
 export function loadYaml(path) {
   return yaml.load(readFileSync(path, "utf8"));
@@ -111,10 +112,11 @@ export function validateStageTransition(from, to, mode = "professional", ctx = n
 }
 
 // artifact_version 单调性：同一 artifact 若被改动，版本必须严格递增。
-export function checkArtifactMonotonic(before, after) {
+export function checkArtifactMonotonic(before, after, { skip = [] } = {}) {
   const violations = [];
   const b = before.artifacts || {}, a = after.artifacts || {};
   for (const k of Object.keys(a)) {
+    if (skip.includes(k)) continue;
     if (!b[k]) continue;
     const bv = b[k].artifact_version, av = a[k].artifact_version;
     if (JSON.stringify(b[k]) === JSON.stringify(a[k])) continue; // 未变
@@ -151,7 +153,22 @@ export function hardenedGate(manifest, before, { after, patch } = {}) {
   }
 
   // 4. artifact 版本单调性
-  for (const v of checkArtifactMonotonic(before, merged)) reasons.push(v);
+  const deliveryKind = manifest.skill === "design_specification"
+    ? "design_document"
+    : manifest.skill === "design_presentation" ? "presentation" : null;
+  for (const v of checkArtifactMonotonic(before, merged, { skip: deliveryKind ? [deliveryKind] : [] })) {
+    reasons.push(v);
+  }
+  if (deliveryKind && JSON.stringify(before.artifacts?.[deliveryKind]) !== JSON.stringify(merged.artifacts?.[deliveryKind])) {
+    for (const issue of deliveryArtifactVersionIssues(
+      before.artifacts?.[deliveryKind] ?? null,
+      merged.artifacts?.[deliveryKind],
+      {
+        kind: deliveryKind,
+        prototypeVersion: merged.artifacts?.prototype?.artifact_version,
+      },
+    )) reasons.push(issue);
+  }
 
   return {
     ok: violations.length === 0 && reasons.length === 0,

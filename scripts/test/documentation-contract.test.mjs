@@ -45,5 +45,5 @@ test("base specification delegates the active extension instead of promising fut
   assert.doesNotMatch(base, /后续将它们实现为独立输出 Skill/);
   assert.match(base, /2026-07-26-delivery-artifacts-design\.md/);
   assert.match(base, /package_format_version.*3/s);
-  assert.match(extension, /状态：已实现，待端到端验收/);
+  assert.match(extension, /状态：已实现并完成端到端验收/);
 });

@@ -2,8 +2,9 @@
 // 硬化字段级 diff 门禁（规范 5.2、8、9）。校验某 Skill 对 context 的改动满足：
 // 写路径白名单 + 合并后 schema 合法 + 阶段状态机 + artifact 版本单调性。
 // 用法:
-//   node scripts/check-diff-gate.mjs --skill <id> --before <before.yaml> --patch <patch.yaml>
-//   node scripts/check-diff-gate.mjs --skill <id> --before <before.yaml> --after <after.yaml>
+//   node scripts/check-diff-gate.mjs [--package <目录>] --skill <id> --before <before.yaml> --patch <patch.yaml>
+//   node scripts/check-diff-gate.mjs [--package <目录>] --skill <id> --before <before.yaml> --after <after.yaml>
+import { resolve } from "node:path";
 import { resolveManifest } from "./lib/manifests.mjs";
 import { loadYaml, hardenedGate } from "./lib/context.mjs";
 
@@ -14,6 +15,7 @@ function arg(name) {
 
 const skill = arg("--skill");
 const operation = arg("--operation");
+const packagePath = arg("--package");
 const beforePath = arg("--before");
 const afterPath = arg("--after");
 const patchPath = arg("--patch");
@@ -32,6 +34,7 @@ try {
 
 const before = loadYaml(beforePath);
 const opts = afterPath ? { after: loadYaml(afterPath) } : { patch: loadYaml(patchPath) };
+if (packagePath) opts.packageRoot = resolve(packagePath);
 const r = hardenedGate(manifest, before, opts);
 
 const label = operation ? `${skill}/${operation}` : skill;

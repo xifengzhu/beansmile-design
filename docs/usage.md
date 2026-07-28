@@ -96,7 +96,7 @@ npm run init -- \
 |---|---|
 | `npm run init -- --package <目录> ...` | 初始化交付包与 `context.yaml` |
 | `node scripts/director-advance.mjs --package <目录> --stage <阶段>` | 由 Director 推进合法阶段 |
-| `npm run gate:diff -- --skill <canonical_id> --before <context.yaml> --patch <patch.yaml>` | 只检查 Skill 补丁的字段权限、schema、阶段和版本 |
+| `npm run gate:diff -- --package <目录> --skill <canonical_id> --before <context.yaml> --patch <patch.yaml>` | 只检查 Skill 补丁的字段权限、schema、阶段和版本；Visual、Prototype 与 finalize 的契约绑定预检必须传包目录 |
 | `npm run apply -- --package <目录> --skill <canonical_id> --patch <patch.yaml>` | 门禁通过后合并补丁并写回上下文 |
 | `npm run ctx:project -- --package <目录> --skill <canonical_id> [--operation prepare\|finalize] [--out <文件>]` | 按 Skill/operation 的 reads 白名单生成派发投影；`design_specification` 必须传 operation |
 | `npm run mode:suggest -- --platforms web --pages 1 --flows 2 --brand-exploration false` | 快速模式建议（须经用户确认后 `--confirm mode` 落盘，规范 27.8） |

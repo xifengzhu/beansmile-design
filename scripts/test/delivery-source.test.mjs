@@ -223,6 +223,24 @@ test("delivery source replacement is atomic on interruption", () => {
   }
 });
 
+test("final delivery source verification accepts delivered stage", () => {
+  const pkg = makeReviewedDesignPackage();
+  try {
+    const manifest = buildDeliverySource(pkg.root);
+    const contextPath = join(pkg.root, "context.yaml");
+    const ctx = yaml.load(readFileSync(contextPath, "utf8"));
+    ctx.stage = "delivered";
+    writeFileSync(contextPath, yaml.dump(ctx));
+
+    assert.deepEqual(
+      verifyDeliverySource(pkg.root, manifest, { allowFinalDesign: true }),
+      [],
+    );
+  } finally {
+    rmSync(pkg.root, { recursive: true, force: true });
+  }
+});
+
 test("delivery preparation requires review stage, clean full reviews, and explicit overwrite", () => {
   const pkg = makeReviewedDesignPackage();
   try {

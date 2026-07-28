@@ -20,6 +20,7 @@ import { sha256File } from "../lib/hash.mjs";
 import { resolveManifest } from "../lib/manifests.mjs";
 
 const DIRECTOR = resolve(import.meta.dirname, "..", "director-advance.mjs");
+const DIFF_GATE = resolve(import.meta.dirname, "..", "check-diff-gate.mjs");
 
 const CONTENT = {
   "目标与边界": "技术栈未指定。范围是询价体验，不含后台实现。",
@@ -270,6 +271,39 @@ test("Visual and Prototype patches must bind the active approved lock", () => {
     writeFileSync(join(pkg.root, "audit", "design", "contract-lock.json"), "null\n");
     assert.doesNotThrow(() => hardenedGate(visualManifest, sealed.context, { patch: visualPatch, packageRoot: pkg.root }));
     assert.equal(hardenedGate(visualManifest, sealed.context, { patch: visualPatch, packageRoot: pkg.root }).ok, false);
+  } finally {
+    rmSync(pkg.root, { recursive: true, force: true });
+  }
+});
+
+test("diff gate CLI passes package root when validating a Visual patch", () => {
+  const pkg = setup();
+  try {
+    const sealed = seal(pkg);
+    const patchPath = join(pkg.root, "visual-patch.yaml");
+    writeFileSync(patchPath, yaml.dump({
+      artifacts: {
+        tokens: {
+          path: "design-tokens.json",
+          artifact_version: "1",
+          design_contract_digest: pkg.digest,
+          contract_lock_sha256: sealed.context.confirmations.flows.contract_lock_sha256,
+          updated_by: "visual_system",
+        },
+      },
+      stage: "visual",
+    }));
+
+    const result = spawnSync(process.execPath, [
+      DIFF_GATE,
+      "--package", pkg.root,
+      "--skill", "visual_system",
+      "--before", join(pkg.root, "context.yaml"),
+      "--patch", patchPath,
+    ], { encoding: "utf8" });
+
+    assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
+    assert.match(result.stdout, /diff 门禁通过/);
   } finally {
     rmSync(pkg.root, { recursive: true, force: true });
   }

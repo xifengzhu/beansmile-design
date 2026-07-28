@@ -379,7 +379,9 @@ function deliveryInputIssues(root, ctx, { allowFinalDesign = false, approvedDesi
   const issues = [];
   const contextCheck = validateContext(ctx);
   if (!contextCheck.ok) issues.push(...contextCheck.errors.map((error) => `context: ${error}`));
-  if (ctx.stage !== "review") issues.push(`delivery source 要求 stage=review，当前为 ${ctx.stage}`);
+  if (ctx.stage !== "review" && !(allowFinalDesign && ctx.stage === "delivered")) {
+    issues.push(`delivery source 要求 stage=review，当前为 ${ctx.stage}`);
+  }
   if (!requiresDesignContract(ctx)) issues.push("当前包未启用 design_specification");
   const activeDesign = ctx.artifacts?.design_document;
   const design = approvedDesign ?? activeDesign;

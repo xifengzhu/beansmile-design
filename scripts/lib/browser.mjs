@@ -47,7 +47,12 @@ export async function launchBrowser() {
   const errors = [];
   for (const s of strategies()) {
     try {
-      const browser = await chromium.launch({ headless: true, timeout: 8000, args: ["--no-sandbox"], ...s.opts });
+      const browser = await chromium.launch({
+        headless: true,
+        timeout: 8000,
+        args: ["--no-sandbox", "--allow-file-access-from-files"],
+        ...s.opts,
+      });
       return { browser, method: s.name };
     } catch (e) { errors.push(`${s.name}: ${String(e.message).split("\n")[0]}`); }
   }

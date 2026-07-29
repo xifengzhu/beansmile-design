@@ -173,12 +173,13 @@ async function makePresentationPackage() {
   return { ...pkg, inspected, manifest };
 }
 
-function statuses(root, ctx, options = {}) {
-  return deliveryAcceptance(root, ctx, {
+async function statuses(root, ctx, options = {}) {
+  const gates = await deliveryAcceptance(root, ctx, {
     snapshotVersion: 3,
     environment: AVAILABLE,
     ...options,
-  }).map((gate) => gate.status);
+  });
+  return gates.map((gate) => gate.status);
 }
 
 test("valid contract revision records exclude only superseded snapshots from the current review chain", () => {
@@ -242,14 +243,14 @@ test("contract revision history fails closed on malformed chains and current-sna
   }
 });
 
-test("delivery acceptance keeps historical and unrequested packages compatible", () => {
+test("delivery acceptance keeps historical and unrequested packages compatible", async () => {
   const root = mkdtempSync(join(tmpdir(), "delivery-acceptance-basic-"));
   try {
     const historical = { project: { package_format_version: 2, mode: "professional" } };
-    assert.deepEqual(statuses(root, historical, { snapshotVersion: 2 }), ["pass", "pass", "pass"]);
+    assert.deepEqual(await statuses(root, historical, { snapshotVersion: 2 }), ["pass", "pass", "pass"]);
 
     const quickEmpty = { project: { package_format_version: 3, mode: "quick", delivery_outputs: [] } };
-    assert.deepEqual(statuses(root, quickEmpty), ["pass", "pass", "pass"]);
+    assert.deepEqual(await statuses(root, quickEmpty), ["pass", "pass", "pass"]);
 
     const professional = {
       project: {
@@ -258,12 +259,12 @@ test("delivery acceptance keeps historical and unrequested packages compatible",
         delivery_outputs: ["design_specification", "design_presentation"],
       },
     };
-    assert.deepEqual(statuses(root, professional), ["fail", "fail", "fail"]);
+    assert.deepEqual(await statuses(root, professional), ["fail", "fail", "fail"]);
 
     const quickPpt = {
       project: { package_format_version: 3, mode: "quick", delivery_outputs: ["design_presentation"] },
     };
-    assert.deepEqual(statuses(root, quickPpt), ["fail", "fail", "fail"]);
+    assert.deepEqual(await statuses(root, quickPpt), ["fail", "fail", "fail"]);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
@@ -272,11 +273,11 @@ test("delivery acceptance keeps historical and unrequested packages compatible",
 test("complete version-3 package passes all three ordered delivery dimensions", async () => {
   const pkg = await makePresentationPackage();
   try {
-    const gates = deliveryAcceptance(pkg.root, pkg.context, { snapshotVersion: 3, environment: AVAILABLE });
+    const gates = await deliveryAcceptance(pkg.root, pkg.context, { snapshotVersion: 3, environment: AVAILABLE });
     assert.deepEqual(gates.map((gate) => gate.dimension), ["设计前契约", "开发交接文档", "设计方案演示"]);
     assert.deepEqual(gates.map((gate) => gate.status), ["pass", "pass", "pass"], gates.map((gate) => gate.detail).join("\n"));
 
-    const unavailable = deliveryAcceptance(pkg.root, pkg.context, {
+    const unavailable = await deliveryAcceptance(pkg.root, pkg.context, {
       snapshotVersion: 3,
       environment: { presentation_degraded: true, presentation: { available: false, rendering: false } },
     });
@@ -286,7 +287,7 @@ test("complete version-3 package passes all three ordered delivery dimensions", 
   }
 });
 
-test("snapshot format version is independent from the current prototype artifact version", () => {
+test("snapshot format version is independent from the current prototype artifact version", async () => {
   const pkg = makeFinalizedPackage();
   try {
     renameSync(
@@ -294,17 +295,17 @@ test("snapshot format version is independent from the current prototype artifact
       join(pkg.root, "audit", "snapshots", "1"),
     );
     pkg.context.artifacts.prototype.artifact_version = "1";
-    const gate = deliveryAcceptance(pkg.root, pkg.context, {
+    const gate = (await deliveryAcceptance(pkg.root, pkg.context, {
       snapshotVersion: 3,
       environment: AVAILABLE,
-    })[0];
+    }))[0];
     assert.equal(gate.status, "pass", gate.detail);
   } finally {
     rmSync(pkg.root, { recursive: true, force: true });
   }
 });
 
-test("design contract dimension rejects late locks, drift, stale artifacts, and old snapshots", () => {
+test("design contract dimension rejects late locks, drift, stale artifacts, and old snapshots", async () => {
   const cases = [
     ["late lock", (pkg) => {
       const path = join(pkg.root, "audit", "design", "contract-lock.json");
@@ -338,7 +339,7 @@ test("design contract dimension rejects late locks, drift, stale artifacts, and 
     try {
       mutate(pkg);
       const ctx = context(pkg.root);
-      const gate = deliveryAcceptance(pkg.root, ctx, { snapshotVersion: 3, environment: AVAILABLE })[0];
+      const gate = (await deliveryAcceptance(pkg.root, ctx, { snapshotVersion: 3, environment: AVAILABLE }))[0];
       assert.equal(gate.status, "fail", `${name}: ${gate.detail}`);
     } finally {
       rmSync(pkg.root, { recursive: true, force: true });
@@ -351,10 +352,10 @@ test("handoff and presentation dimensions reject missing closure and old Design.
   try {
     const designPath = join(finalized.root, "Design.md");
     writeFileSync(designPath, readFileSync(designPath, "utf8").replace("## 资源清单", "## 缺失资源清单"));
-    const gate = deliveryAcceptance(finalized.root, context(finalized.root), {
+    const gate = (await deliveryAcceptance(finalized.root, context(finalized.root), {
       snapshotVersion: 3,
       environment: AVAILABLE,
-    })[1];
+    }))[1];
     assert.equal(gate.status, "fail");
     assert.match(gate.detail, /资源|implementation|Design/i);
   } finally {
@@ -365,10 +366,10 @@ test("handoff and presentation dimensions reject missing closure and old Design.
   try {
     presented.context.artifacts.presentation.design_document_sha256 = "d".repeat(64);
     saveContext(presented.root, presented.context);
-    const gate = deliveryAcceptance(presented.root, presented.context, {
+    const gate = (await deliveryAcceptance(presented.root, presented.context, {
       snapshotVersion: 3,
       environment: AVAILABLE,
-    })[2];
+    }))[2];
     assert.equal(gate.status, "fail");
     assert.match(gate.detail, /Design\.md|design_document_sha256|SHA/i);
   } finally {
@@ -407,6 +408,125 @@ test("acceptance CLI appends delivery dimensions and only requires requested del
     }
     const structure = result.stdout.split("\n").find((line) => line.includes("结构稳定")) ?? "";
     assert.doesNotMatch(structure, /Design\.md|presentation\/design-system\.pptx/);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+// —— 豁免条件硬化：豁免只看 package_format_version，且带证据的"历史包"是降级篡改 ——
+
+test("v3 package cannot bypass delivery gates via a self-controlled snapshot_version", async () => {
+  const root = mkdtempSync(join(tmpdir(), "delivery-acceptance-forge-"));
+  try {
+    const professional = {
+      project: {
+        package_format_version: 3,
+        mode: "professional",
+        delivery_outputs: ["design_specification", "design_presentation"],
+      },
+    };
+    // 伪造 snapshot_version=2 之前会让三个维度全部记"历史包不追溯"直接 pass。
+    assert.deepEqual(await statuses(root, professional, { snapshotVersion: 2 }), ["fail", "fail", "fail"]);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("genuine pre-v1.8 packages (both version fields absent) stay exempt from delivery gates", async () => {
+  const root = mkdtempSync(join(tmpdir(), "delivery-acceptance-legacy-"));
+  try {
+    const legacy = { project: { mode: "professional" } };
+    const gates = await deliveryAcceptance(root, legacy, { snapshotVersion: null, environment: AVAILABLE });
+    assert.deepEqual(gates.map((gate) => gate.status), ["pass", "pass", "pass"], gates.map((gate) => gate.detail).join("\n"));
+    assert.match(gates[0].detail, /历史/);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("legacy claim carrying design-contract evidence is rejected as a downgrade", async () => {
+  const root = mkdtempSync(join(tmpdir(), "delivery-acceptance-downgrade-"));
+  try {
+    // context 证据：确认门里有 contract lock 绑定字段。
+    const tampered = {
+      project: { package_format_version: 2, mode: "professional" },
+      confirmations: { flows: { contract_lock_sha256: "a".repeat(64) } },
+    };
+    assert.deepEqual(await statuses(root, tampered, { snapshotVersion: 2 }), ["fail", "fail", "fail"]);
+
+    // 磁盘证据：包里躺着 contract-lock.json，context 却声称历史格式。
+    write(root, "audit/design/contract-lock.json", "{}\n");
+    const diskTampered = { project: { mode: "professional" } };
+    const gates = await deliveryAcceptance(root, diskTampered, { snapshotVersion: null, environment: AVAILABLE });
+    assert.deepEqual(gates.map((gate) => gate.status), ["fail", "fail", "fail"]);
+    assert.match(gates[0].detail, /降级|篡改|证据/);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("deleting audit/revisions after a revision no longer passes the revision chain", () => {
+  const root = mkdtempSync(join(tmpdir(), "delivery-revision-delete-"));
+  try {
+    // 修订到 revision 2 后删除全部记录：contract_revision 本身锚定链长，零记录只对 1 合法。
+    const deleted = deliveryRevisionHistory(
+      root,
+      { artifacts: { design_document: { contract_revision: 2 } } },
+      { snapshotVersion: 2, reviewVersions: [1, 2] },
+    );
+    assert.ok(deleted.issues.some((issue) => /删证据|修订链|revision records|audit\/revisions/.test(issue)), deleted.issues.join("\n"));
+
+    // 只删前段记录（链从 2→3 开始）同样被锚定检查拒绝。
+    write(root, "audit/revisions/contract-2-to-3.json", `${JSON.stringify({
+      record_version: 1,
+      old_contract_revision: 2,
+      new_contract_revision: 3,
+      old_contract_digest: "a".repeat(64),
+      reason: "第二次修订",
+      revised_at: "2026-07-29T02:00:00.000Z",
+      stage: "review",
+      affected_artifacts: [],
+      current_results: null,
+      invalidated_snapshot_versions: [],
+      snapshots: [],
+    })}\n`);
+    const truncated = deliveryRevisionHistory(
+      root,
+      { artifacts: { design_document: { contract_revision: 3 } } },
+      { snapshotVersion: 3, reviewVersions: [1, 2, 3] },
+    );
+    assert.ok(truncated.issues.some((issue) => issue.includes("必须从 revision 1 开始")), truncated.issues.join("\n"));
+
+    // 正向：revision 1 且无记录目录仍然干净。
+    const fresh = deliveryRevisionHistory(
+      mkdtempSync(join(tmpdir(), "delivery-revision-fresh-")),
+      { artifacts: { design_document: { contract_revision: 1 } } },
+      { snapshotVersion: 1, reviewVersions: [1] },
+    );
+    assert.deepEqual(fresh.issues, []);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("unrequested delivery artifacts registered in context fail acceptance on quick packages", async () => {
+  const root = mkdtempSync(join(tmpdir(), "delivery-acceptance-unrequested-"));
+  try {
+    const ctx = {
+      project: { package_format_version: 3, mode: "quick", delivery_outputs: [] },
+      artifacts: {
+        prototype: { path: "prototype", artifact_version: "1", updated_by: "html_prototype" },
+        presentation: {
+          path: "presentation/design-system.pptx",
+          artifact_version: "1",
+          artifact_revision: 1,
+          updated_by: "design_presentation",
+        },
+      },
+    };
+    const gates = await deliveryAcceptance(root, ctx, { snapshotVersion: 2, environment: AVAILABLE });
+    assert.ok(gates.every((gate) => gate.status === "fail"), gates.map((gate) => gate.detail).join("\n"));
+    assert.match(gates[0].detail, /未经任何门校验|未请求/);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

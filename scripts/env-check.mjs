@@ -5,6 +5,7 @@
 import { createRequire } from "node:module";
 import { writeFileSync, mkdirSync } from "node:fs";
 import { dirname } from "node:path";
+import { pathToFileURL } from "node:url";
 import { probeBrowser } from "./lib/browser.mjs";
 import { probePresentation } from "./presentation-probe.mjs";
 
@@ -66,7 +67,7 @@ ${c.presentation_degraded
 `;
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const c = await checkEnvironment();
   const outIdx = process.argv.indexOf("--out");
   const md = toMarkdown(c);

@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 这是一套设计 Agent **运行时**（Node.js ≥18，ESM，无构建步骤）：`skills/` 下的 SKILL.md 是给 Agent 执行的提示层，`scripts/` 下是强制执行这些承诺的机器门禁。核心设计原则：**Skill 提示词里写的任何质量要求，都必须有对应的机器校验**——改 Skill 行为时几乎总是要同步改 scripts 和测试。
 
-系统架构与历次增补（v1.1 生成质量层 → v1.4 覆盖证明层）的权威记录在 `docs/superpowers/specs/2026-07-24-design-agent-system-design.md`（本地工作文档，`docs/superpowers/` 已 gitignore 不入库）。该文档按版本号追加章节，不重写历史章节；新增门禁时先在这里补规范。
+系统架构与历次增补（v1.1 生成质量层 → v1.8 Token 效率层）的权威记录在 `docs/superpowers/specs/2026-07-24-design-agent-system-design.md`，design-first 交付能力（Design.md/PPTX）的规范在 `docs/superpowers/specs/2026-07-26-delivery-artifacts-design.md`——两份规范均已入库。规范按版本号追加章节，不重写历史章节；新增门禁时先在这里补规范。
 
 ## 常用命令
 
@@ -22,11 +22,11 @@ npm run setup:agents                      # 把 skills/ 链接进 .claude/skills
 
 提交前至少跑 `npm run check && npm test && npm run validate:rules`。交付包相关命令（init/shot/browser:check/snapshot/review:record/accept 等）见 `docs/usage.md`「常用命令」表。
 
-**退出码语义**（浏览器相关脚本统一）：`0` 通过、`1` 有失败项、`2` 参数错误、`3` 浏览器能力不可用（结论只能记「未验证」，不能记为通过）。浏览器环境在本机已修复可用，不要往降级路径上退。
+**退出码语义**（浏览器与 presentation 能力脚本统一）：`0` 通过、`1` 有失败项、`2` 参数错误、`3` 所需能力不可用（结论只能记「未验证」，不能记为通过）。浏览器环境在本机已修复可用，不要往降级路径上退；`env:check` 退出 3 时区分是浏览器还是 presentation 工具缺失（输出里分开列）。
 
 ## 架构契约（跨文件才能看懂的部分)
 
-**角色注册与 ID 约定**：`skills/registry.yaml` 是唯一注册表。内部脚本（manifest、diff gate、Director 调度、快照/评审绑定）一律用 canonical snake_case ID（如 `html_prototype`），目录和 Skill 工具名用连字符（`html-prototype`）——传错会直接失败。角色分三类：1 个 director、5 个 flow Skill、2 个只读 reviewer。
+**角色注册与 ID 约定**：`skills/registry.yaml` 是唯一注册表。内部脚本（manifest、diff gate、Director 调度、快照/评审绑定）一律用 canonical snake_case ID（如 `html_prototype`），目录和 Skill 工具名用连字符（`html-prototype`）——传错会直接失败。角色分四类：1 个 director、5 个 flow Skill、2 个 deliverable Skill（design_specification/design_presentation）、2 个只读 reviewer。
 
 **单一事实源与补丁门禁**：每个交付包只有 `context.yaml` 一个可写状态文件。流程 Skill 不直接写它，只产出补丁；只有 Director 经 `check-diff-gate.mjs` → `apply-patch.mjs` 合并。门禁依次检查：改动路径在该 Skill 的 `writes` 白名单内（`schemas/skill-manifests.yaml`）、合并后符合 `context.schema.json`、阶段转换合法且确认门已记录、`artifact_version` 单调递增。
 

@@ -1,9 +1,10 @@
 import { existsSync, readFileSync } from "node:fs";
-import { isAbsolute, join, relative, resolve } from "node:path";
+import { join, resolve } from "node:path";
 import yaml from "js-yaml";
 import { fromMarkdown } from "mdast-util-from-markdown";
 import { parse as parseHtml } from "node-html-parser";
 import { canonicalDigest, listFilesRecursive, sha256File } from "./hash.mjs";
+import { safePackagePath } from "./paths.mjs";
 import { verifyContractSource, verifyDeliverySource } from "./design-source.mjs";
 import { collectPrototypePages } from "./pages.mjs";
 import { loadScenarios } from "./scenarios.mjs";
@@ -289,14 +290,6 @@ function rootHeadings(parsed) {
     .map((node) => textOf(node).trim());
 }
 
-function safeRelativePath(root, path) {
-  if (typeof path !== "string" || !path || isAbsolute(path)) return null;
-  const target = resolve(root, path);
-  const rel = relative(root, target);
-  if (!rel || rel.startsWith("..") || isAbsolute(rel)) return null;
-  return target;
-}
-
 export function approvedContractIssues(rootPath, parsed) {
   const root = resolve(rootPath);
   const issues = [...(parsed.errors ?? [])];
@@ -440,7 +433,7 @@ export function implementationReadyIssues(rootPath, parsed, sourceManifest, arti
 
   const actualAssets = markerValues(sectionNodesFrom(parsed.implementationNodes, "资源清单"), "asset_path");
   for (const path of actualAssets) {
-    const target = safeRelativePath(root, path);
+    const target = safePackagePath(root, path);
     if (!target || !path.startsWith("prototype/assets/")) issues.push(`asset 路径非法或越界: ${path}`);
     else if (!existsSync(target)) issues.push(`asset 不存在: ${path}`);
   }
@@ -452,7 +445,7 @@ export function implementationReadyIssues(rootPath, parsed, sourceManifest, arti
   const expectedPrototypePaths = collectPrototypePages(root).map((page) => `prototype/${page.name}`);
   const actualPrototypePaths = markerValues(pageSection, "prototype_path");
   for (const path of actualPrototypePaths) {
-    const target = safeRelativePath(root, path);
+    const target = safePackagePath(root, path);
     if (!target || !path.startsWith("prototype/") || !path.endsWith(".html")) issues.push(`prototype 路径非法或越界: ${path}`);
     else if (!existsSync(target)) issues.push(`prototype 页面不存在: ${path}`);
   }

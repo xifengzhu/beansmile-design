@@ -5,10 +5,9 @@ import {
   readdirSync,
   renameSync,
   rmSync,
-  statSync,
   writeFileSync,
 } from "node:fs";
-import { isAbsolute, join, relative, resolve } from "node:path";
+import { join, relative, resolve } from "node:path";
 import yaml from "js-yaml";
 import {
   canonicalDigest,
@@ -23,9 +22,10 @@ import { loadYaml, projectContext, validateContext } from "./context.mjs";
 import { resolveManifest } from "./manifests.mjs";
 import { loadRules, makeValidator } from "./rules.mjs";
 import { applicableRules, loadRulePacks } from "./rule-packs.mjs";
-import { SCHEMAS } from "./paths.mjs";
+import { SCHEMAS, safePackagePath } from "./paths.mjs";
 import { checkDesignContractBinding } from "./design-contract.mjs";
-import { requiresDesignContract } from "./delivery.mjs";
+import { artifactPathSha256 } from "./design-revision.mjs";
+import { isDeliveryPackage, requiresDesignContract } from "./delivery.mjs";
 import {
   countBlockers,
   loadFindingsForVersion,
@@ -45,23 +45,6 @@ function sourceDigest(manifest) {
   if (!manifest || typeof manifest !== "object" || Array.isArray(manifest)) return null;
   const { generated_at, contract_source_digest, ...payload } = manifest;
   return canonicalDigest(payload);
-}
-
-function safePath(root, path) {
-  if (typeof path !== "string" || path.length === 0 || isAbsolute(path)) return null;
-  const target = resolve(root, path);
-  const rel = relative(root, target);
-  if (!rel || rel.startsWith("..") || isAbsolute(rel)) return null;
-  return target;
-}
-
-function artifactPathSha256(root, path) {
-  const target = safePath(root, path);
-  if (!target) throw new Error(`artifact 路径非法或越界: ${path}`);
-  if (!existsSync(target)) throw new Error(`artifact 文件不存在: ${path}`);
-  return statSync(target).isDirectory()
-    ? canonicalDigest(hashPaths(root, [path]))
-    : sha256File(target);
 }
 
 function serializeContext(ctx) {
@@ -95,7 +78,7 @@ function validateNewSourceContext(root, ctx, contractRevision) {
   const validated = validateContext(ctx);
   if (!validated.ok) throw new Error(`context.yaml 非法: ${validated.errors.join("; ")}`);
   if (ctx.stage !== "ux") throw new Error(`design contract source 要求 stage=ux，当前为 ${ctx.stage}`);
-  if ((ctx.project?.package_format_version ?? 0) < 3) {
+  if (!isDeliveryPackage(ctx)) {
     throw new Error("Design.md source 只适用于 package_format_version >= 3；历史包须先迁移");
   }
 
@@ -263,9 +246,9 @@ export function verifyContractSource(rootPath, suppliedManifest = null) {
   if (manifest.context?.path !== CONTEXT_PATH) issues.push(`context 必须使用固定路径 ${CONTEXT_PATH}`);
   if (manifest.rules?.path !== RULES_PATH) issues.push(`rules 必须使用固定路径 ${RULES_PATH}`);
   for (const entry of inputs) {
-    const target = safePath(root, entry.path);
+    const target = safePackagePath(root, entry?.path);
     if (!target) {
-      issues.push(`非法路径或越界到包外: ${entry.path}`);
+      issues.push(`非法路径或越界到包外: ${entry?.path}`);
       continue;
     }
     if (!existsSync(target)) issues.push(`冻结来源缺文件: ${entry.path}`);
@@ -327,7 +310,7 @@ function lockedContractContextIssues(root, ctx, design) {
     issues.push("Design.md contract_source_digest 与 contract source manifest 不符");
   }
 
-  const frozenContextPath = safePath(root, manifest.context?.path);
+  const frozenContextPath = safePackagePath(root, manifest.context?.path);
   if (!frozenContextPath || manifest.context?.path !== CONTEXT_PATH) {
     issues.push(`contract source context 必须使用 ${CONTEXT_PATH}`);
     return issues;
@@ -363,8 +346,11 @@ function lockedContractContextIssues(root, ctx, design) {
             && key === "status"
             && value === "tentative"
             && ["tentative", "confirmed", "rejected"].includes(current[key]);
-          if (!assumptionResolved && canonicalDigest(current[key]) !== canonicalDigest(value)) {
-            issues.push(`冻结 contract context 的 ${field}.${before.id}.${key} 被改写`);
+          if (assumptionResolved) continue;
+          // 被删字段单判：canonicalDigest(undefined) 会抛 TypeError，被外层 catch 吞成
+          // 一条误导性的"冻结 context 非法"并中断其余字段核查。
+          if (current[key] === undefined || canonicalDigest(current[key]) !== canonicalDigest(value)) {
+            issues.push(`冻结 contract context 的 ${field}.${before.id}.${key} 被${current[key] === undefined ? "删除" : "改写"}`);
           }
         }
       }
@@ -588,14 +574,17 @@ export function verifyDeliverySource(rootPath, suppliedManifest = null, { allowF
     catch (error) { return [`${DELIVERY_MANIFEST_PATH} 非法 JSON: ${error.message}`]; }
   }
   if (!manifest || typeof manifest !== "object" || Array.isArray(manifest)) return ["delivery source manifest 须为对象"];
-  issues.push(...validateDeliveryManifest(manifest));
+  const schemaIssues = validateDeliveryManifest(manifest);
+  // schema 不合法（如 files:[null]）时后续逐条哈希循环会对畸形条目抛 TypeError，
+  // 把验收从"带裁决的 fail"变成无报告的裸崩——fail-closed 也要给出结构化结论。
+  if (schemaIssues.length) return [...new Set([...issues, ...schemaIssues])];
   if (manifest.source_bundle_digest !== deliverySourceDigest(manifest)) issues.push("source_bundle_digest 与 manifest 规范化内容不符");
   const paths = Array.isArray(manifest.files) ? manifest.files.map((entry) => entry?.path) : [];
   if (JSON.stringify(paths) !== JSON.stringify([...paths].sort())) issues.push("delivery source files 必须按 path 排序");
   if (new Set(paths).size !== paths.length) issues.push("delivery source files 含重复 path");
   for (const entry of Array.isArray(manifest.files) ? manifest.files : []) {
-    const target = safePath(root, entry.path);
-    if (!target) issues.push(`非法路径或越界到包外: ${entry.path}`);
+    const target = safePackagePath(root, entry?.path);
+    if (!target) issues.push(`非法路径或越界到包外: ${entry?.path}`);
     else if (!existsSync(target)) issues.push(`delivery source 缺文件: ${entry.path}`);
     else if (sha256File(target) !== entry.sha256) issues.push(`delivery source 漂移: ${entry.path}`);
   }

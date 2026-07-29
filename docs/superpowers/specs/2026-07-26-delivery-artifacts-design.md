@@ -507,3 +507,52 @@ Codex adapter 使用可用的 Presentations 能力及 `@oai/artifact-tool`。其
 - 可编辑 PPTX 的创建、重读、逐页渲染和对抗夹具测试通过。
 - `npm run check`、`npm test`、`npm run validate:rules` 通过。
 - 使用一个新的专业模式示例包实际走完 `prepare -> confirm -> visual -> prototype -> review -> finalize -> presentation`，生成两份文件并由 `acceptance.mjs` 判定通过。
+
+## 17. 端到端验收后硬化（评审修正批次）
+
+外部代码评审（7 视角查找 + 逐条对抗验证）确认 10 项问题，本批次逐条封堵；每项均有正向与对抗性测试。
+
+### 17.1 快速模式交付请求死锁
+
+`NEXT_QUICK` 原先没有任何进入 `ux` 的转换，而 seal 硬性要求 `stage=ux`、进入 `prototype` 又被契约门拦截——`--mode quick --deliverables ...` 的包会永久卡在 research。修正：quick 增加 `research -> ux`；`intake -> ux` 仍非法（brief 是 contract source 必需输入）。请求交付物的快速包路径固定为 `intake -> research -> ux -> prototype -> review -> delivered`。
+
+### 17.2 交付门豁免条件重写（`deliveryAcceptance`）
+
+旧条件 `(snapshot_version<3 || package_format_version<3)` 同时过宽与过窄：v3 包可用自控的 `snapshot_version:2` 整体绕开三个交付门；真实 pre-v1.8 包（双字段缺失 → 0/0）反而被追溯 fail。修正：
+
+- 豁免只看 `package_format_version`（唯一谓词 `isDeliveryPackage`，各站点不得内联 `>=3` 字面量）。
+- 声称历史包但携带设计契约证据（confirmations 绑定字段、`artifacts.design_document/presentation`、`audit/design/contract-lock.json`、`audit/revisions/`、PPTX、`snapshot_version>=3`）→ 判降级篡改 fail。
+- 残余风险（已接受）：完全手写、零证据的伪装历史包与真实 v1.8 包不可区分；init 恒写版本字段且任何 Skill 白名单都不含 `project.*`。
+
+### 17.3 修订链锚定（删证据即通过封堵）
+
+`audit/revisions/` 不进任何哈希清单，删除无漂移信号。修正：`deliveryRevisionHistory` 以 `contract_revision` 本身锚定——零记录只对 revision 1 合法；首条记录必须从 revision 1 开始；链尾仍须等于当前 revision。
+
+### 17.4 deliverable 补丁的请求成员资格门
+
+`required_modes` 原先无任何消费者。修正：`hardenedGate` 拒绝不在 `requiredDeliveryOutputs(ctx)` 内的 deliverable 补丁（professional 恒含两项，quick 仅含请求项）；验收侧对未请求却已登记的交付 artifact 判 fail（双层）。
+
+### 17.5 file:// 交付兼容静态门（新验收维度「file协议兼容」）
+
+浏览器门禁为 axe 读取 file:// 页面外部样式表（CSSOM via XHR）必须保留 `--allow-file-access-from-files`；副作用是原型自身的 fetch/XHR/动态 import/ES module 在门禁里放行、在客户真实浏览器里被 CORS 拦截。`lib/file-protocol.mjs` 静态扫描封堵（v3 包起，历史包不追溯），`html-prototype` SKILL 同步声明约束。
+
+### 17.6 路径校验收敛与 symlink 硬化
+
+四份词法 `safePath` 副本（design-source/design-document/design-revision/delivery 内联）收敛为 `lib/paths.mjs` 的 `safePackagePath`（唯一实现，presentation-render 同源）：词法不越界 + 已存在的每段拒绝 symlink——防止包内 symlink 指向包外文件满足冻结哈希。`artifactPathSha256` 去重为 design-revision 单一导出（写读同源）。
+
+### 17.7 畸形输入结构化拒绝
+
+- `verifyDeliverySource`：schema 失败 fail-closed 早退 + 逐条目判空，`files:[null]` 不再让验收无报告裸崩。
+- `deliveryArtifactVersionIssues`（presentation）：context 无 prototype 时返回结构化 issue 而非对 null 解引用。
+- `lockedContractContextIssues`：锁定条目被删字段给出「被删除」精确诊断，不再抛 TypeError 吞掉其余字段核查。
+- `fullBleedIssues`：区分「缺 full_bleed_background 键」与「声明无对应图片」。
+
+### 17.8 验收 I/O 去重
+
+- `implementationHandoffIssues` / `check-presentation` 不再显式调用 `verifyDeliverySource`（`implementationReadyIssues` 内部已含），冻结快照树哈希从每次验收 4 遍降为 2 遍（进程内 1 + 结构检查 1）。
+- `deliveryAcceptance` 改为进程内调用共享的 `lib/presentation-check.mjs`（原 spawn 子进程 + 伪 inspected stub 双实现），QA 检查复用真实 `inspectPptx` 结果；`deliveryAcceptance` 因此为 async。
+- 5j 块算好的修订链经 `revisionHistory` 选项传入 `deliveryAcceptance`；PPTX/PNG 均单次读取（`sha256Bytes` 复用 buffer）。
+
+### 17.9 CLI 守卫与文档
+
+`presentation-probe.mjs`/`env-check.mjs` 的 main 守卫改用 `pathToFileURL`（裸拼接在含空格/非 ASCII 路径下永不相等，探测会静默 exit 0 假成功）。CLAUDE.md 退出码措辞与规范入库状态同步。

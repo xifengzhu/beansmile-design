@@ -76,6 +76,8 @@ npm run init -- \
 
 `--deliverables` 只接受 `design_specification`、`design_presentation`。请求 presentation 会隐式加入 design specification，因而仍必须执行 prepare、用户确认/seal 和 finalize；不能根据现成原型反向补写 Design.md 冒充前置契约。专业模式始终要求两项输出。
 
+请求了交付物的快速包阶段路径为 `intake -> research -> ux -> prototype -> review -> delivered`：必须经 `research -> ux` 完成 Design.md prepare 与 seal（seal 要求 stage=ux），之后进入 prototype 时契约门才会放行。未请求交付物的快速包仍可 `intake/research -> prototype` 直达。未在 `delivery_outputs` 请求的交付产物补丁会被 diff 门禁拒绝，验收也会对未经校验就登记的交付 artifact 判 fail。
+
 ## 常用命令
 
 ### 系统与依据库

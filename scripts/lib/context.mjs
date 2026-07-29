@@ -6,6 +6,7 @@ import { makeValidator } from "./rules.mjs";
 import { SCHEMAS } from "./paths.mjs";
 import {
   deliveryArtifactVersionIssues,
+  requiredDeliveryOutputs,
   requiresDesignContract,
 } from "./delivery.mjs";
 import { checkDesignContractBinding } from "./design-contract-binding.mjs";
@@ -87,7 +88,9 @@ const NEXT_PROFESSIONAL = {
   prototype: ["review"], review: ["delivered"], delivered: [],
 };
 const NEXT_QUICK = {
-  intake: ["research", "prototype"], research: ["prototype"], ux: ["prototype"], visual: ["prototype"],
+  // research→ux：快速包请求 design_specification 时必须经 ux 完成 Design.md prepare/seal，
+  // 否则 seal（要求 stage=ux）与进入 prototype 的契约门互锁形成死锁。
+  intake: ["research", "prototype"], research: ["prototype", "ux"], ux: ["prototype"], visual: ["prototype"],
   prototype: ["review"], review: ["delivered"], delivered: [],
 };
 // 专业模式确认门 → 阶段推进映射：缺对应确认记录时禁止推进（规范 9.1 的 A/B/C 门）。
@@ -162,6 +165,12 @@ export function hardenedGate(manifest, before, { after, patch, packageRoot } = {
   const deliveryKind = manifest.skill === "design_specification"
     ? "design_document"
     : manifest.skill === "design_presentation" ? "presentation" : null;
+  // deliverable Skill 只能在本包实际请求该输出时产出补丁（professional 恒含两项，
+  // quick 仅含 init --deliverables 请求项）——required_modes 的"强制模式"语义由
+  // requiredDeliveryOutputs 统一推导，未请求的交付产物不得登记进 context。
+  if (deliveryKind && !requiredDeliveryOutputs(merged).includes(manifest.skill)) {
+    reasons.push(`${manifest.skill} 未在本包 delivery_outputs 请求，不得登记交付产物`);
+  }
   for (const v of checkArtifactMonotonic(before, merged, { skip: deliveryKind ? [deliveryKind] : [] })) {
     reasons.push(v);
   }

@@ -4,7 +4,6 @@ import {
   readFileSync,
   readdirSync,
 } from "node:fs";
-import { spawnSync } from "node:child_process";
 import { join, resolve } from "node:path";
 import yaml from "js-yaml";
 import {
@@ -12,13 +11,14 @@ import {
   hashPaths,
   sha256File,
 } from "./hash.mjs";
+import { safePackagePath } from "./paths.mjs";
 import { checkDesignContractBinding } from "./design-contract-binding.mjs";
 import {
   designContractDigest,
   implementationReadyIssues,
   parseDesignDocument,
 } from "./design-document.mjs";
-import { verifyDeliverySource } from "./design-source.mjs";
+import { presentationPackageStructure } from "./presentation-check.mjs";
 import { presentationQaIssues } from "./presentation-render.mjs";
 
 export const DELIVERY_OUTPUTS = Object.freeze([
@@ -28,7 +28,12 @@ export const DELIVERY_OUTPUTS = Object.freeze([
 
 export const DELIVERY_PACKAGE_VERSION = 3;
 const DELIVERY_DIMENSIONS = Object.freeze(["设计前契约", "开发交接文档", "设计方案演示"]);
-const CHECK_PRESENTATION = resolve(import.meta.dirname, "..", "check-presentation.mjs");
+
+// 交付生命周期门禁是否适用于本包的唯一谓词——各处不得再内联 `>= 3` 字面量，
+// 避免版本再演进时判定站点彼此漂移。
+export function isDeliveryPackage(ctx) {
+  return Number(ctx?.project?.package_format_version ?? 0) >= DELIVERY_PACKAGE_VERSION;
+}
 
 export function requiredDeliveryOutputs(ctx) {
   const requested = new Set(ctx?.project?.delivery_outputs ?? []);
@@ -69,7 +74,12 @@ export function deliveryArtifactVersionIssues(before, next, { kind, prototypeVer
   }
 
   if (kind === "presentation") {
-    const expectedRevision = before?.artifact_version === prototypeVersion
+    // prototypeVersion 缺失时 undefined === undefined 会误入"版本未变"分支并对 null
+    // before 解引用；乱序补丁必须得到结构化拒绝而不是 TypeError。
+    if (prototypeVersion === undefined || prototypeVersion === null) {
+      return ["presentation 必须绑定已存在的 prototype artifact_version，当前 context 无 artifacts.prototype"];
+    }
+    const expectedRevision = before && before.artifact_version === prototypeVersion
       ? Number(before.artifact_revision) + 1
       : 1;
     return next?.artifact_version === prototypeVersion
@@ -181,7 +191,16 @@ export function deliveryRevisionHistory(rootPath, ctx, { snapshotVersion, review
     reviewVersions: requestedVersions,
     currentChainStart: requestedVersions[0] ?? null,
   };
-  if (!existsSync(revisionsDir)) return empty;
+  // 删证据即通过的封堵：audit/revisions/ 不进任何哈希清单，删除无漂移信号，所以
+  // 修订链必须从 contract_revision 本身锚定——revision N 要求 N-1 条连续记录，
+  // 零记录只对 revision 1 合法（对照 loadFrozenRules 缺记录 fail-closed 的语义）。
+  const currentRevision = ctx?.artifacts?.design_document?.contract_revision;
+  const missingChain = Number.isInteger(currentRevision) && currentRevision > 1
+    ? [`当前 contract_revision=${currentRevision} 但缺修订审计记录 audit/revisions/（疑似删证据），修订链必须完整覆盖 1→${currentRevision}`]
+    : [];
+  if (!existsSync(revisionsDir)) {
+    return missingChain.length ? { ...empty, issues: missingChain } : empty;
+  }
 
   const issues = [];
   const records = [];
@@ -203,7 +222,10 @@ export function deliveryRevisionHistory(rootPath, ctx, { snapshotVersion, review
   }
   records.sort((left, right) => left.oldRevision - right.oldRevision);
   if (records.length === 0) {
-    return { ...empty, issues };
+    return { ...empty, issues: [...issues, ...missingChain] };
+  }
+  if (records[0].oldRevision !== 1) {
+    issues.push(`修订链必须从 revision 1 开始，首条记录却是 contract-${records[0].oldRevision}-to-${records[0].newRevision}（前段记录疑似被删除）`);
   }
 
   const invalidated = new Set();
@@ -250,7 +272,6 @@ export function deliveryRevisionHistory(rootPath, ctx, { snapshotVersion, review
     for (const version of invalidatedVersions) invalidated.add(version);
   }
 
-  const currentRevision = ctx?.artifacts?.design_document?.contract_revision;
   if (!Number.isInteger(currentRevision) || currentRevision !== records.at(-1).newRevision) {
     issues.push(`当前 Design.md contract_revision 必须等于最新 revision ${records.at(-1).newRevision}`);
   }
@@ -290,10 +311,12 @@ function contractSourceIssues(root, design) {
     ...(Array.isArray(source.files) ? source.files : []),
     source.context,
     source.rules,
-  ].filter(Boolean)) {
+  ].filter((entry) => entry && typeof entry === "object")) {
+    // 与 verifyContractSource 的差异是有意的窄化：decisions.md 在 lock 后合法追加
+    // （warning 裁决），且不重投影当前 context/rules——那会在交付阶段误报漂移。
     if (entry.path === "decisions.md") continue;
-    const path = typeof entry.path === "string" ? resolve(root, entry.path) : null;
-    if (!path || (path !== root && !path.startsWith(`${root}/`))) issues.push(`contract-source 路径非法: ${entry.path}`);
+    const path = safePackagePath(root, entry.path);
+    if (!path) issues.push(`contract-source 路径非法: ${entry.path}`);
     else if (!existsSync(path)) issues.push(`contract-source 冻结文件缺失: ${entry.path}`);
     else if (sha256File(path) !== entry.sha256) issues.push(`contract-source 冻结文件漂移: ${entry.path}`);
   }
@@ -381,14 +404,16 @@ function implementationHandoffIssues(root, ctx) {
   } catch (error) {
     return [`开发交接输入无法读取: ${error.message}`];
   }
-  issues.push(...verifyDeliverySource(root, source, { allowFinalDesign: true }));
+  // implementationReadyIssues 内部已运行 verifyDeliverySource（allowFinalDesign）并对
+  // 非空 artifact 运行 designDocumentArtifactIssues——冻结快照树逐文件哈希是本门最重
+  // 的 I/O，不得在同一门内重复执行。
+  if (!ctx?.artifacts?.design_document) issues.push("缺 finalize artifacts.design_document");
   issues.push(...implementationReadyIssues(root, parsed, source, ctx?.artifacts?.design_document ?? null));
-  issues.push(...designDocumentArtifactIssues(root, ctx, ctx?.artifacts?.design_document));
   if (ctx?.artifacts?.design_document?.stale === true) issues.push("最终 Design.md 已标记 stale");
   return [...new Set(issues)];
 }
 
-function presentationIssues(root, ctx) {
+async function presentationIssues(root, ctx) {
   const issues = [];
   const paths = {
     pptx: join(root, "presentation", "design-system.pptx"),
@@ -407,6 +432,7 @@ function presentationIssues(root, ctx) {
   const design = ctx?.artifacts?.design_document;
   const lockSha = ctx?.confirmations?.flows?.contract_lock_sha256;
   const prototypeVersion = ctx?.artifacts?.prototype?.artifact_version;
+  const pptxSha = sha256File(paths.pptx);
   if (artifact.path !== "presentation/design-system.pptx") issues.push("artifacts.presentation.path 非法");
   if (artifact.stale === true) issues.push("artifacts.presentation 已标记 stale");
   if (artifact.artifact_version !== prototypeVersion) issues.push("presentation artifact_version 未绑定当前 prototype");
@@ -418,17 +444,13 @@ function presentationIssues(root, ctx) {
     issues.push("presentation manifest 版本与 context artifact 不符");
   }
   if (manifest.design_document_sha256 !== design?.sha256) issues.push("presentation manifest 绑定旧 Design.md");
-  if (manifest.pptx_sha256 !== sha256File(paths.pptx)) issues.push("presentation manifest PPTX SHA 不符");
+  if (manifest.pptx_sha256 !== pptxSha) issues.push("presentation manifest PPTX SHA 不符");
 
-  const structure = spawnSync(process.execPath, [CHECK_PRESENTATION, "--package", root, "--structure-only"], {
-    encoding: "utf8",
-    maxBuffer: 20 * 1024 * 1024,
-  });
-  if (structure.status !== 0) {
-    issues.push(`PPTX 结构校验失败: ${(structure.stderr || structure.stdout).trim() || `exit ${structure.status}`}`);
-  }
-  const inspected = {
-    pptxSha256: sha256File(paths.pptx),
+  const structure = await presentationPackageStructure(root);
+  issues.push(...structure.issues.map((issue) => `PPTX 结构校验失败: ${issue}`));
+  // QA 检查复用真实 inspectPptx 结果；仅当 PPTX 本身不可读时退回 manifest 声明的页码。
+  const inspected = structure.inspected ?? {
+    pptxSha256: pptxSha,
     slides: Array.isArray(manifest.slides)
       ? manifest.slides.map((slide, index) => ({ number: slide?.slide_number ?? index + 1 }))
       : [],
@@ -437,28 +459,77 @@ function presentationIssues(root, ctx) {
   return [...new Set(issues)];
 }
 
-export function deliveryAcceptance(rootPath, ctx, { snapshotVersion, environment = {} } = {}) {
+// 历史包豁免的降级检测：包声称 package_format_version < 3，却带有只有设计契约流程
+// 才会产生的证据 → 判定为从 v3 包删字段伪装历史包，fail 而非豁免。
+// （完全手写、零证据的伪装包与真实 v1.8 包不可区分，属已记录的残余风险——init
+// 恒写 package_format_version 且任何 Skill 白名单都不含 project.*。）
+function legacyDowngradeIssues(root, ctx, snapshotFormatVersion) {
+  const issues = [];
+  const flows = ctx?.confirmations?.flows ?? {};
+  if (flows.design_contract_digest || flows.contract_lock_sha256) {
+    issues.push("confirmations.flows 含设计契约绑定字段");
+  }
+  for (const key of ["design_document", "presentation"]) {
+    if (ctx?.artifacts?.[key]) issues.push(`存在 artifacts.${key}`);
+  }
+  for (const [label, path] of [
+    ["audit/design/contract-lock.json", join(root, "audit", "design", "contract-lock.json")],
+    ["audit/revisions/", join(root, "audit", "revisions")],
+    ["presentation/design-system.pptx", join(root, "presentation", "design-system.pptx")],
+  ]) {
+    if (existsSync(path)) issues.push(`存在 ${label}`);
+  }
+  if (snapshotFormatVersion >= DELIVERY_PACKAGE_VERSION) {
+    issues.push(`snapshot_version=${snapshotFormatVersion} 只有 v${DELIVERY_PACKAGE_VERSION} 契约流程会产生`);
+  }
+  return issues;
+}
+
+export async function deliveryAcceptance(rootPath, ctx, { snapshotVersion, environment = {}, revisionHistory: suppliedHistory } = {}) {
   const root = resolve(rootPath);
   const packageVersion = Number(ctx?.project?.package_format_version ?? 0);
   const snapshotFormatVersion = Number(snapshotVersion ?? 0);
   const artifactVersion = Number(ctx?.artifacts?.prototype?.artifact_version ?? 0);
-  if ((snapshotFormatVersion > 0 && snapshotFormatVersion < DELIVERY_PACKAGE_VERSION)
-    || (packageVersion > 0 && packageVersion < DELIVERY_PACKAGE_VERSION)) {
+  // 豁免只看 package_format_version：snapshot_version 是包自控字段，OR 进豁免条件
+  // 等于让 v3 包用一个可自证重算的快照字段整体绕开三个交付门。真实 v1.7/v1.8 老包
+  //（字段缺失 → 0 或 2）落入本分支不追溯；v3 包无论快照声称什么都全量把守。
+  if (!isDeliveryPackage(ctx)) {
+    const downgrade = legacyDowngradeIssues(root, ctx, snapshotFormatVersion);
+    if (downgrade.length) {
+      return DELIVERY_DIMENSIONS.map((dimension) => ({
+        dimension,
+        status: "fail",
+        detail: `包声称 package_format_version=${packageVersion || "缺失"}（历史包）但存在设计契约证据（疑似降级篡改）: ${downgrade.slice(0, 4).join("; ")}`,
+      }));
+    }
     return DELIVERY_DIMENSIONS.map((dimension) => ({
       dimension,
       status: "pass",
-      detail: `历史 package/snapshot format ${snapshotFormatVersion || packageVersion} 不追溯新交付门；如需新产物须重跑设计流程迁移`,
+      detail: `历史 package format ${packageVersion || "（缺失）"} 不追溯新交付门；如需新产物须重跑设计流程迁移`,
     }));
   }
 
   const required = new Set(requiredDeliveryOutputs(ctx));
   const designRequired = required.has("design_specification");
   const presentationRequired = required.has("design_presentation");
+  // 未请求的交付产物不得登记进 context：跳过校验的维度若带着未验证的 artifact
+  // 声明进入 delivered，恰是"承诺无机器校验"的形态（diff 门同样拒绝，此处兜底）。
+  const unrequested = [
+    ...(!designRequired && ctx?.artifacts?.design_document ? ["artifacts.design_document"] : []),
+    ...(!presentationRequired && ctx?.artifacts?.presentation ? ["artifacts.presentation"] : []),
+  ];
   if (!designRequired && !presentationRequired) {
-    return DELIVERY_DIMENSIONS.map((dimension) => ({ dimension, status: "pass", detail: "quick mode 未请求该交付输出" }));
+    return DELIVERY_DIMENSIONS.map((dimension) => ({
+      dimension,
+      status: unrequested.length ? "fail" : "pass",
+      detail: unrequested.length
+        ? `quick mode 未请求交付输出，但 context 登记了未经任何门校验的 ${unrequested.join(", ")}`
+        : "quick mode 未请求该交付输出",
+    }));
   }
 
-  const revisionHistory = deliveryRevisionHistory(root, ctx, { snapshotVersion: artifactVersion });
+  const revisionHistory = suppliedHistory
+    ?? deliveryRevisionHistory(root, ctx, { snapshotVersion: artifactVersion });
 
   const contract = gate(
     DELIVERY_DIMENSIONS[0],
@@ -470,7 +541,11 @@ export function deliveryAcceptance(rootPath, ctx, { snapshotVersion, environment
     designRequired ? implementationHandoffIssues(root, ctx) : [],
     designRequired ? "同一 Design.md 已闭合为 implementation_ready 并绑定 reviewed source" : "未请求开发交接文档",
   );
-  const presentationProblems = presentationRequired ? presentationIssues(root, ctx) : [];
+  const presentationProblems = presentationRequired
+    ? await presentationIssues(root, ctx)
+    : (ctx?.artifacts?.presentation
+      ? ["未请求设计方案演示，但 context 登记了未经任何门校验的 artifacts.presentation"]
+      : []);
   const presentation = gate(
     DELIVERY_DIMENSIONS[2],
     presentationProblems,

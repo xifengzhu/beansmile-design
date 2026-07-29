@@ -8,25 +8,18 @@ import {
   statSync,
   writeFileSync,
 } from "node:fs";
-import { isAbsolute, join, relative, resolve } from "node:path";
+import { join, resolve } from "node:path";
 import yaml from "js-yaml";
 import { canonicalDigest, hashPaths, listFilesRecursive, sha256File } from "./hash.mjs";
+import { safePackagePath } from "./paths.mjs";
 import { loadYaml, validateContext } from "./context.mjs";
 
 const CONTRACT_ARTIFACT_KEYS = ["design_document", "tokens", "prototype", "presentation"];
 const ALLOWED_STAGES = new Set(["ux", "visual", "prototype", "review"]);
 
-function safeTarget(root, path) {
-  if (typeof path !== "string" || !path || isAbsolute(path)) return null;
-  const target = resolve(root, path);
-  const rel = relative(root, target);
-  if (!rel || rel.startsWith("..") || isAbsolute(rel)) return null;
-  return target;
-}
-
 export function artifactPathSha256(rootPath, path) {
   const root = resolve(rootPath);
-  const target = safeTarget(root, path);
+  const target = safePackagePath(root, path);
   if (!target) throw new Error(`artifact 路径非法或越界: ${path}`);
   if (!existsSync(target)) throw new Error(`artifact 文件不存在: ${path}`);
   return statSync(target).isDirectory()

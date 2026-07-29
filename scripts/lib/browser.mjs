@@ -47,6 +47,10 @@ export async function launchBrowser() {
   const errors = [];
   for (const s of strategies()) {
     try {
+      // --allow-file-access-from-files 是 axe 的硬前提：axe-core 用 XHR 读取 file://
+      // 页面的外部样式表（CSSOM），没有它每个带 assets/ 共享样式的原型都会误报
+      // console blocker。副作用（原型自身的 fetch/XHR/ES module 在门禁里放行、在客户
+      // 真实浏览器里被 CORS 拦截）由 lib/file-protocol.mjs 的静态门禁单独封堵。
       const browser = await chromium.launch({
         headless: true,
         timeout: 8000,

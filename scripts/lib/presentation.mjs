@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import { posix } from "node:path";
 import JSZip from "jszip";
 import { XMLParser } from "fast-xml-parser";
-import { sha256File } from "./hash.mjs";
+import { sha256Bytes } from "./hash.mjs";
 
 export const REQUIRED_NARRATIVE_ROLES = Object.freeze([
   "cover",
@@ -438,7 +438,8 @@ function notesSourcesBlock(notes) {
 }
 
 export async function inspectPptx(path) {
-  const zip = await JSZip.loadAsync(await readFile(path));
+  const bytes = await readFile(path);
+  const zip = await JSZip.loadAsync(bytes);
   const presentationPath = "ppt/presentation.xml";
   const presentation = await parsePart(zip, presentationPath);
   const presentationRels = await parsePart(zip, relationshipPath(presentationPath));
@@ -525,7 +526,7 @@ export async function inspectPptx(path) {
   }
 
   return {
-    pptxSha256: sha256File(path),
+    pptxSha256: sha256Bytes(bytes),
     slideSize,
     slides,
   };
@@ -658,7 +659,10 @@ function fullBleedIssues(slide, entry, titleObject) {
   const images = slide.objects.filter((object) => object.type === "image" && object.imageCoverage >= 0.9);
   const declaration = entry?.full_bleed_background;
   if (!images.length) {
-    if (declaration !== null) issues.push(`slide ${slide.number} full_bleed_background 无对应 >=90% 图片`);
+    // 契约要求无 full-bleed 背景的 slide 显式声明 null；缺键与"声明了却没有对应图片"
+    // 是两种错误，混用同一条消息会把生成器引向错误的修复方向。
+    if (declaration === undefined) issues.push(`slide ${slide.number} manifest entry 缺 full_bleed_background 键（无 full-bleed 背景须显式为 null）`);
+    else if (declaration !== null) issues.push(`slide ${slide.number} full_bleed_background 无对应 >=90% 图片`);
     return issues;
   }
   if (images.length > 1) {

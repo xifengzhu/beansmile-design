@@ -6,6 +6,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 import PptxGenJS from "pptxgenjs";
 import { inspectPptx } from "./lib/presentation.mjs";
 import { renderPptx, resolvePresentationTools } from "./lib/presentation-render.mjs";
@@ -57,7 +58,9 @@ export async function probePresentation(options = {}) {
   }
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+// 必须用 pathToFileURL：import.meta.url 是百分号编码的，裸拼接在含空格/非 ASCII 的
+// 仓库路径下永不相等——能力探测会静默跳过并 exit 0（假成功）。
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const result = await probePresentation();
   if (result.available) {
     console.log("✓ presentation probe: generation, OOXML reread, and rendering available");

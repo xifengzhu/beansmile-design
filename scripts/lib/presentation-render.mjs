@@ -9,7 +9,6 @@ import {
   mkdtempSync,
   readFileSync,
   readdirSync,
-  realpathSync,
   renameSync,
   rmSync,
 } from "node:fs";
@@ -20,13 +19,11 @@ import {
   basename,
   delimiter,
   dirname,
-  isAbsolute,
   join,
-  relative,
   resolve,
-  sep,
 } from "node:path";
-import { sha256File } from "./hash.mjs";
+import { sha256Bytes, sha256File } from "./hash.mjs";
+import { safePackagePath } from "./paths.mjs";
 
 const execFileAsync = promisify(execFile);
 const REQUIRED_QA_CHECKS = Object.freeze(["overlap", "clipping", "title_wrap", "font_substitution"]);
@@ -44,6 +41,7 @@ function crc32(buffer) {
   return (crc ^ 0xffffffff) >>> 0;
 }
 
+// 校验通过时返回文件字节，供调用方直接哈希，避免每张 render 读盘两次。
 function assertValidPng(path) {
   const bytes = readFileSync(path);
   if (bytes.length < 33 || !bytes.subarray(0, 8).equals(PNG_SIGNATURE)) {
@@ -105,6 +103,7 @@ function assertValidPng(path) {
   for (let row = 0; row < height; row += 1) {
     if (pixels[row * (rowBytes + 1)] > 4) throw new Error(`PNG filter 非法: ${path}`);
   }
+  return bytes;
 }
 
 function executable(path) {
@@ -226,8 +225,7 @@ export async function renderPptx(pptxPath, outDir, tools) {
     const stagedRenders = pages.map((page, index) => {
       const path = join(next, `slide-${index + 1}.png`);
       copyFileSync(join(raw, page.name), path);
-      assertValidPng(path);
-      return { slideNumber: index + 1, sha256: sha256File(path) };
+      return { slideNumber: index + 1, sha256: sha256Bytes(assertValidPng(path)) };
     });
     atomicReplaceDirectory(next, outDir, tempRoot);
     const renders = stagedRenders.map((render) => ({
@@ -239,26 +237,6 @@ export async function renderPptx(pptxPath, outDir, tools) {
     rmSync(tempRoot, { recursive: true, force: true });
     throw error;
   }
-}
-
-function safePackagePath(root, path) {
-  if (typeof path !== "string" || !path || isAbsolute(path)) return null;
-  const packageRoot = resolve(root);
-  const resolved = resolve(packageRoot, path);
-  if (resolved !== packageRoot && !resolved.startsWith(`${packageRoot}${sep}`)) return null;
-  try {
-    const realRoot = realpathSync(packageRoot);
-    const realResolved = realpathSync(resolved);
-    if (realResolved !== realRoot && !realResolved.startsWith(`${realRoot}${sep}`)) return null;
-    let current = packageRoot;
-    for (const segment of relative(packageRoot, resolved).split(sep).filter(Boolean)) {
-      current = join(current, segment);
-      if (lstatSync(current).isSymbolicLink()) return null;
-    }
-  } catch {
-    return null;
-  }
-  return resolved;
 }
 
 function sameNumberSet(actual, expected) {
@@ -298,11 +276,8 @@ export function presentationQaIssues(root, inspected, qa, directorReview) {
       try {
         if (!lstatSync(fullPath).isFile()) {
           issues.push(`slide ${render?.slide_number ?? "unknown"} render path 必须是 package 内普通文件`);
-        } else {
-          assertValidPng(fullPath);
-          if (render?.sha256 !== sha256File(fullPath)) {
-            issues.push(`slide ${render.slide_number} render SHA/hash 漂移`);
-          }
+        } else if (render?.sha256 !== sha256Bytes(assertValidPng(fullPath))) {
+          issues.push(`slide ${render.slide_number} render SHA/hash 漂移`);
         }
       } catch (error) {
         issues.push(`slide ${render?.slide_number ?? "unknown"} render 无法读取或 PNG 非法: ${error.message}`);

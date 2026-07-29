@@ -10,6 +10,7 @@ import { hardenedGate, validateStageTransition } from "../lib/context.mjs";
 import { semanticIssuesVisual, DIMENSIONS } from "../lib/findings.mjs";
 import { sha256File } from "../lib/hash.mjs";
 import { resolveManifest } from "../lib/manifests.mjs";
+import { deliveryArtifactVersionIssues } from "../lib/delivery.mjs";
 import { runDirectorAdvance } from "../director-advance.mjs";
 import { makeReviewedDesignPackage } from "./design-delivery-fixture.mjs";
 
@@ -344,4 +345,65 @@ test("observed 模板化复制（两维文本完全相同）→ 拒绝", () => {
   doc.dimension_reviews[2].observed = doc.dimension_reviews[1].observed;
   assert.ok(semanticIssuesVisual(doc, pkg.dir).some((s) => s.includes("模板化复制")));
   rmSync(pkg.dir, { recursive: true, force: true });
+});
+
+// —— design-first 交付门硬化（快速模式死锁 / deliverable 越权补丁 / 乱序补丁裸崩）——
+
+test("快速模式可经 research→ux 完成 Design.md prepare/seal（封堵交付请求死锁）", () => {
+  // 请求 design_specification 的快速包必须能到达 ux：seal 硬性要求 stage=ux，
+  // 而进入 prototype 又被契约门拦截——没有本转换整个包会卡死在 research。
+  assert.equal(validateStageTransition("research", "ux", "quick", {}).ok, true);
+  assert.equal(validateStageTransition("ux", "prototype", "quick", {}).ok, true);
+  // brief 是 contract source 的必需输入，intake 仍不得跳过 research 直达 ux。
+  assert.equal(validateStageTransition("intake", "ux", "quick", {}).ok, false);
+});
+
+test("deliverable 补丁必须在本包 delivery_outputs 内：quick 未请求 → 拒绝，已请求 → 放行", () => {
+  const presentationPatch = {
+    artifacts: {
+      presentation: {
+        path: "presentation/design-system.pptx",
+        artifact_version: "1",
+        artifact_revision: 1,
+        design_contract_digest: "a".repeat(64),
+        contract_lock_sha256: "b".repeat(64),
+        design_document_sha256: "c".repeat(64),
+        sha256: "d".repeat(64),
+        updated_by: "design_presentation",
+      },
+    },
+  };
+  const base = {
+    project: {
+      name: "x", mode: "quick", task_type: "new_design", platforms: ["web"],
+      reference_system: "none", package_format_version: 3, delivery_outputs: [],
+    },
+    users: { primary: "访客" },
+    goals: {},
+    stage: "review",
+    artifacts: { prototype: { path: "prototype", artifact_version: "1", updated_by: "html_prototype" } },
+  };
+  const manifest = resolveManifest("design_presentation");
+  const rejected = hardenedGate(manifest, base, { patch: presentationPatch });
+  assert.equal(rejected.ok, false);
+  assert.ok(rejected.reasons.some((reason) => reason.includes("未在本包 delivery_outputs 请求")), rejected.reasons.join("\n"));
+
+  const requested = {
+    ...base,
+    project: { ...base.project, delivery_outputs: ["design_specification", "design_presentation"] },
+  };
+  const accepted = hardenedGate(manifest, requested, { patch: presentationPatch });
+  assert.ok(!accepted.reasons.some((reason) => reason.includes("未在本包 delivery_outputs 请求")), accepted.reasons.join("\n"));
+});
+
+test("presentation 补丁在 context 无 prototype 时得到结构化拒绝而非 TypeError", () => {
+  let issues;
+  assert.doesNotThrow(() => {
+    issues = deliveryArtifactVersionIssues(
+      null,
+      { path: "presentation/design-system.pptx", artifact_version: "1", artifact_revision: 1 },
+      { kind: "presentation", prototypeVersion: undefined },
+    );
+  });
+  assert.ok(issues.some((issue) => issue.includes("prototype")), issues.join("\n"));
 });

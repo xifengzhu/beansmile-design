@@ -7,6 +7,10 @@ export function sha256File(path) {
   return createHash("sha256").update(readFileSync(path)).digest("hex");
 }
 
+export function sha256Bytes(bytes) {
+  return createHash("sha256").update(bytes).digest("hex");
+}
+
 export function sha256Text(text) {
   return createHash("sha256").update(text, "utf8").digest("hex");
 }

@@ -18,6 +18,7 @@ import { templateClosureIssues } from "./lib/coverage-template.mjs";
 import { hashPaths, manifestDigest, verifyManifest, diffHashMaps } from "./lib/hash.mjs";
 import { collectCandidates, candidateIssues } from "./lib/candidates.mjs";
 import { sharedCssIssues } from "./lib/css-dup.mjs";
+import { fileProtocolIssues } from "./lib/file-protocol.mjs";
 import { collectPrototypePages } from "./lib/pages.mjs";
 import { iterationChainIssues } from "./lib/iterations.mjs";
 import { loadReviewerFindings, semanticIssuesDelta, deltaIssues } from "./lib/delta-review.mjs";
@@ -28,6 +29,7 @@ import {
   DELIVERY_OUTPUTS,
   deliveryAcceptance,
   deliveryRevisionHistory,
+  isDeliveryPackage,
   requiredDeliveryOutputs,
 } from "./lib/delivery.mjs";
 
@@ -61,9 +63,7 @@ const activeHashes = hashPaths(root, GUARDED);
   let ctxOk = false, ctxDetail = "缺少 context.yaml";
   if (ctx) { const v = validateContext(ctx); ctxOk = v.ok; ctxDetail = v.ok ? "context.yaml 通过 schema" : `context 校验失败: ${v.errors.join("; ")}`; }
   const { manifests } = loadManifests();
-  const requiredDeliveries = new Set(
-    (ctx?.project?.package_format_version ?? 0) >= 3 ? requiredDeliveryOutputs(ctx) : [],
-  );
+  const requiredDeliveries = new Set(isDeliveryPackage(ctx) ? requiredDeliveryOutputs(ctx) : []);
   const missingProduced = manifests
     .filter((manifest) => !DELIVERY_OUTPUTS.includes(manifest.skill) || requiredDeliveries.has(manifest.skill))
     .flatMap((manifest) => manifest.produces)
@@ -242,6 +242,22 @@ const isV2Package = frozen.ok && (frozen.manifest.snapshot_version ?? 1) >= 2;
   }
 }
 
+// —— 5b-3. file:// 交付兼容（静态，不受降级豁免）——
+// 浏览器门禁为 axe CSSOM 启用 --allow-file-access-from-files，原型自身若依赖
+// fetch/XHR/ES module 会在门禁通过、在客户真实浏览器被 CORS 拦截——静态挡下。
+// 与 flag 同批引入（v3 交付包起），历史包不追溯。
+{
+  if (isDeliveryPackage(ctx)) {
+    if (!existsSync(P("prototype"))) add("file协议兼容", "fail", "缺 prototype/");
+    else {
+      const issues = fileProtocolIssues(root);
+      add("file协议兼容", issues.length === 0 ? "pass" : "fail",
+        issues.length ? issues.slice(0, 4).join("; ")
+          : "原型无 fetch/XHR/动态 import/ES module 依赖，file:// 双击打开即完整可用");
+    }
+  } else add("file协议兼容", "pass", "v1.8 及以前流程包，file:// 兼容门不追溯");
+}
+
 // —— 5c. 流程确认（专业模式三道确认门，规范 9.1；快速模式的 mode 确认门，规范 27.8）——
 {
   if (mode === "quick") {
@@ -376,6 +392,7 @@ const isV2Package = frozen.ok && (frozen.manifest.snapshot_version ?? 1) >= 2;
 // —— 5j. 迭代评审链（规范 27.5）：首版全量双评审；每个中间版本须有全量对或通过语义
 // 校验的 delta 对（baseline 链接续、闭合性满足）；快照带 delta/ 时再生比对。
 // 拟交付版本的全量双评审由 blocks 4/7 + 规则快照四门把守，本门不重复。
+let deliveryRevisionInfo = null; // 5j 计算后传给 deliveryAcceptance，避免逐快照树重复哈希
 {
   if (!isV2Package) add("迭代评审链", "pass", "v1.7 流程包，无迭代评审链要求（新交付按规范 27.5 记录中间版本评审）");
   else {
@@ -384,9 +401,10 @@ const isV2Package = frozen.ok && (frozen.manifest.snapshot_version ?? 1) >= 2;
       ? readdirSync(snapRoot).filter((d) => /^\d+$/.test(d)).map(Number).sort((a, b) => a - b) : [];
     const problems = [];
     const cur = Number(currentVersion);
-    const revisionHistory = (ctx?.project?.package_format_version ?? 0) >= 3
+    const revisionHistory = isDeliveryPackage(ctx)
       ? deliveryRevisionHistory(root, ctx, { snapshotVersion: cur, reviewVersions: allVersions })
       : { issues: [], invalidatedVersions: [], reviewVersions: allVersions };
+    if (isDeliveryPackage(ctx)) deliveryRevisionInfo = revisionHistory;
     problems.push(...revisionHistory.issues.map((issue) => `契约修订记录: ${issue}`));
     const versions = revisionHistory.reviewVersions;
     const first = versions[0];
@@ -477,9 +495,10 @@ const isV2Package = frozen.ok && (frozen.manifest.snapshot_version ?? 1) >= 2;
 }
 
 // —— 10-12. Design-first 最终交付三维 ——
-for (const deliveryGate of deliveryAcceptance(root, ctx, {
+for (const deliveryGate of await deliveryAcceptance(root, ctx, {
   snapshotVersion: frozen.ok ? frozen.manifest.snapshot_version : null,
   environment: env,
+  ...(deliveryRevisionInfo ? { revisionHistory: deliveryRevisionInfo } : {}),
 })) {
   add(deliveryGate.dimension, deliveryGate.status, deliveryGate.detail);
 }

@@ -79,6 +79,7 @@ description: 根据已确认的用户流与视觉系统生成可点击高保真�
 - 多平台/多流程：`prototype/index.html` 作总入口索引 `prototype/<platform>/<flow>.html`。
 - **多页共享样式必须抽取**（规范 27.2）：≥2 页时把共享 CSS 抽到 `prototype/assets/styles.css` 并由每页 `<link>` 引入；同一份 ≥2KB 样式块内联进 ≥2 页会被验收「共享样式」维度判 fail。页面私有小段样式（<2KB）可保留内联。写完跑 `node scripts/lint-prototype.mjs --package <目录>` 自检（候选目录豁免——候选阶段单文件自包含合法）。
 - 核心流程不得依赖未说明的私有服务，须可按 README 本地打开。
+- **file:// 交付兼容（验收「file协议兼容」维度机器判定）**：客户以双击 file:// 打开原型，禁止 `fetch`/`XMLHttpRequest`/动态 `import()`/`<script type="module">`——这些在门禁浏览器里放行（axe 需要 file 访问 flag）但在客户真实浏览器里被 CORS 拦截。演示数据内联进脚本或写死在 HTML 里。
 
 ## 输出契约
 

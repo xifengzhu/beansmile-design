@@ -1,7 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
+import { tmpdir } from "node:os";
 import { spawnSync } from "node:child_process";
 import yaml from "js-yaml";
 import { buildDeliverySource, verifyDeliverySource } from "../lib/design-source.mjs";
@@ -197,7 +198,9 @@ test("delivery source rejects paths escaping the package", () => {
     escaped.files[0].path = "../outside.md";
     const { generated_at, source_bundle_digest, ...payload } = escaped;
     escaped.source_bundle_digest = canonicalDigest(payload);
-    assert.ok(verifyDeliverySource(pkg.root, escaped).some((issue) => /越界|包外|非法路径/.test(issue)));
+    // 逃逸路径在 schema 层即被拒绝（fail-closed 早退，见 verifyDeliverySource）；
+    // 若 schema 放宽，仍须由 safePackagePath 的越界检查兜底。
+    assert.ok(verifyDeliverySource(pkg.root, escaped).some((issue) => /越界|包外|非法路径|schema/.test(issue)));
   } finally {
     rmSync(pkg.root, { recursive: true, force: true });
   }
@@ -289,5 +292,40 @@ test("delivery preparation rejects blockers and unhandled warnings", () => {
     } finally {
       rmSync(pkg.root, { recursive: true, force: true });
     }
+  }
+});
+
+test("malformed delivery source files entries yield structured issues instead of a TypeError", () => {
+  const pkg = makeReviewedDesignPackage();
+  try {
+    const manifest = buildDeliverySource(pkg.root);
+    const malformed = structuredClone(manifest);
+    malformed.files = [null, "x"];
+    let issues;
+    // schema fail-closed 早退：验收必须得到带裁决的 issue 列表，而不是无报告的裸崩。
+    assert.doesNotThrow(() => { issues = verifyDeliverySource(pkg.root, malformed); });
+    assert.ok(issues.length > 0, "malformed files must be rejected");
+  } finally {
+    rmSync(pkg.root, { recursive: true, force: true });
+  }
+});
+
+test("delivery source files replaced by symlinks are rejected even when content hashes match", () => {
+  const pkg = makeReviewedDesignPackage();
+  const outside = mkdtempSync(join(tmpdir(), "delivery-symlink-outside-"));
+  try {
+    const manifest = buildDeliverySource(pkg.root);
+    // 把包内 decisions.md 挪到包外，再用 symlink 指回去：内容哈希完全一致，
+    // 纯词法路径校验会放行——safePackagePath 必须按 symlink 拒绝。
+    const inside = join(pkg.root, "decisions.md");
+    const moved = join(outside, "decisions.md");
+    writeFileSync(moved, readFileSync(inside));
+    rmSync(inside);
+    symlinkSync(moved, inside);
+    const issues = verifyDeliverySource(pkg.root, manifest, { allowFinalDesign: true });
+    assert.ok(issues.some((issue) => /非法路径|越界|包外/.test(issue)), issues.join("\n"));
+  } finally {
+    rmSync(pkg.root, { recursive: true, force: true });
+    rmSync(outside, { recursive: true, force: true });
   }
 });
